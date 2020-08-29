@@ -53,6 +53,8 @@ namespace SAND
         assemble_block_system ();
         void
         create_triangulation ();
+        void
+        make_initial_values();
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
         BlockVector<double> solution;
@@ -60,6 +62,10 @@ namespace SAND
         Triangulation<dim> triangulation;
         DoFHandler<dim> dof_handler;
         FESystem<dim> fe;
+
+        Vector<double> density, fe_rhs, lambda, cell_measure;
+        double density_ratio, volume_max;
+        unsigned int density_penalty;
 
     };
 
@@ -207,10 +213,39 @@ namespace SAND
     }
 
   template <int dim>
+        void
+        SANDTopOpt<dim>::make_initial_values ()
+        {
+          density_ratio=.5;
+          density_penalty = 3;
+          cell_measure.reinit(triangulation.n_active_cells());
+          density.reinit(triangulation.n_active_cells());
+          /*rhs of fe system initialized to size of number of dofs*/
+          fe_rhs.reinit(dof_handler.n_dofs());
+          /*lambda vector initialized to all 0s*/
+          lambda.reinit(dof_handler.n_dofs());
+          /*densities set to average density*/
+          for (const auto &cell : dof_handler.active_cell_iterators())
+            {
+              unsigned int i = cell->active_cell_index();
+              density[i]=density_ratio;
+              cell_measure[i]=cell->measure();
+            }
+          volume_max = cell_measure * density;
+        }
+
+
+
+  template <int dim>
       void
       SANDTopOpt<dim>::assemble_block_system ()
       {
-
+        /*assemble FE system parts*/
+        /*assemble laplacian by density*/
+        /*assemble laplacian by density,dof*/
+        /*assemble grad Au part*/
+        /*assemble cell_measure*/
+        /*assemble */
       }
 
 
