@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 3 884 ">
+<style type="text/css" >
+     <![CDATA[
+      rect.pixel {
+          fill:   #ff0000;
+      }
+    ]]>
+  </style>
+
+   <rect width="3" height="884" fill="rgb(128, 128, 128)"/>
+   <rect x="1" y="1" width="1.1" height="882.1" fill="rgb(255, 255, 255)"/>
+
+</svg>
