@@ -9,6 +9,8 @@
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/packaged_operation.h>
+#include <deal.II/lac/sparse_direct.h>
+#include <deal.II/lac/solver_gmres.h>
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
@@ -59,6 +61,8 @@ namespace SAND
         set_bcids ();
         void
         solve();
+        void
+        add_barriers(double barrier_size);
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
         BlockVector<double> solution;
@@ -70,7 +74,7 @@ namespace SAND
 
         Vector<double> density, fe_rhs, lambda_1, cell_measure,
             displacement_sol;
-        double density_ratio, volume_max;
+        double density_ratio, volume_max, lambda_2;
         unsigned int density_penalty;
 
         std::map<types::global_dof_index, double> boundary_values;
@@ -119,7 +123,7 @@ namespace SAND
     {
       density_ratio = .5;
       density_penalty = 3;
-
+      lambda_2 = 0;
       dof_handler.distribute_dofs (fe);
       cell_measure.reinit (triangulation.n_active_cells ());
       density.reinit (triangulation.n_active_cells ());
@@ -276,7 +280,7 @@ namespace SAND
       DoFTools::make_sparsity_pattern (dof_handler, dsp.block (1, 2));
 
       /*Create sparsity pattern for volume constraint part of matrix*/
-      /*basically full*/
+      /*it's full... is this bad?*/
 
       for (const auto &cell : dof_handler.active_cell_iterators ())
         {
@@ -549,21 +553,54 @@ namespace SAND
       /*assemble RHS*/
     }
 
+
+  /*adds log barriers for density constraints*/
+  template <int dim>
+       void
+       SANDTopOpt<dim>::add_barriers (double barrier_size)
+       {
+          for (const auto &cell : dof_handler.active_cell_iterators ())
+            {
+              unsigned int i = cell->active_cell_index();
+              system_matrix.block(0,0).add(i,i,barrier_size/(density[i]*density[i]));
+              system_matrix.block(0,0).add(i,i,barrier_size/((1-density[i])*(1-density[i])));
+              system_rhs.block(0)[i] = system_rhs.block(0)[i] - (barrier_size/density[i]) + (barrier_size/(1-density[i]));
+            }
+       }
+
   template <int dim>
      void
      SANDTopOpt<dim>::solve ()
      {
+            /*
+            SparseDirectUMFPACK A_direct;
+            A_direct.initialize(system_matrix);
+            A_direct.vmult(solution, system_rhs);
 
+            hanging_node_constraints.distribute(solution);
+            */
+            /*
+            const unsigned int max_iters       = 200;
+            const double       solve_tolerance = 1e-8 * system_rhs.l2_norm();
+            SolverControl      solver_control(max_iters, solve_tolerance, true, true);
+            solver_control.enable_history_data();
+            SolverGMRES<Vector<double>> solver(
+            solver_control, SolverGMRES<Vector<double>>::AdditionalData(50, true));
+            solver.solve(system_matrix, solution, system_rhs, preconditioner);
+             */
      }
 
   template <int dim>
     void
     SANDTopOpt<dim>::run ()
     {
+      double barrier_size = 1;
+
       create_triangulation ();
       make_initial_values ();
       setup_block_system ();
       assemble_block_system ();
+      add_barriers (barrier_size);
       solve();
       //
     }

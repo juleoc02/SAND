@@ -27,6 +27,10 @@ deal.II/lac/linear_operator.h
 -
 deal.II/lac/packaged_operation.h
 -
+deal.II/lac/sparse_direct.h
+-
+deal.II/lac/solver_gmres.h
+-
 deal.II/grid/tria.h
 -
 deal.II/grid/grid_generator.h
