@@ -50,6 +50,8 @@ namespace SAND
         void
         setup_block_system ();
         void
+        assemble_block_system ();
+        void
         create_triangulation ();
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
@@ -115,7 +117,8 @@ namespace SAND
     {
       dof_handler.distribute_dofs (fe);
       const unsigned int n_u = dof_handler.n_dofs(), n_p = triangulation.n_active_cells();
-
+      const unsigned int dofs_per_cell = fe.dofs_per_cell;
+      std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
 
       /*Setup 4-by-4 block matrix. top 2-by-2 is the hessian of the lagrangian system (with log barriers for component-wise inequality constraints)*/
@@ -145,24 +148,43 @@ namespace SAND
         }
 
       /*hessian of first density then displacement is a bit more complicated...*/
+      /*iterate through cells*/
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
 
+          /* find dofs corresponding to current cell*/
+          unsigned int i = cell->active_cell_index();
+          cell->get_dof_indices(local_dof_indices);
+          /*add those indices to blocks of sparsity pattern*/
+          for (unsigned int j=0; j<dofs_per_cell; j++)
+            {
+              dsp.block(1,0).add(local_dof_indices[j],i);
+              dsp.block(0,1).add(i,local_dof_indices[j]);
+            }
+        }
 
       /*Create sparsity pattern for elasticity constraint - DoFTools does this for me */
       DoFTools::make_sparsity_pattern (dof_handler, dsp.block (2,1));
       DoFTools::make_sparsity_pattern (dof_handler, dsp.block (1,2));
 
-      /* */
+      /*Create sparsity pattern for volume constraint part of matrix*/
+      /*basically full*/
 
+      for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+          unsigned int i = cell->active_cell_index();
+          dsp.block(3,0).add(0,i);
+          dsp.block(0,3).add(i,0);
+        }
 
+      sparsity_pattern.copy_from(dsp);
 
       for (unsigned int i=0; i<4; i++)
         {
           for(unsigned int j=0; j<4; j++)
             {
-              SparsityPattern sparsity;
-              sparsity.copy_from(dsp.block(i,j));
               std::ofstream out("sparsity_pattern_" + std::to_string(i) + "_" + std::to_string(j) + ".svg");
-              sparsity.print_svg(out);
+              sparsity_pattern.block(i,j).print_svg(out);
             }
         }
 
@@ -176,8 +198,6 @@ namespace SAND
       solution.block (3).reinit (1);
       solution.collect_sizes ();
 
-
-
       system_rhs.reinit (4);
       system_rhs.block (0).reinit (n_p);
       system_rhs.block (1).reinit (n_u);
@@ -185,6 +205,14 @@ namespace SAND
       system_rhs.block (3).reinit (1);
       system_rhs.collect_sizes ();
     }
+
+  template <int dim>
+      void
+      SANDTopOpt<dim>::assemble_block_system ()
+      {
+
+      }
+
 
 } // namespace SAND
 
