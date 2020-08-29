@@ -55,17 +55,25 @@ namespace SAND
         create_triangulation ();
         void
         make_initial_values ();
+        void
+        set_bcids ();
+        void
+        solve();
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
         BlockVector<double> solution;
         BlockVector<double> system_rhs;
         Triangulation<dim> triangulation;
         DoFHandler<dim> dof_handler;
+        AffineConstraints<double> hanging_node_constraints;
         FESystem<dim> fe;
 
-        Vector<double> density, fe_rhs, lambda, cell_measure, displacement;
+        Vector<double> density, fe_rhs, lambda_1, cell_measure,
+            displacement_sol;
         double density_ratio, volume_max;
         unsigned int density_penalty;
+
+        std::map<types::global_dof_index, double> boundary_values;
 
     };
 
@@ -76,19 +84,6 @@ namespace SAND
         fe (FE_Q<dim> (1), dim)
     {
 
-    }
-
-  template <int dim>
-    void
-    SANDTopOpt<dim>::run ()
-    {
-      create_triangulation ();
-      setup_block_system ();
-      //assemble bilinear form matrix - put in block
-      //assemble hessian of lagrangian
-      //calculate gradient for block RHS
-      //calculate hessian
-      //
     }
 
   template <int dim>
@@ -120,11 +115,117 @@ namespace SAND
 
   template <int dim>
     void
+    SANDTopOpt<dim>::make_initial_values ()
+    {
+      density_ratio = .5;
+      density_penalty = 3;
+
+      dof_handler.distribute_dofs (fe);
+      cell_measure.reinit (triangulation.n_active_cells ());
+      density.reinit (triangulation.n_active_cells ());
+      /*displacement vector initialized as 0s*/
+      displacement_sol.reinit (dof_handler.n_dofs ());
+      /*rhs of fe system initialized to size of number of dofs*/
+      fe_rhs.reinit (dof_handler.n_dofs ());
+      /*lambda vector initialized to all 0s*/
+      lambda_1.reinit (dof_handler.n_dofs ());
+      /*densities set to average density*/
+      for (const auto &cell : dof_handler.active_cell_iterators ())
+        {
+          unsigned int i = cell->active_cell_index ();
+          density[i] = density_ratio;
+          cell_measure[i] = cell->measure ();
+        }
+      volume_max = cell_measure * density;
+    }
+
+  template <int dim>
+    void
+    SANDTopOpt<dim>::set_bcids ()
+    {
+      for (const auto &cell : dof_handler.active_cell_iterators ())
+        {
+          for (unsigned int face_number = 0;
+              face_number < GeometryInfo<dim>::faces_per_cell; ++face_number)
+            {
+              if (cell->face (face_number)->at_boundary ())
+                {
+                  const auto center = cell->face (face_number)->center ();
+                  if (std::fabs (center (1) - 0) < 1e-12)
+                    {
+                      /*Boundary ID of 2 is the 0 neumann, so no external force*/
+                      cell->face (face_number)->set_boundary_id (2);
+
+                      for (unsigned int vertex_number = 0;
+                          vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                          ++vertex_number)
+                        {
+                          const auto center = cell->vertex (vertex_number);
+                          /*Find bottom left corner*/
+                          if (std::fabs (center (0) - 0) < 1e-12 && std::fabs (
+                                                                        center (
+                                                                            1)
+                                                                        - 0)
+                                                                    < 1e-12)
+                            {
+
+                              const unsigned int x_displacement =
+                                  cell->vertex_dof_index (vertex_number, 0);
+                              const unsigned int y_displacement =
+                                  cell->vertex_dof_index (vertex_number, 1);
+                              /*set bottom left BC*/
+                              boundary_values[x_displacement] = 0;
+                              boundary_values[y_displacement] = 0;
+                            }
+                          /*Find bottom right corner*/
+                          if (std::fabs (center (0) - 6) < 1e-12 && std::fabs (
+                                                                        center (
+                                                                            1)
+                                                                        - 0)
+                                                                    < 1e-12)
+                            {
+                              types::global_dof_index y_displacement =
+                                  cell->vertex_dof_index (vertex_number, 1);
+                              /*set bottom right BC*/
+                              boundary_values[y_displacement] = 0;
+                            }
+                        }
+                    }
+
+                  if (std::fabs (center (1) - 1) < 1e-12)
+                    {
+                      /*Find top middle*/
+                      if ((std::fabs (center (0) - 3) < .1 + 1e-12))
+                        {
+                          /*downward force is boundary id of 1*/
+                          cell->face (face_number)->set_boundary_id (1);
+                        }
+                      else
+                        {
+                          cell->face (face_number)->set_boundary_id (2);
+                        }
+                    }
+
+                  if (std::fabs (center (0) - 0) < 1e-12)
+                    {
+                      cell->face (face_number)->set_boundary_id (2);
+                    }
+                  if (std::fabs (center (0) - 6) < 1e-12)
+                    {
+                      cell->face (face_number)->set_boundary_id (2);
+                    }
+                }
+            }
+        }
+    }
+
+  template <int dim>
+    void
     SANDTopOpt<dim>::setup_block_system ()
     {
-      dof_handler.distribute_dofs (fe);
       const unsigned int n_u = dof_handler.n_dofs (), n_p =
           triangulation.n_active_cells ();
+
       const unsigned int dofs_per_cell = fe.dofs_per_cell;
       std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 
@@ -216,30 +317,6 @@ namespace SAND
 
   template <int dim>
     void
-    SANDTopOpt<dim>::make_initial_values ()
-    {
-      density_ratio = .5;
-      density_penalty = 3;
-      cell_measure.reinit (triangulation.n_active_cells ());
-      density.reinit (triangulation.n_active_cells ());
-      /*displacement vector initialized as 0s*/
-      displacement.reinit (dof_handler.n_dofs ());
-      /*rhs of fe system initialized to size of number of dofs*/
-      fe_rhs.reinit (dof_handler.n_dofs ());
-      /*lambda vector initialized to all 0s*/
-      lambda.reinit (dof_handler.n_dofs ());
-      /*densities set to average density*/
-      for (const auto &cell : dof_handler.active_cell_iterators ())
-        {
-          unsigned int i = cell->active_cell_index ();
-          density[i] = density_ratio;
-          cell_measure[i] = cell->measure ();
-        }
-      volume_max = cell_measure * density;
-    }
-
-  template <int dim>
-    void
     SANDTopOpt<dim>::assemble_block_system ()
     {
       QGauss<dim> quadrature_formula (fe.degree + 1);
@@ -265,7 +342,8 @@ namespace SAND
 
       Functions::ConstantFunction<dim> lambda (1.), mu (1.);
       std::vector<Tensor<1, dim>> rhs_values (n_q_points);
-      double penalized_density, grad_value;
+      double penalized_density, grad_value, laplace_density,
+          laplace_density_displacement;
       const FEValuesExtractors::Vector displacements (0);
       const FEValuesExtractors::Scalar just_x (0);
       const FEValuesExtractors::Scalar just_y (1);
@@ -281,7 +359,6 @@ namespace SAND
 
           lambda.value_list (fe_values.get_quadrature_points (), lambda_values);
           mu.value_list (fe_values.get_quadrature_points (), mu_values);
-
 
           for (unsigned int q_point = 0; q_point < n_q_points; ++q_point)
             for (unsigned int i = 0; i < dofs_per_cell; ++i)
@@ -343,49 +420,152 @@ namespace SAND
                 }
             }
           penalized_density = pow (density[cell->active_cell_index ()],
-                        density_penalty);
+              density_penalty);
           cell->get_dof_indices (local_dof_indices);
+
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            {
+              for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                {
+                  /*assemble FE system parts for block (2,1) and (1,2)*/
+                  system_matrix.block (2, 1).add (local_dof_indices[i],
+                      local_dof_indices[j],
+                      penalized_density * cell_matrix (i, j));
+                  system_matrix.block (1, 2).add (local_dof_indices[i],
+                      local_dof_indices[j],
+                      penalized_density * cell_matrix (i, j));
+
+                  /*assemble FE RHS*/
+                  system_rhs.block (1) (local_dof_indices[i]) += cell_rhs (i);
+
+                }
+            }
+
+          /*assemble grad Au for blocks (2,0) and (0,2)*/
+
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               grad_value = 0;
 
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
                 {
-                  /*assemble FE system parts for block (2,1) and (1,2)*/
-                  system_matrix.block (2, 1).add (local_dof_indices[i],
-                      local_dof_indices[j], penalized_density * cell_matrix (i, j));
-                  system_matrix.block (1, 2).add (local_dof_indices[i],
-                      local_dof_indices[j], penalized_density * cell_matrix (i, j));
 
-                  /*assemble FE RHS*/
-                  system_rhs.block (1) (local_dof_indices[i]) += cell_rhs (i);
-
-                  /*perform multiplication for grad Au part or blocks (2,0) and (0,2)*/
-                  grad_value = grad_value + cell_matrix (i, j) * solution[local_dof_indices[j]];
-
+                  grad_value = grad_value
+                      + cell_matrix (i, j) * solution[local_dof_indices[j]];
 
                 }
-              /*assemble grad Au for blocks (2,0) and (0,2)*/
-              grad_value = grad_value * density_penalty * pow(density[cell->active_cell_index()],density_penalty - 1);
+              grad_value = grad_value
+                  * density_penalty
+                  * pow (density[cell->active_cell_index ()],
+                      density_penalty - 1);
               system_matrix.block (2, 0).add (local_dof_indices[i],
-                  cell->active_cell_index(), grad_value);
+                  cell->active_cell_index (), grad_value);
 
             }
+
+          /*assemble hessian pf laplace wrt density, for blocks (0,0)*/
+
+          laplace_density = 0;
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            {
+              for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                {
+                  laplace_density = laplace_density
+                      + lambda_1[local_dof_indices[i]] * cell_matrix (i, j)
+                        * solution[local_dof_indices[j]];
+
+                }
+            }
+          laplace_density = laplace_density
+              * density_penalty * (density_penalty - 1)
+              * pow (density[cell->active_cell_index ()], density_penalty - 2);
+          system_matrix.block (0, 0).add (cell->active_cell_index (),
+              cell->active_cell_index (), laplace_density);
+
+          /*assemble hessian pf laplace wrt both density, displacement for blocks (1,0) and (0,1)*/
+
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            {
+              laplace_density_displacement = 0;
+              for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                {
+                  laplace_density_displacement = laplace_density_displacement
+                      + cell_matrix (i, j) * lambda_1[local_dof_indices[j]];
+
+                }
+
+              laplace_density_displacement = laplace_density_displacement
+                  * density_penalty
+                  * pow (density[cell->active_cell_index ()],
+                      density_penalty - 1);
+
+              system_matrix.block (1, 0).add (local_dof_indices[i],
+                  cell->active_cell_index (), laplace_density_displacement);
+              system_matrix.block (0, 1).add (cell->active_cell_index (),
+                  local_dof_indices[i], laplace_density_displacement);
+
+            }
+
+          /*assemble volume constraint part for cell_measure*/
+
+          system_matrix.block (3, 0).add (0, cell->active_cell_index (),
+              cell_measure[cell->active_cell_index ()]);
+          system_matrix.block (0, 3).add (cell->active_cell_index (), 0,
+              cell_measure[cell->active_cell_index ()]);
+
+          /*assemble block 3 of rhs, max_volume - total_volume*/
+
+          Vector<double> delta_f;
+          delta_f.reinit (dof_handler.n_dofs ());
+
+          system_rhs.block (3)[0] = volume_max - cell_measure * density;
+
+          system_matrix.block (2, 1).vmult (delta_f, displacement_sol);
+          for (unsigned int i = 0; i < dof_handler.n_dofs (); i++)
+            {
+              system_rhs.block (2)[i] = system_rhs.block (1)[i] - delta_f[i];
+            }
+
         }
 
-      /*
-       hanging_node_constraints.condense (system_matrix);
-       hanging_node_constraints.condense (system_rhs);
+      /*Currently have no hanging nodes, so not a big deal, but eventually need to make sure this actually works...*/
+      hanging_node_constraints.clear ();
+      DoFTools::make_hanging_node_constraints (dof_handler,
+          hanging_node_constraints);
+      hanging_node_constraints.close ();
+      hanging_node_constraints.condense (system_matrix.block (2, 1));
+      hanging_node_constraints.condense (system_matrix.block (1, 2));
+      hanging_node_constraints.condense (system_rhs.block (2));
+      hanging_node_constraints.condense (system_rhs.block (1));
 
-       MatrixTools::apply_boundary_values (boundary_values, system_matrix,
-       solution, system_rhs);
-       */
+      /*This feels weird...*/
+      MatrixTools::apply_boundary_values (boundary_values,
+          system_matrix.block (1, 2), solution.block (1), system_rhs.block (1));
+      MatrixTools::apply_boundary_values (boundary_values,
+          system_matrix.block (2, 1), solution.block (2), system_rhs.block (2));
 
-      /*assemble laplacian by density*/
       /*assemble laplacian by density,dof*/
-      /*assemble grad Au part*/
-      /*assemble cell_measure*/
+
       /*assemble RHS*/
+    }
+
+  template <int dim>
+     void
+     SANDTopOpt<dim>::solve ()
+     {
+
+     }
+
+  template <int dim>
+    void
+    SANDTopOpt<dim>::run ()
+    {
+      create_triangulation ();
+      make_initial_values ();
+      setup_block_system ();
+      assemble_block_system ();
+      solve();
+      //
     }
 
 } // namespace SAND
