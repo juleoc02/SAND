@@ -60,13 +60,15 @@ namespace SAND
         void
         set_bcids ();
         void
-        solve();
+        solve ();
         void
-        add_barriers(double barrier_size);
+        add_barriers (double barrier_size);
         void
-        update_step();
+        update_step ();
         void
-        output();
+        output (int j);
+        void
+        re_setup_block_system ();
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
         BlockVector<double> solution;
@@ -89,7 +91,7 @@ namespace SAND
     SANDTopOpt<dim>::SANDTopOpt ()
         :
         dof_handler (triangulation),
-        fe (FE_Q<dim> (1), dim)
+        fe (FE_Q < dim > (1), dim)
     {
 
     }
@@ -99,7 +101,7 @@ namespace SAND
     SANDTopOpt<dim>::create_triangulation ()
     {
       /*Make a square*/
-      Triangulation<dim> triangulation_temp;
+      Triangulation < dim > triangulation_temp;
       Point<dim> point_1, point_2;
       point_1 (0) = 0;
       point_1 (1) = 0;
@@ -154,7 +156,8 @@ namespace SAND
       for (const auto &cell : dof_handler.active_cell_iterators ())
         {
           for (unsigned int face_number = 0;
-              face_number < GeometryInfo<dim>::faces_per_cell; ++face_number)
+              face_number < GeometryInfo < dim > ::faces_per_cell;
+              ++face_number)
             {
               if (cell->face (face_number)->at_boundary ())
                 {
@@ -165,7 +168,7 @@ namespace SAND
                       cell->face (face_number)->set_boundary_id (2);
 
                       for (unsigned int vertex_number = 0;
-                          vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                          vertex_number < GeometryInfo < dim > ::vertices_per_cell;
                           ++vertex_number)
                         {
                           const auto center = cell->vertex (vertex_number);
@@ -235,7 +238,7 @@ namespace SAND
           triangulation.n_active_cells ();
 
       const unsigned int dofs_per_cell = fe.dofs_per_cell;
-      std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
+      std::vector < types::global_dof_index > local_dof_indices (dofs_per_cell);
 
       /*Setup 4-by-4 block matrix. top 2-by-2 is the hessian of the lagrangian system (with log barriers for component-wise inequality constraints)*/
 
@@ -292,6 +295,18 @@ namespace SAND
           dsp.block (3, 0).add (0, i);
           dsp.block (0, 3).add (i, 0);
         }
+      for (const auto &cell : dof_handler.active_cell_iterators ())
+        {
+          cell->get_dof_indices (local_dof_indices);
+          for (unsigned int i = 0; i < dofs_per_cell; i++)
+            {
+              dsp.block (2, 0).add (local_dof_indices[i],
+                  cell->active_cell_index ());
+              dsp.block (0, 2).add (cell->active_cell_index (),
+                  local_dof_indices[i]);
+            }
+
+        }
 
       sparsity_pattern.copy_from (dsp);
 
@@ -324,15 +339,38 @@ namespace SAND
     }
 
   template <int dim>
+      void
+      SANDTopOpt<dim>::re_setup_block_system ()
+      {
+    const unsigned int n_u = dof_handler.n_dofs (), n_p =
+          triangulation.n_active_cells ();
+          system_matrix.reinit (sparsity_pattern);
+
+          solution.reinit (4);
+          solution.block (0).reinit (n_p);
+          solution.block (1).reinit (n_u);
+          solution.block (2).reinit (n_u);
+          solution.block (3).reinit (1);
+          solution.collect_sizes ();
+
+          system_rhs.reinit (4);
+          system_rhs.block (0).reinit (n_p);
+          system_rhs.block (1).reinit (n_u);
+          system_rhs.block (2).reinit (n_u);
+          system_rhs.block (3).reinit (1);
+          system_rhs.collect_sizes ();
+      }
+
+  template <int dim>
     void
     SANDTopOpt<dim>::assemble_block_system ()
     {
-      QGauss<dim> quadrature_formula (fe.degree + 1);
-      QGauss<dim - 1> face_quadrature_formula (fe.degree + 1);
-      FEValues<dim> fe_values (fe, quadrature_formula,
+      QGauss < dim > quadrature_formula (fe.degree + 1);
+      QGauss < dim - 1 > face_quadrature_formula (fe.degree + 1);
+      FEValues < dim > fe_values (fe, quadrature_formula,
           update_values | update_gradients | update_quadrature_points
           | update_JxW_values);
-      FEFaceValues<dim> fe_face_values (fe, face_quadrature_formula,
+      FEFaceValues < dim > fe_face_values (fe, face_quadrature_formula,
           update_values | update_quadrature_points | update_normal_vectors
           | update_JxW_values);
 
@@ -343,7 +381,7 @@ namespace SAND
       FullMatrix<double> cell_matrix (dofs_per_cell, dofs_per_cell);
       Vector<double> cell_rhs (dofs_per_cell);
 
-      std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
+      std::vector < types::global_dof_index > local_dof_indices (dofs_per_cell);
 
       std::vector<double> lambda_values (n_q_points);
       std::vector<double> mu_values (n_q_points);
@@ -358,6 +396,8 @@ namespace SAND
       ComponentMask just_x_mask = fe.component_mask (just_x);
       ComponentMask just_y_mask = fe.component_mask (just_y);
 
+
+      std::cout << 1<< std::endl;
       for (const auto &cell : dof_handler.active_cell_iterators ())
         {
           cell_matrix = 0;
@@ -367,7 +407,6 @@ namespace SAND
 
           lambda.value_list (fe_values.get_quadrature_points (), lambda_values);
           mu.value_list (fe_values.get_quadrature_points (), mu_values);
-
           for (unsigned int q_point = 0; q_point < n_q_points; ++q_point)
             for (unsigned int i = 0; i < dofs_per_cell; ++i)
               {
@@ -391,7 +430,6 @@ namespace SAND
                         * fe_values.JxW (q_point);
                   }
               }
-
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               const unsigned int component_i =
@@ -402,11 +440,14 @@ namespace SAND
                     * rhs_values[q_point][component_i]
                     * fe_values.JxW (q_point);
             }
-          Tensor<1, dim> traction;
+
+          Tensor < 1, dim > traction;
           traction.clear ();
           traction[1] = -1;
+
           for (unsigned int face_number = 0;
-              face_number < GeometryInfo<dim>::faces_per_cell; ++face_number)
+              face_number < GeometryInfo < dim > ::faces_per_cell;
+              ++face_number)
             {
               if (cell->face (face_number)->at_boundary () && cell->face (
                                                                   face_number)->boundary_id ()
@@ -427,6 +468,7 @@ namespace SAND
                     }
                 }
             }
+
           penalized_density = pow (density[cell->active_cell_index ()],
               density_penalty);
           cell->get_dof_indices (local_dof_indices);
@@ -444,13 +486,12 @@ namespace SAND
                       penalized_density * cell_matrix (i, j));
 
                   /*assemble FE RHS*/
-                  system_rhs.block (1) [local_dof_indices[i]] += cell_rhs (i);
+                  system_rhs.block (1)[local_dof_indices[i]] -= cell_rhs (i);
 
                 }
             }
 
           /*assemble grad Au for blocks (2,0) and (0,2)*/
-
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               grad_value = 0;
@@ -468,11 +509,11 @@ namespace SAND
                       density_penalty - 1);
               system_matrix.block (2, 0).add (local_dof_indices[i],
                   cell->active_cell_index (), grad_value);
-
+              system_matrix.block (0, 2).add (cell->active_cell_index (),
+                  local_dof_indices[i], grad_value);
             }
 
           /*assemble hessian pf laplace wrt density, for blocks (0,0)*/
-
           laplace_density = 0;
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
@@ -515,7 +556,6 @@ namespace SAND
             }
 
           /*assemble volume constraint part for cell_measure*/
-
           system_matrix.block (3, 0).add (0, cell->active_cell_index (),
               cell_measure[cell->active_cell_index ()]);
           system_matrix.block (0, 3).add (cell->active_cell_index (), 0,
@@ -528,8 +568,9 @@ namespace SAND
 
           system_rhs.block (3)[0] = volume_max - cell_measure * density;
 
+          /*f-Au*/
 
-          /*Au-f*/
+          /*Should be prefious A, not current one...*/
           system_matrix.block (2, 1).vmult (delta_f, displacement_sol);
           for (unsigned int i = 0; i < dof_handler.n_dofs (); i++)
             {
@@ -559,75 +600,71 @@ namespace SAND
       /*assemble RHS*/
     }
 
-
   /*adds log barriers for density constraints*/
   template <int dim>
-       void
-       SANDTopOpt<dim>::add_barriers (double barrier_size)
-       {
-          for (const auto &cell : dof_handler.active_cell_iterators ())
-            {
-              unsigned int i = cell->active_cell_index();
-              system_matrix.block(0,0).add(i,i,barrier_size/(density[i]*density[i]));
-              system_matrix.block(0,0).add(i,i,barrier_size/((1-density[i])*(1-density[i])));
-              system_rhs.block(0)[i] = system_rhs.block(0)[i] - (barrier_size/density[i]) + (barrier_size/(1-density[i]));
-            }
-       }
+    void
+    SANDTopOpt<dim>::add_barriers (double barrier_size)
+    {
+      for (const auto &cell : dof_handler.active_cell_iterators ())
+        {
+          unsigned int i = cell->active_cell_index ();
+          system_matrix.block (0, 0).add (i, i,
+              barrier_size / (density[i] * density[i]));
+          system_matrix.block (0, 0).add (i, i,
+              barrier_size / ((1 - density[i]) * (1 - density[i])));
+          system_rhs.block (0)[i] = system_rhs.block (0)[i]
+              + (barrier_size / density[i])
+                                    - (barrier_size / (1 - density[i]));
+        }
+    }
 
   template <int dim>
-     void
-     SANDTopOpt<dim>::solve ()
-     {
+    void
+    SANDTopOpt<dim>::solve ()
+    {
 
-            SparseDirectUMFPACK A_direct;
-            A_direct.initialize(system_matrix);
-            A_direct.vmult(solution, system_rhs);
+      SparseDirectUMFPACK A_direct;
+      A_direct.initialize (system_matrix);
+      A_direct.vmult (solution, system_rhs);
 
-            /*
-            const unsigned int max_iters       = 200;
-            const double       solve_tolerance = 1e-8 * system_rhs.l2_norm();
-            SolverControl      solver_control(max_iters, solve_tolerance, true, true);
-            solver_control.enable_history_data();
-            SolverGMRES<Vector<double>> solver(
-            solver_control, SolverGMRES<Vector<double>>::AdditionalData(50, true));
-            solver.solve(system_matrix, solution, system_rhs, preconditioner);
-             */
-     }
-
-  template <int dim>
-       void
-       SANDTopOpt<dim>::update_step ()
-       {
-          displacement_sol = displacement_sol + solution.block(1);
-          density = density + solution.block(0);
-          lambda_1 = lambda_1 + solution.block(2);
-          lambda_2 = lambda_2 + solution.block(3)[0];
-
-
-       }
+      /*
+       const unsigned int max_iters       = 200;
+       const double       solve_tolerance = 1e-8 * system_rhs.l2_norm();
+       SolverControl      solver_control(max_iters, solve_tolerance, true, true);
+       solver_control.enable_history_data();
+       SolverGMRES<Vector<double>> solver(
+       solver_control, SolverGMRES<Vector<double>>::AdditionalData(50, true));
+       solver.solve(system_matrix, solution, system_rhs, preconditioner);
+       */
+    }
 
   template <int dim>
-         void
-         SANDTopOpt<dim>::output ()
-         {
-            std::vector<std::string> solution_names(dim, "displacements");
-            std::vector<DataComponentInterpretation::DataComponentInterpretation>
-              data_component_interpretation(
-                dim, DataComponentInterpretation::component_is_part_of_vector);
-            DataOut<dim> data_out;
-            data_out.attach_dof_handler(dof_handler);
-            data_out.add_data_vector(displacement_sol,
-                                     solution_names,
-                                     DataOut<dim>::type_dof_data,
-                                     data_component_interpretation);
-            data_out.add_data_vector(density,
-                                     "density");
+    void
+    SANDTopOpt<dim>::update_step ()
+    {
+      displacement_sol = displacement_sol + solution.block (1);
+      density = density + solution.block (0);
+      lambda_1 = lambda_1 + solution.block (2);
+      lambda_2 = lambda_2 + solution.block (3)[0];
+    }
 
-            data_out.build_patches();
-            std::ofstream output(
-              "solution.vtk");
-            data_out.write_vtk(output);
-         }
+  template <int dim>
+    void
+    SANDTopOpt<dim>::output (int j)
+    {
+      std::vector < std::string > solution_names (dim, "displacements");
+      std::vector < DataComponentInterpretation::DataComponentInterpretation > data_component_interpretation (
+          dim, DataComponentInterpretation::component_is_part_of_vector);
+      DataOut < dim > data_out;
+      data_out.attach_dof_handler (dof_handler);
+      data_out.add_data_vector (displacement_sol, solution_names,
+          DataOut < dim > ::type_dof_data, data_component_interpretation);
+      data_out.add_data_vector (density, "density");
+
+      data_out.build_patches ();
+      std::ofstream output ("solution" + std::to_string (j) + ".vtk");
+      data_out.write_vtk (output);
+    }
 
   template <int dim>
     void
@@ -638,17 +675,21 @@ namespace SAND
       create_triangulation ();
       make_initial_values ();
       setup_block_system ();
-      set_bcids();
+      set_bcids ();
 
+      int num_iterations = 1000;
 
-      assemble_block_system ();
-      add_barriers (barrier_size);
-      solve();
-      update_step();
-      barrier_size = barrier_size/2;
-
-      std::cout << system_rhs.block(0) << std::endl;
-      output();
+      for (int j = 0; j < num_iterations; j++)
+        {
+          assemble_block_system ();
+          add_barriers (barrier_size);
+          barrier_size = barrier_size *1;
+          solve ();
+          update_step ();
+          output (j);
+          std::cout << j << std::endl;
+          re_setup_block_system ();
+        }
 
       //
     }
@@ -666,23 +707,19 @@ main ()
   catch (std::exception &exc)
     {
       std::cerr << std::endl << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
+      << "----------------------------------------------------" << std::endl;
       std::cerr << "Exception on processing: " << std::endl << exc.what ()
-                << std::endl << "Aborting!" << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
+      << std::endl << "Aborting!" << std::endl
+      << "----------------------------------------------------" << std::endl;
 
       return 1;
     }
   catch (...)
     {
       std::cerr << std::endl << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
+      << "----------------------------------------------------" << std::endl;
       std::cerr << "Unknown exception!" << std::endl << "Aborting!" << std::endl
-                << "----------------------------------------------------"
-                << std::endl;
+      << "----------------------------------------------------" << std::endl;
       return 1;
     }
 
