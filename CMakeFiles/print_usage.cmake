@@ -2,7 +2,7 @@ MESSAGE(
 "###
 #
 #  Project  Top_Opt  set up with  deal.II-9.2.0  found at
-#      /usr/local
+#      /home/justin/deal.ii-candi/deal.II-v9.2.0
 #
 #  CMAKE_BUILD_TYPE:          Debug
 #

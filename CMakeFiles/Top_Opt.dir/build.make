@@ -60,15 +60,15 @@ include CMakeFiles/Top_Opt.dir/flags.make
 CMakeFiles/Top_Opt.dir/source/SAND.cc.o: CMakeFiles/Top_Opt.dir/flags.make
 CMakeFiles/Top_Opt.dir/source/SAND.cc.o: source/SAND.cc
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir="/home/justin/Thesis/topo code/SAND/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/Top_Opt.dir/source/SAND.cc.o"
-	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/Top_Opt.dir/source/SAND.cc.o -c "/home/justin/Thesis/topo code/SAND/source/SAND.cc"
+	/usr/bin/mpicxx  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/Top_Opt.dir/source/SAND.cc.o -c "/home/justin/Thesis/topo code/SAND/source/SAND.cc"
 
 CMakeFiles/Top_Opt.dir/source/SAND.cc.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/Top_Opt.dir/source/SAND.cc.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/home/justin/Thesis/topo code/SAND/source/SAND.cc" > CMakeFiles/Top_Opt.dir/source/SAND.cc.i
+	/usr/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E "/home/justin/Thesis/topo code/SAND/source/SAND.cc" > CMakeFiles/Top_Opt.dir/source/SAND.cc.i
 
 CMakeFiles/Top_Opt.dir/source/SAND.cc.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/Top_Opt.dir/source/SAND.cc.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/home/justin/Thesis/topo code/SAND/source/SAND.cc" -o CMakeFiles/Top_Opt.dir/source/SAND.cc.s
+	/usr/bin/mpicxx $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S "/home/justin/Thesis/topo code/SAND/source/SAND.cc" -o CMakeFiles/Top_Opt.dir/source/SAND.cc.s
 
 # Object files for target Top_Opt
 Top_Opt_OBJECTS = \
@@ -79,7 +79,138 @@ Top_Opt_EXTERNAL_OBJECTS =
 
 Top_Opt: CMakeFiles/Top_Opt.dir/source/SAND.cc.o
 Top_Opt: CMakeFiles/Top_Opt.dir/build.make
-Top_Opt: /usr/local/lib/libdeal_II.g.so.9.2.0
+Top_Opt: /home/justin/deal.ii-candi/deal.II-v9.2.0/lib/libdeal_II.g.so.9.2.0
+Top_Opt: /home/justin/deal.ii-candi/p4est-2.2/DEBUG/lib/libp4est.so
+Top_Opt: /home/justin/deal.ii-candi/p4est-2.2/DEBUG/lib/libsc.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/libz.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/librol.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtempus.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libmuelu-adapters.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libmuelu-interface.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libmuelu.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/liblocathyra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/liblocaepetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/liblocalapack.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libloca.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libnoxepetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libnoxlapack.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libnox.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libintrepid2.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libintrepid.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libteko.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libstratimikos.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libstratimikosbelos.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libstratimikosamesos2.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libstratimikosaztecoo.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libstratimikosamesos.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libstratimikosml.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libstratimikosifpack.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libanasazitpetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libModeLaplace.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libanasaziepetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libanasazi.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libamesos2.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libshylu_nodetacho.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libbelosxpetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libbelostpetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libbelosepetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libbelos.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libml.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libifpack.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libzoltan2.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libpamgen_extras.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libpamgen.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libamesos.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libgaleri-xpetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libgaleri-epetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libaztecoo.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libisorropia.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libxpetra-sup.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libxpetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libthyratpetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libthyraepetraext.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libthyraepetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libthyracore.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtrilinosss.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtpetraext.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtpetrainout.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtpetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libkokkostsqr.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtpetraclassiclinalg.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtpetraclassicnodeapi.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtpetraclassic.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libepetraext.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtriutils.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libshards.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libzoltan.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libepetra.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libsacado.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/librtop.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libkokkoskernels.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libteuchoskokkoscomm.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libteuchoskokkoscompat.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libteuchosremainder.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libteuchosnumerics.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libteuchoscomm.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libteuchosparameterlist.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libteuchosparser.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libteuchoscore.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libkokkosalgorithms.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libkokkoscontainers.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libkokkoscore.so
+Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libgtest.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/libumfpack.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/libcholmod.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/libccolamd.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/libcolamd.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/libcamd.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/libsuitesparseconfig.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/libamd.so
+Top_Opt: /home/justin/deal.ii-candi/hdf5-1.10.5/lib/libhdf5_hl.so
+Top_Opt: /home/justin/deal.ii-candi/hdf5-1.10.5/lib/libhdf5.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKBO.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKBool.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKBRep.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKernel.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKFeat.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKFillet.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKG2d.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKG3d.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKGeomAlgo.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKGeomBase.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKHLR.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKIGES.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKMath.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKMesh.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKOffset.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKPrim.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKShHealing.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKSTEP.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKSTEPAttr.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKSTEPBase.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKSTEP209.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKSTL.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKTopAlgo.so
+Top_Opt: /home/justin/deal.ii-candi/oce-OCE-0.18.2/lib/libTKXSBase.so
+Top_Opt: /usr/local/lib/libblas.a
+Top_Opt: /home/justin/deal.ii-candi/slepc-3.13.2/lib/libslepc.so
+Top_Opt: /home/justin/deal.ii-candi/petsc-3.13.1/lib/libpetsc.so
+Top_Opt: /home/justin/deal.ii-candi/petsc-3.13.1/lib/libHYPRE.so
+Top_Opt: /home/justin/deal.ii-candi/petsc-3.13.1/lib/libcmumps.a
+Top_Opt: /home/justin/deal.ii-candi/petsc-3.13.1/lib/libdmumps.a
+Top_Opt: /home/justin/deal.ii-candi/petsc-3.13.1/lib/libsmumps.a
+Top_Opt: /home/justin/deal.ii-candi/petsc-3.13.1/lib/libzmumps.a
+Top_Opt: /home/justin/deal.ii-candi/petsc-3.13.1/lib/libmumps_common.a
+Top_Opt: /home/justin/deal.ii-candi/petsc-3.13.1/lib/libpord.a
+Top_Opt: /home/justin/deal.ii-candi/petsc-3.13.1/lib/libscalapack.a
+Top_Opt: /usr/lib/x86_64-linux-gnu/liblapack.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/libblas.so
+Top_Opt: /home/justin/deal.ii-candi/parmetis-4.0.3/lib/libparmetis.so
+Top_Opt: /home/justin/deal.ii-candi/parmetis-4.0.3/lib/libmetis.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi_usempif08.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi_usempi_ignore_tkr.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi_mpifh.so
+Top_Opt: /usr/lib/x86_64-linux-gnu/openmpi/lib/libmpi.so
 Top_Opt: CMakeFiles/Top_Opt.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir="/home/justin/Thesis/topo code/SAND/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable Top_Opt"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/Top_Opt.dir/link.txt --verbose=$(VERBOSE)

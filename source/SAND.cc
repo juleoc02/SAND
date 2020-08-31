@@ -63,6 +63,10 @@ namespace SAND
         solve();
         void
         add_barriers(double barrier_size);
+        void
+        update_step();
+        void
+        output();
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
         BlockVector<double> solution;
@@ -440,7 +444,7 @@ namespace SAND
                       penalized_density * cell_matrix (i, j));
 
                   /*assemble FE RHS*/
-                  system_rhs.block (1) (local_dof_indices[i]) += cell_rhs (i);
+                  system_rhs.block (1) [local_dof_indices[i]] += cell_rhs (i);
 
                 }
             }
@@ -524,6 +528,8 @@ namespace SAND
 
           system_rhs.block (3)[0] = volume_max - cell_measure * density;
 
+
+          /*Au-f*/
           system_matrix.block (2, 1).vmult (delta_f, displacement_sol);
           for (unsigned int i = 0; i < dof_handler.n_dofs (); i++)
             {
@@ -572,13 +578,11 @@ namespace SAND
      void
      SANDTopOpt<dim>::solve ()
      {
-            /*
+
             SparseDirectUMFPACK A_direct;
             A_direct.initialize(system_matrix);
             A_direct.vmult(solution, system_rhs);
 
-            hanging_node_constraints.distribute(solution);
-            */
             /*
             const unsigned int max_iters       = 200;
             const double       solve_tolerance = 1e-8 * system_rhs.l2_norm();
@@ -591,6 +595,41 @@ namespace SAND
      }
 
   template <int dim>
+       void
+       SANDTopOpt<dim>::update_step ()
+       {
+          displacement_sol = displacement_sol + solution.block(1);
+          density = density + solution.block(0);
+          lambda_1 = lambda_1 + solution.block(2);
+          lambda_2 = lambda_2 + solution.block(3)[0];
+
+
+       }
+
+  template <int dim>
+         void
+         SANDTopOpt<dim>::output ()
+         {
+            std::vector<std::string> solution_names(dim, "displacements");
+            std::vector<DataComponentInterpretation::DataComponentInterpretation>
+              data_component_interpretation(
+                dim, DataComponentInterpretation::component_is_part_of_vector);
+            DataOut<dim> data_out;
+            data_out.attach_dof_handler(dof_handler);
+            data_out.add_data_vector(displacement_sol,
+                                     solution_names,
+                                     DataOut<dim>::type_dof_data,
+                                     data_component_interpretation);
+            data_out.add_data_vector(density,
+                                     "density");
+
+            data_out.build_patches();
+            std::ofstream output(
+              "solution.vtk");
+            data_out.write_vtk(output);
+         }
+
+  template <int dim>
     void
     SANDTopOpt<dim>::run ()
     {
@@ -599,9 +638,18 @@ namespace SAND
       create_triangulation ();
       make_initial_values ();
       setup_block_system ();
+      set_bcids();
+
+
       assemble_block_system ();
       add_barriers (barrier_size);
       solve();
+      update_step();
+      barrier_size = barrier_size/2;
+
+      std::cout << system_rhs.block(0) << std::endl;
+      output();
+
       //
     }
 
