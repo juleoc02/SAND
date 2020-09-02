@@ -64,7 +64,7 @@ namespace SAND
         void
         add_barriers (double barrier_size);
         void
-        update_step ();
+        update_step (double step_size);
         void
         output (int j);
         void
@@ -339,27 +339,27 @@ namespace SAND
     }
 
   template <int dim>
-      void
-      SANDTopOpt<dim>::re_setup_block_system ()
-      {
-    const unsigned int n_u = dof_handler.n_dofs (), n_p =
+    void
+    SANDTopOpt<dim>::re_setup_block_system ()
+    {
+      const unsigned int n_u = dof_handler.n_dofs (), n_p =
           triangulation.n_active_cells ();
-          system_matrix.reinit (sparsity_pattern);
+      system_matrix.reinit (sparsity_pattern);
 
-          solution.reinit (4);
-          solution.block (0).reinit (n_p);
-          solution.block (1).reinit (n_u);
-          solution.block (2).reinit (n_u);
-          solution.block (3).reinit (1);
-          solution.collect_sizes ();
+      solution.reinit (4);
+      solution.block (0).reinit (n_p);
+      solution.block (1).reinit (n_u);
+      solution.block (2).reinit (n_u);
+      solution.block (3).reinit (1);
+      solution.collect_sizes ();
 
-          system_rhs.reinit (4);
-          system_rhs.block (0).reinit (n_p);
-          system_rhs.block (1).reinit (n_u);
-          system_rhs.block (2).reinit (n_u);
-          system_rhs.block (3).reinit (1);
-          system_rhs.collect_sizes ();
-      }
+      system_rhs.reinit (4);
+      system_rhs.block (0).reinit (n_p);
+      system_rhs.block (1).reinit (n_u);
+      system_rhs.block (2).reinit (n_u);
+      system_rhs.block (3).reinit (1);
+      system_rhs.collect_sizes ();
+    }
 
   template <int dim>
     void
@@ -396,8 +396,6 @@ namespace SAND
       ComponentMask just_x_mask = fe.component_mask (just_x);
       ComponentMask just_y_mask = fe.component_mask (just_y);
 
-
-      std::cout << 1<< std::endl;
       for (const auto &cell : dof_handler.active_cell_iterators ())
         {
           cell_matrix = 0;
@@ -430,17 +428,6 @@ namespace SAND
                         * fe_values.JxW (q_point);
                   }
               }
-          for (unsigned int i = 0; i < dofs_per_cell; ++i)
-            {
-              const unsigned int component_i =
-                  fe.system_to_component_index (i).first;
-
-              for (unsigned int q_point = 0; q_point < n_q_points; ++q_point)
-                cell_rhs (i) += fe_values.shape_value (i, q_point)
-                    * rhs_values[q_point][component_i]
-                    * fe_values.JxW (q_point);
-            }
-
           Tensor < 1, dim > traction;
           traction.clear ();
           traction[1] = -1;
@@ -468,11 +455,13 @@ namespace SAND
                     }
                 }
             }
+          cell->get_dof_indices (local_dof_indices);
 
           penalized_density = pow (density[cell->active_cell_index ()],
               density_penalty);
-          cell->get_dof_indices (local_dof_indices);
 
+          MatrixTools::local_apply_boundary_values (boundary_values,
+              local_dof_indices, cell_matrix, cell_rhs, false);
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
@@ -574,7 +563,8 @@ namespace SAND
           system_matrix.block (2, 1).vmult (delta_f, displacement_sol);
           for (unsigned int i = 0; i < dof_handler.n_dofs (); i++)
             {
-              system_rhs.block (2)[i] = system_rhs.block (1)[i] - delta_f[i];
+              system_rhs.block (2)[i] = -1 * system_rhs.block (1)[i]
+                  - delta_f[i];
             }
 
         }
@@ -589,15 +579,6 @@ namespace SAND
       hanging_node_constraints.condense (system_rhs.block (2));
       hanging_node_constraints.condense (system_rhs.block (1));
 
-      /*This feels weird...*/
-      MatrixTools::apply_boundary_values (boundary_values,
-          system_matrix.block (1, 2), solution.block (1), system_rhs.block (1));
-      MatrixTools::apply_boundary_values (boundary_values,
-          system_matrix.block (2, 1), solution.block (2), system_rhs.block (2));
-
-      /*assemble laplacian by density,dof*/
-
-      /*assemble RHS*/
     }
 
   /*adds log barriers for density constraints*/
@@ -613,8 +594,8 @@ namespace SAND
           system_matrix.block (0, 0).add (i, i,
               barrier_size / ((1 - density[i]) * (1 - density[i])));
           system_rhs.block (0)[i] = system_rhs.block (0)[i]
-              + (barrier_size / density[i])
-                                    - (barrier_size / (1 - density[i]));
+              - (barrier_size / density[i])
+                                    + (barrier_size / (1 - density[i]));
         }
     }
 
@@ -640,12 +621,12 @@ namespace SAND
 
   template <int dim>
     void
-    SANDTopOpt<dim>::update_step ()
+    SANDTopOpt<dim>::update_step (double step_size)
     {
-      displacement_sol = displacement_sol + solution.block (1);
-      density = density + solution.block (0);
-      lambda_1 = lambda_1 + solution.block (2);
-      lambda_2 = lambda_2 + solution.block (3)[0];
+      displacement_sol = displacement_sol + step_size * solution.block (1);
+      density = density + step_size * solution.block (0);
+      lambda_1 = lambda_1 + step_size * solution.block (2);
+      lambda_2 = lambda_2 + step_size * solution.block (3)[0];
     }
 
   template <int dim>
@@ -671,24 +652,31 @@ namespace SAND
     SANDTopOpt<dim>::run ()
     {
       double barrier_size = 1;
-
+      double step_size = .001;
       create_triangulation ();
       make_initial_values ();
       setup_block_system ();
       set_bcids ();
 
       int num_iterations = 1000;
+      int iterations_per_output = 25;
 
-      for (int j = 0; j < num_iterations; j++)
+      for (int j = 0; j < num_iterations;)
         {
-          assemble_block_system ();
-          add_barriers (barrier_size);
-          barrier_size = barrier_size *1;
-          solve ();
-          update_step ();
-          output (j);
-          std::cout << j << std::endl;
-          re_setup_block_system ();
+          double temp_step_size = step_size;
+          for (int i = 0; i < iterations_per_output; i++)
+            {
+              assemble_block_system ();
+              add_barriers (barrier_size);
+              solve ();
+              update_step (step_size);
+              temp_step_size = (99 * temp_step_size + 1) / 100;
+              output (j);
+              std::cout << j << std::endl;
+              re_setup_block_system ();
+              j++;
+            }
+          barrier_size = barrier_size * .8;
         }
 
       //
