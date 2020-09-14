@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 884 3 ">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 3300 3 ">
 <style type="text/css" >
      <![CDATA[
       rect.pixel {
@@ -7,7 +7,7 @@
     ]]>
   </style>
 
-   <rect width="884" height="3" fill="rgb(128, 128, 128)"/>
-   <rect x="1" y="1" width="882.1" height="1.1" fill="rgb(255, 255, 255)"/>
+   <rect width="3300" height="3" fill="rgb(128, 128, 128)"/>
+   <rect x="1" y="1" width="3298.1" height="1.1" fill="rgb(255, 255, 255)"/>
 
 </svg>

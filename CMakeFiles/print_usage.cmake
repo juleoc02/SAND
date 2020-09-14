@@ -4,7 +4,7 @@ MESSAGE(
 #  Project  Top_Opt  set up with  deal.II-9.2.0  found at
 #      /home/justin/deal.ii-candi/deal.II-v9.2.0
 #
-#  CMAKE_BUILD_TYPE:          Debug
+#  CMAKE_BUILD_TYPE:          Release
 #
 #  You can now run
 #       $ make                - to compile and link the program

@@ -79,9 +79,9 @@ Top_Opt_EXTERNAL_OBJECTS =
 
 Top_Opt: CMakeFiles/Top_Opt.dir/source/SAND.cc.o
 Top_Opt: CMakeFiles/Top_Opt.dir/build.make
-Top_Opt: /home/justin/deal.ii-candi/deal.II-v9.2.0/lib/libdeal_II.g.so.9.2.0
-Top_Opt: /home/justin/deal.ii-candi/p4est-2.2/DEBUG/lib/libp4est.so
-Top_Opt: /home/justin/deal.ii-candi/p4est-2.2/DEBUG/lib/libsc.so
+Top_Opt: /home/justin/deal.ii-candi/deal.II-v9.2.0/lib/libdeal_II.so.9.2.0
+Top_Opt: /home/justin/deal.ii-candi/p4est-2.2/FAST/lib/libp4est.so
+Top_Opt: /home/justin/deal.ii-candi/p4est-2.2/FAST/lib/libsc.so
 Top_Opt: /usr/lib/x86_64-linux-gnu/libz.so
 Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/librol.so
 Top_Opt: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtempus.so

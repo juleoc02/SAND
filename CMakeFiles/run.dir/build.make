@@ -54,7 +54,7 @@ CMAKE_BINARY_DIR = "/home/justin/Thesis/topo code/SAND"
 include CMakeFiles/run.dir/progress.make
 
 CMakeFiles/run: Top_Opt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir="/home/justin/Thesis/topo code/SAND/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_1) "Run Top_Opt with Debug configuration"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir="/home/justin/Thesis/topo code/SAND/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_1) "Run Top_Opt with Release configuration"
 	./Top_Opt
 
 run: CMakeFiles/run

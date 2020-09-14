@@ -69,6 +69,10 @@ namespace SAND
         output (int j);
         void
         re_setup_block_system ();
+        bool
+        test_step (double step_size);
+        bool
+        test_convergence (double step_size);
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
         BlockVector<double> solution;
@@ -120,7 +124,7 @@ namespace SAND
           GridGenerator::merge_triangulations (triangulation_temp,
               triangulation, triangulation);
         }
-      triangulation.refine_global (3);
+      triangulation.refine_global (4);
     }
 
   template <int dim>
@@ -342,18 +346,17 @@ namespace SAND
     void
     SANDTopOpt<dim>::re_setup_block_system ()
     {
-      const unsigned int n_u = dof_handler.n_dofs (), n_p =
-          triangulation.n_active_cells ();
+      const unsigned int n_u = dof_handler.n_dofs ();
+      const unsigned int n_p = triangulation.n_active_cells ();
+
       system_matrix.reinit (sparsity_pattern);
 
-      solution.reinit (4);
       solution.block (0).reinit (n_p);
       solution.block (1).reinit (n_u);
       solution.block (2).reinit (n_u);
       solution.block (3).reinit (1);
       solution.collect_sizes ();
 
-      system_rhs.reinit (4);
       system_rhs.block (0).reinit (n_p);
       system_rhs.block (1).reinit (n_u);
       system_rhs.block (2).reinit (n_u);
@@ -502,7 +505,7 @@ namespace SAND
                   local_dof_indices[i], grad_value);
             }
 
-          /*assemble hessian pf laplace wrt density, for blocks (0,0)*/
+          /*assemble hessian of laplace wrt density, for block (0,0)*/
           laplace_density = 0;
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
@@ -620,6 +623,41 @@ namespace SAND
     }
 
   template <int dim>
+    bool
+    SANDTopOpt<dim>::test_step (double step_size)
+    {
+        Vector <double> density_test;
+        density_test.reinit (triangulation.n_active_cells());
+        density_test = density + step_size * solution.block (0);
+        bool test = true;
+        for (auto &cell : dof_handler.active_cell_iterators ())
+          {
+            int i = cell -> active_cell_index();
+            if ((density_test[i]<0) || (density_test[i]>1))
+              {
+                test = false;
+              }
+          }
+        return test;
+    }
+
+  template <int dim>
+      bool
+      SANDTopOpt<dim>::test_convergence (double step_size)
+      {
+        double convergence_test_number = solution.block (0).linfty_norm() * step_size;
+        if (convergence_test_number < .1)
+          {
+            return true;
+          }
+        else
+          {
+            return false;
+          }
+
+      }
+
+  template <int dim>
     void
     SANDTopOpt<dim>::update_step (double step_size)
     {
@@ -651,32 +689,49 @@ namespace SAND
     void
     SANDTopOpt<dim>::run ()
     {
-      double barrier_size = 1;
-      double step_size = .001;
+      double barrier_size = .1;
+      double barrier_size_multiplier = .8;
+      double default_step_size = .02;
+      double step_size;
+      bool accept_step;
       create_triangulation ();
       make_initial_values ();
       setup_block_system ();
       set_bcids ();
 
       int num_iterations = 1000;
-      int iterations_per_output = 25;
 
       for (int j = 0; j < num_iterations;)
         {
-          double temp_step_size = step_size;
-          for (int i = 0; i < iterations_per_output; i++)
+          bool convergence_reached = false;
+          while ((convergence_reached == false) && (j < num_iterations))
             {
+              re_setup_block_system ();
               assemble_block_system ();
               add_barriers (barrier_size);
               solve ();
-              update_step (step_size);
-              temp_step_size = (99 * temp_step_size + 1) / 100;
+              step_size = default_step_size;
+              accept_step = false;
+              while (accept_step == false)
+                {
+                  accept_step = test_step (step_size);
+                  if (accept_step)
+                    {
+                      update_step (step_size);
+                    }
+                  else
+                    {
+                      step_size = step_size * .5;
+                    }
+                }
               output (j);
-              std::cout << j << std::endl;
-              re_setup_block_system ();
+              convergence_reached = test_convergence(step_size);
               j++;
+              std::cout << j << "   " << step_size << std::endl;
             }
-          barrier_size = barrier_size * .8;
+
+          barrier_size = barrier_size * barrier_size_multiplier;
+          std::cout << barrier_size << std::endl;
         }
 
       //
