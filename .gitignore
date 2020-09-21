@@ -1,0 +1,31 @@
+# Executables
+Top_Opt
+*.exe
+*.out
+*.app
+/build/
+
+# Eclipse project files
+.cproject
+.project
+.settings
+.csettings
+
+# Make and Ninja files
+Makefile
+.ninja*
+build.ninja
+rules.ninja
+
+# Cmake files generated during in-source builds
+CMakeCache.txt
+CMakeFiles
+Testing
+cmake_install.cmake
+CTestTestfile.cmake
+
+# In the tests/ directory, ignore everything but the .cc and .output files
+tests/*
+!tests/*cc
+!tests/*output
+
