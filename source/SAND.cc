@@ -24,6 +24,7 @@
 #include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/fe/fe_values.h>
+#include <deal.II/fe/fe_dgq.h>
 
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
@@ -73,7 +74,11 @@ namespace SAND
         bool
         test_convergence (double step_size);
         double
-        calc_merit_function(SparseMatrix<double> A, Vector<double> density, Vector<double> displacement, Vector <double> rhs, double barrier_size);
+        calc_merit_function (SparseMatrix<double> A,
+                             Vector<double> density,
+                             Vector<double> displacement,
+                             Vector<double> rhs,
+                             double barrier_size);
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
         BlockVector<double> solution;
@@ -96,7 +101,9 @@ namespace SAND
     SANDTopOpt<dim>::SANDTopOpt ()
         :
         dof_handler (triangulation),
-        fe (FE_Q < dim > (1), dim)
+        /*fe should have 1 FE_DGQ<dim>(0) element for density, dim FE_Q finite elements for displacement, another dim FE_Q elements for the lagrange multiplier on the FE constraint, and 2 more FE_DGQ<dim>(0) elements for the upper and lower bound constraints - (do I need those if I'm using log barrier?)  */
+        fe (FE_DGQ<dim> (0), 1, FE_Q<dim> (1), dim, FE_Q<dim> (1), dim,
+            FE_DGQ<dim> (0), 2)
     {
 
     }
@@ -106,7 +113,7 @@ namespace SAND
     SANDTopOpt<dim>::create_triangulation ()
     {
       /*Make a square*/
-      Triangulation < dim > triangulation_temp;
+      Triangulation<dim> triangulation_temp;
       Point<dim> point_1, point_2;
       point_1 (0) = 0;
       point_1 (1) = 0;
@@ -133,8 +140,7 @@ namespace SAND
       for (const auto &cell : dof_handler.active_cell_iterators ())
         {
           for (unsigned int face_number = 0;
-              face_number < GeometryInfo < dim > ::faces_per_cell;
-              ++face_number)
+              face_number < GeometryInfo<dim>::faces_per_cell; ++face_number)
             {
               if (cell->face (face_number)->at_boundary ())
                 {
@@ -163,9 +169,6 @@ namespace SAND
                 }
             }
         }
-
-
-
 
     }
 
@@ -201,8 +204,7 @@ namespace SAND
       for (const auto &cell : dof_handler.active_cell_iterators ())
         {
           for (unsigned int face_number = 0;
-              face_number < GeometryInfo < dim > ::faces_per_cell;
-              ++face_number)
+              face_number < GeometryInfo<dim>::faces_per_cell; ++face_number)
             {
               if (cell->face (face_number)->at_boundary ())
                 {
@@ -213,7 +215,7 @@ namespace SAND
                       cell->face (face_number)->set_boundary_id (2);
 
                       for (unsigned int vertex_number = 0;
-                          vertex_number < GeometryInfo < dim > ::vertices_per_cell;
+                          vertex_number < GeometryInfo<dim>::vertices_per_cell;
                           ++vertex_number)
                         {
                           const auto center = cell->vertex (vertex_number);
@@ -256,31 +258,114 @@ namespace SAND
     void
     SANDTopOpt<dim>::setup_block_system ()
     {
-      const unsigned int n_u = dof_handler.n_dofs (), n_p =
-          triangulation.n_active_cells ();
 
-      const unsigned int dofs_per_cell = fe.dofs_per_cell;
-      std::vector < types::global_dof_index > local_dof_indices (dofs_per_cell);
+      FEValuesExtractors::Scalar densities (0); // will be block "0"
+      FEValuesExtractors::Vector displacements (1); // will be block 1
+      FEValuesExtractors::Vector lagrangian_multipliers_FE_constraint (1 + dim); // will be block 2
+      FEValuesExtractors::Scalar density_upper_bounds (1 + 2 * dim); // will also be block 2
+      FEValuesExtractors::Scalar density_lower_bounds (2 + 2 * dim); // will also be block 2
+
+      std::vector<unsigned int> block_component (2 + 2 * dim, 2);
+
+      block_component[0] = 0;
+      for (int i = 0; i < dim; i++)
+        {
+          block_component[i + 1] = 1;
+        }
+      DoFRenumbering::component_wise (dof_handler, block_component);
+
+      const std::vector<types::global_dof_index> dofs_per_block =
+          DoFTools::count_dofs_per_fe_block (dof_handler, block_component);
+      const unsigned int n_u = dofs_per_block[1];
+      const unsigned int n_p = dofs_per_block[0];
 
       /*Setup 4-by-4 block matrix. top 2-by-2 is the hessian of the lagrangian system (with log barriers for component-wise inequality constraints)*/
 
-      BlockDynamicSparsityPattern dsp (4, 4);
+      BlockDynamicSparsityPattern dsp (8, 8);
+      //first column has size n_p - hessian of lagrangian wrt p
       dsp.block (0, 0).reinit (n_p, n_p);
       dsp.block (1, 0).reinit (n_u, n_p);
-      dsp.block (2, 0).reinit (n_u, n_p);
-      dsp.block (3, 0).reinit (1, n_p);
+      dsp.block (2, 0).reinit (n_p, n_p);
+      dsp.block (3, 0).reinit (n_p, n_p);
+      dsp.block (4, 0).reinit (n_u, n_p);
+      dsp.block (5, 0).reinit (1, n_p);
+      dsp.block (6, 0).reinit (n_p, n_p);
+      dsp.block (7, 0).reinit (n_p, n_p);
+
+      //second column has size n_u - hessian of lagrangian wrt u
       dsp.block (0, 1).reinit (n_p, n_u);
       dsp.block (1, 1).reinit (n_u, n_u);
-      dsp.block (2, 1).reinit (n_u, n_u);
-      dsp.block (3, 1).reinit (1, n_u);
-      dsp.block (0, 2).reinit (n_p, n_u);
-      dsp.block (1, 2).reinit (n_u, n_u);
-      dsp.block (2, 2).reinit (n_u, n_u);
-      dsp.block (3, 2).reinit (1, n_u);
-      dsp.block (0, 3).reinit (n_p, 1);
-      dsp.block (1, 3).reinit (n_u, 1);
-      dsp.block (2, 3).reinit (n_u, 1);
-      dsp.block (3, 3).reinit (1, 1);
+      dsp.block (2, 1).reinit (n_p, n_u);
+      dsp.block (3, 1).reinit (n_p, n_u);
+      dsp.block (4, 1).reinit (n_u, n_u);
+      dsp.block (5, 1).reinit (1, n_u);
+      dsp.block (6, 1).reinit (n_p, n_u);
+      dsp.block (7, 1).reinit (n_p, n_u);
+
+      //third column has size n_p - density constraint
+      dsp.block (0, 2).reinit (n_p, n_p);
+      dsp.block (1, 2).reinit (n_u, n_p);
+      dsp.block (2, 2).reinit (n_p, n_p);
+      dsp.block (3, 2).reinit (n_p, n_p);
+      dsp.block (4, 2).reinit (n_u, n_p);
+      dsp.block (5, 2).reinit (1, n_p);
+      dsp.block (6, 2).reinit (n_p, n_p);
+      dsp.block (7, 2).reinit (n_p, n_p);
+
+      //fourth column has size n_p - density constraint
+      dsp.block (0, 3).reinit (n_p, n_p);
+      dsp.block (1, 3).reinit (n_u, n_p);
+      dsp.block (2, 3).reinit (n_p, n_p);
+      dsp.block (3, 3).reinit (n_p, n_p);
+      dsp.block (4, 3).reinit (n_u, n_p);
+      dsp.block (5, 3).reinit (1, n_p);
+      dsp.block (6, 3).reinit (n_p, n_p);
+      dsp.block (7, 3).reinit (n_p, n_p);
+
+      //fifth column has size n_u - FE constraint
+      dsp.block (0, 4).reinit (n_p, n_u);
+      dsp.block (1, 4).reinit (n_u, n_u);
+      dsp.block (2, 4).reinit (n_p, n_u);
+      dsp.block (3, 4).reinit (n_p, n_u);
+      dsp.block (4, 4).reinit (n_u, n_u);
+      dsp.block (5, 4).reinit (1, n_u);
+      dsp.block (6, 4).reinit (n_p, n_u);
+      dsp.block (7, 4).reinit (n_p, n_u);
+
+      //sixth column has size 1- Volume constraint
+      dsp.block (0, 5).reinit (n_p, 1);
+      dsp.block (1, 5).reinit (n_u, 1);
+      dsp.block (2, 5).reinit (n_p, 1);
+      dsp.block (3, 5).reinit (n_p, 1);
+      dsp.block (4, 5).reinit (n_u, 1);
+      dsp.block (5, 5).reinit (1, 1);
+      dsp.block (6, 5).reinit (n_p, 1);
+      dsp.block (7, 5).reinit (n_p, 1);
+
+      //seventh column has size n_p - slack variable
+      dsp.block (0, 6).reinit (n_p, n_p);
+      dsp.block (1, 6).reinit (n_u, n_p);
+      dsp.block (2, 6).reinit (n_p, n_p);
+      dsp.block (3, 6).reinit (n_p, n_p);
+      dsp.block (4, 6).reinit (n_u, n_p);
+      dsp.block (5, 6).reinit (1, n_p);
+      dsp.block (6, 6).reinit (n_p, n_p);
+      dsp.block (7, 6).reinit (n_p, n_p);
+
+      //eighth column has size n_p - slack variable
+      dsp.block (0, 7).reinit (n_p, n_p);
+      dsp.block (1, 7).reinit (n_u, n_p);
+      dsp.block (2, 7).reinit (n_p, n_p);
+      dsp.block (3, 7).reinit (n_p, n_p);
+      dsp.block (4, 7).reinit (n_u, n_p);
+      dsp.block (5, 7).reinit (1, n_p);
+      dsp.block (6, 7).reinit (n_p, n_p);
+      dsp.block (7, 7).reinit (n_p, n_p);
+
+      dsp.collect_sizes ();
+
+      const unsigned int dofs_per_cell = fe.dofs_per_cell;
+      std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 
       /*hessian of lagrangian wrt density (block 0,0) only has entries on the diagonal*/
       for (unsigned int i = 0; i < n_p; i++)
@@ -302,83 +387,87 @@ namespace SAND
               dsp.block (1, 0).add (local_dof_indices[j], i);
               dsp.block (0, 1).add (i, local_dof_indices[j]);
             }
-        }
 
-      /*Create sparsity pattern for elasticity constraint - DoFTools does this for me */
-      DoFTools::make_sparsity_pattern (dof_handler, dsp.block (2, 1));
-      DoFTools::make_sparsity_pattern (dof_handler, dsp.block (1, 2));
+          /*Create sparsity pattern for elasticity constraint - DoFTools does this for me */
+          DoFTools::make_sparsity_pattern (dof_handler, dsp.block (2, 1));
+          DoFTools::make_sparsity_pattern (dof_handler, dsp.block (1, 2));
 
-      /*Create sparsity pattern for volume constraint part of matrix*/
-      /*it's full... is this bad?*/
+          /*Create sparsity pattern for volume constraint part of matrix*/
+          /*it's full... is this bad?*/
 
-      for (const auto &cell : dof_handler.active_cell_iterators ())
-        {
-          unsigned int i = cell->active_cell_index ();
-          dsp.block (3, 0).add (0, i);
-          dsp.block (0, 3).add (i, 0);
-        }
-      for (const auto &cell : dof_handler.active_cell_iterators ())
-        {
-          cell->get_dof_indices (local_dof_indices);
-          for (unsigned int i = 0; i < dofs_per_cell; i++)
+          for (const auto &cell : dof_handler.active_cell_iterators ())
             {
-              dsp.block (2, 0).add (local_dof_indices[i],
-                  cell->active_cell_index ());
-              dsp.block (0, 2).add (cell->active_cell_index (),
-                  local_dof_indices[i]);
+              unsigned int i = cell->active_cell_index ();
+              dsp.block (3, 0).add (0, i);
+              dsp.block (0, 3).add (i, 0);
+            }
+          for (const auto &cell : dof_handler.active_cell_iterators ())
+            {
+              cell->get_dof_indices (local_dof_indices);
+              for (unsigned int i = 0; i < dofs_per_cell; i++)
+                {
+                  dsp.block (2, 0).add (local_dof_indices[i],
+                      cell->active_cell_index ());
+                  dsp.block (0, 2).add (cell->active_cell_index (),
+                      local_dof_indices[i]);
+                }
+
             }
 
-        }
+          sparsity_pattern.copy_from (dsp);
 
-      sparsity_pattern.copy_from (dsp);
-
-      for (unsigned int i = 0; i < 4; i++)
-        {
-          for (unsigned int j = 0; j < 4; j++)
+          for (unsigned int i = 0; i < 4; i++)
             {
-              std::ofstream out (
-                  "sparsity_pattern_" + std::to_string (i) + "_"
-                  + std::to_string (j) + ".svg");
-              sparsity_pattern.block (i, j).print_svg (out);
+              for (unsigned int j = 0; j < 4; j++)
+                {
+                  std::ofstream out (
+                      "sparsity_pattern_" + std::to_string (i) + "_"
+                      + std::to_string (j) + ".svg");
+                  sparsity_pattern.block (i, j).print_svg (out);
+                }
             }
+
+          system_matrix.reinit (sparsity_pattern);
+
+          solution.reinit (4);
+          solution.block (0).reinit (n_p);
+          solution.block (1).reinit (n_u);
+          solution.block (2).reinit (n_u);
+          solution.block (3).reinit (1);
+          solution.collect_sizes ();
+
+          system_rhs.reinit (4);
+          system_rhs.block (0).reinit (n_p);
+          system_rhs.block (1).reinit (n_u);
+          system_rhs.block (2).reinit (n_u);
+          system_rhs.block (3).reinit (1);
+          system_rhs.collect_sizes ();
         }
-
-      system_matrix.reinit (sparsity_pattern);
-
-      solution.reinit (4);
-      solution.block (0).reinit (n_p);
-      solution.block (1).reinit (n_u);
-      solution.block (2).reinit (n_u);
-      solution.block (3).reinit (1);
-      solution.collect_sizes ();
-
-      system_rhs.reinit (4);
-      system_rhs.block (0).reinit (n_p);
-      system_rhs.block (1).reinit (n_u);
-      system_rhs.block (2).reinit (n_u);
-      system_rhs.block (3).reinit (1);
-      system_rhs.collect_sizes ();
     }
-
-
-
   template <int dim>
     void
     SANDTopOpt<dim>::assemble_block_system ()
     {
+      const FEValuesExtractors::Scalar densities (0);
+      const FEValuesExtractors::Vector displacements (1);
+      const FEValuesExtractors::Scalar just_x (1 + 0);
+      const FEValuesExtractors::Scalar just_y (1 + 1);
+      const FEValuesExtractors::Vector lagrangian_multipliers_FE_constraint (
+          1 + dim);
+      const FEValuesExtractors::Scalar density_upper_bounds (1 + 2 * dim);
+      const FEValuesExtractors::Scalar density_lower_bounds (2 + 2 * dim);
 
       /*Remove any values from old iterations*/
       system_matrix.reinit (sparsity_pattern);
-      solution=0;
-      system_rhs=0;
+      solution = 0;
+      system_rhs = 0;
 
-
-      QGauss < dim > quadrature_formula (fe.degree + 1);
-      QGauss < dim - 1 > face_quadrature_formula (fe.degree + 1);
-      FEValues < dim > fe_values (fe, quadrature_formula,
+      QGauss<dim> quadrature_formula (fe.degree + 1);
+      QGauss<dim - 1> face_quadrature_formula (fe.degree + 1);
+      FEValues<dim> fe_values (fe, quadrature_formula,
           update_values | update_gradients | update_quadrature_points
           | update_JxW_values);
-      FEFaceValues < dim > fe_face_values (fe, face_quadrature_formula,
+      FEFaceValues<dim> fe_face_values (fe, face_quadrature_formula,
           update_values | update_quadrature_points | update_normal_vectors
           | update_JxW_values);
 
@@ -389,7 +478,7 @@ namespace SAND
       FullMatrix<double> cell_matrix (dofs_per_cell, dofs_per_cell);
       Vector<double> cell_rhs (dofs_per_cell);
 
-      std::vector < types::global_dof_index > local_dof_indices (dofs_per_cell);
+      std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 
       std::vector<double> lambda_values (n_q_points);
       std::vector<double> mu_values (n_q_points);
@@ -398,11 +487,6 @@ namespace SAND
       std::vector<Tensor<1, dim>> rhs_values (n_q_points);
       double penalized_density, grad_value, laplace_density,
           laplace_density_displacement;
-      const FEValuesExtractors::Vector displacements (0);
-      const FEValuesExtractors::Scalar just_x (0);
-      const FEValuesExtractors::Scalar just_y (1);
-      ComponentMask just_x_mask = fe.component_mask (just_x);
-      ComponentMask just_y_mask = fe.component_mask (just_y);
 
       for (const auto &cell : dof_handler.active_cell_iterators ())
         {
@@ -436,13 +520,12 @@ namespace SAND
                         * fe_values.JxW (q_point);
                   }
               }
-          Tensor < 1, dim > traction;
+          Tensor<1, dim> traction;
           traction.clear ();
           traction[1] = -1;
 
           for (unsigned int face_number = 0;
-              face_number < GeometryInfo < dim > ::faces_per_cell;
-              ++face_number)
+              face_number < GeometryInfo<dim>::faces_per_cell; ++face_number)
             {
               if (cell->face (face_number)->at_boundary () && cell->face (
                                                                   face_number)->boundary_id ()
@@ -523,8 +606,10 @@ namespace SAND
                 }
             }
           laplace_density = laplace_density
-              * density_penalty_exponent * (density_penalty_exponent - 1)
-              * pow (density[cell->active_cell_index ()], density_penalty_exponent - 2);
+              * density_penalty_exponent
+              * (density_penalty_exponent - 1)
+              * pow (density[cell->active_cell_index ()],
+                  density_penalty_exponent - 2);
           system_matrix.block (0, 0).add (cell->active_cell_index (),
               cell->active_cell_index (), laplace_density);
 
@@ -631,49 +716,55 @@ namespace SAND
     bool
     SANDTopOpt<dim>::test_step (double step_size)
     {
-        Vector <double> density_test;
-        density_test.reinit (triangulation.n_active_cells());
-        density_test = density + step_size * solution.block (0);
-        bool test = true;
-        for (auto &cell : dof_handler.active_cell_iterators ())
-          {
-            int i = cell -> active_cell_index();
-            if ((density_test[i]<0) || (density_test[i]>1))
-              {
-                test = false;
-              }
-          }
-        return test;
+      Vector<double> density_test;
+      density_test.reinit (triangulation.n_active_cells ());
+      density_test = density + step_size * solution.block (0);
+      bool test = true;
+      for (auto &cell : dof_handler.active_cell_iterators ())
+        {
+          int i = cell->active_cell_index ();
+          if ((density_test[i] < 0) || (density_test[i] > 1))
+            {
+              test = false;
+            }
+        }
+      return test;
     }
 
   template <int dim>
-      bool
-      SANDTopOpt<dim>::test_convergence (double step_size)
-      {
-        double convergence_test_number = solution.block (0).linfty_norm() * step_size;
-        if (convergence_test_number < .1)
-          {
-            return true;
-          }
-        else
-          {
-            return false;
-          }
+    bool
+    SANDTopOpt<dim>::test_convergence (double step_size)
+    {
+      double convergence_test_number = solution.block (0).linfty_norm ()
+          * step_size;
+      if (convergence_test_number < .1)
+        {
+          return true;
+        }
+      else
+        {
+          return false;
+        }
 
-      }
+    }
 
   template <int dim>
-  double
-  SANDTopOpt<dim>::calc_merit_function(SparseMatrix<double> A, Vector<double> density, Vector<double> displacement, Vector <double> rhs, double barrier_size)
-  {
-    double merit = displacement * rhs;
-    for (int i=0; i< dof_handler.n_active_cells(); i++)
-      {
-        merit = merit - barrier_size * std::log(density[i]) - barrier_size * std::log(1-density[i]);
-      }
-    //merit = merit + ((A * displacement)-rhs).norm_sqr();
-    return 2.5;
-  }
+    double
+    SANDTopOpt<dim>::calc_merit_function (SparseMatrix<double> A,
+                                          Vector<double> density,
+                                          Vector<double> displacement,
+                                          Vector<double> rhs,
+                                          double barrier_size)
+    {
+      double merit = displacement * rhs;
+      for (int i = 0; i < dof_handler.n_active_cells (); i++)
+        {
+          merit = merit - barrier_size * std::log (density[i])
+                  - barrier_size * std::log (1 - density[i]);
+        }
+      //merit = merit + ((A * displacement)-rhs).norm_sqr();
+      return 2.5;
+    }
 
   template <int dim>
     void
@@ -689,13 +780,13 @@ namespace SAND
     void
     SANDTopOpt<dim>::output (int j)
     {
-      std::vector < std::string > solution_names (dim, "displacements");
-      std::vector < DataComponentInterpretation::DataComponentInterpretation > data_component_interpretation (
+      std::vector<std::string> solution_names (dim, "displacements");
+      std::vector<DataComponentInterpretation::DataComponentInterpretation> data_component_interpretation (
           dim, DataComponentInterpretation::component_is_part_of_vector);
-      DataOut < dim > data_out;
+      DataOut<dim> data_out;
       data_out.attach_dof_handler (dof_handler);
       data_out.add_data_vector (displacement_sol, solution_names,
-          DataOut < dim > ::type_dof_data, data_component_interpretation);
+          DataOut<dim>::type_dof_data, data_component_interpretation);
       data_out.add_data_vector (density, "density");
 
       data_out.build_patches ();
@@ -742,7 +833,7 @@ namespace SAND
                     }
                 }
               output (j);
-              convergence_reached = test_convergence(step_size);
+              convergence_reached = test_convergence (step_size);
               j++;
               std::cout << j << "   " << step_size << std::endl;
             }
@@ -767,19 +858,23 @@ main ()
   catch (std::exception &exc)
     {
       std::cerr << std::endl << std::endl
-      << "----------------------------------------------------" << std::endl;
+                << "----------------------------------------------------"
+                << std::endl;
       std::cerr << "Exception on processing: " << std::endl << exc.what ()
-      << std::endl << "Aborting!" << std::endl
-      << "----------------------------------------------------" << std::endl;
+                << std::endl << "Aborting!" << std::endl
+                << "----------------------------------------------------"
+                << std::endl;
 
       return 1;
     }
   catch (...)
     {
       std::cerr << std::endl << std::endl
-      << "----------------------------------------------------" << std::endl;
+                << "----------------------------------------------------"
+                << std::endl;
       std::cerr << "Unknown exception!" << std::endl << "Aborting!" << std::endl
-      << "----------------------------------------------------" << std::endl;
+                << "----------------------------------------------------"
+                << std::endl;
       return 1;
     }
 
