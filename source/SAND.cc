@@ -396,8 +396,8 @@ namespace SAND
       const FEValuesExtractors::Vector displacements (0);
       const FEValuesExtractors::Scalar just_x (0);
       const FEValuesExtractors::Scalar just_y (1);
-      ComponentMask just_x_mask = fe.component_mask (just_x);
-      ComponentMask just_y_mask = fe.component_mask (just_y);
+      const ComponentMask just_x_mask = fe.component_mask (just_x);
+      const ComponentMask just_y_mask = fe.component_mask (just_y);
 
       for (const auto &cell : dof_handler.active_cell_iterators ())
         {
