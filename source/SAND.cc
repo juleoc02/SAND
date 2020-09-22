@@ -73,6 +73,8 @@ namespace SAND
         test_step (double step_size);
         bool
         test_convergence (double step_size);
+        double
+        calc_merit_function(SparseMatrix<double> A, Vector<double> density, Vector<double> displacement, Vector <double> rhs, double barrier_size);
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
         BlockVector<double> solution;
@@ -125,6 +127,46 @@ namespace SAND
               triangulation, triangulation);
         }
       triangulation.refine_global (4);
+
+
+      /*Set BCIDs   */
+      for (const auto &cell : dof_handler.active_cell_iterators ())
+        {
+          for (unsigned int face_number = 0;
+              face_number < GeometryInfo < dim > ::faces_per_cell;
+              ++face_number)
+            {
+              if (cell->face (face_number)->at_boundary ())
+                {
+                  const auto center = cell->face (face_number)->center ();
+                  if (std::fabs (center (1) - 1) < 1e-12)
+                    {
+                      /*Find top middle*/
+                      if ((std::fabs (center (0) - 3) < .1 + 1e-12))
+                        {
+                          /*downward force is boundary id of 1*/
+                          cell->face (face_number)->set_boundary_id (1);
+                        }
+                      else
+                        {
+                          cell->face (face_number)->set_boundary_id (2);
+                        }
+                    }
+                  if (std::fabs (center (0) - 0) < 1e-12)
+                    {
+                      cell->face (face_number)->set_boundary_id (2);
+                    }
+                  if (std::fabs (center (0) - 6) < 1e-12)
+                    {
+                      cell->face (face_number)->set_boundary_id (2);
+                    }
+                }
+            }
+        }
+
+
+
+
     }
 
   template <int dim>
@@ -205,29 +247,6 @@ namespace SAND
                               boundary_values[y_displacement] = 0;
                             }
                         }
-                    }
-
-                  if (std::fabs (center (1) - 1) < 1e-12)
-                    {
-                      /*Find top middle*/
-                      if ((std::fabs (center (0) - 3) < .1 + 1e-12))
-                        {
-                          /*downward force is boundary id of 1*/
-                          cell->face (face_number)->set_boundary_id (1);
-                        }
-                      else
-                        {
-                          cell->face (face_number)->set_boundary_id (2);
-                        }
-                    }
-
-                  if (std::fabs (center (0) - 0) < 1e-12)
-                    {
-                      cell->face (face_number)->set_boundary_id (2);
-                    }
-                  if (std::fabs (center (0) - 6) < 1e-12)
-                    {
-                      cell->face (face_number)->set_boundary_id (2);
                     }
                 }
             }
@@ -656,6 +675,19 @@ namespace SAND
           }
 
       }
+
+  template <int dim>
+  double
+  SANDTopOpt<dim>::calc_merit_function(SparseMatrix<double> A, Vector<double> density, Vector<double> displacement, Vector <double> rhs, double barrier_size)
+  {
+    double merit = displacement * rhs;
+    for (int i=0; i< dof_handler.n_active_cells(); i++)
+      {
+        merit = merit - barrier_size * std::log(density[i]) - barrier_size * std::log(1-density[i]);
+      }
+    //merit = merit + ((A * displacement)-rhs).norm_sqr();
+    return 2.5;
+  }
 
   template <int dim>
     void
