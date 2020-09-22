@@ -432,7 +432,6 @@ namespace SAND
                   }
               }
           Tensor < 1, dim > traction;
-          traction.clear ();
           traction[1] = -1;
 
           for (unsigned int face_number = 0;
