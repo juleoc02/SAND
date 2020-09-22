@@ -125,6 +125,8 @@ namespace SAND
               triangulation, triangulation);
         }
       triangulation.refine_global (4);
+
+      dof_handler.distribute_dofs (fe);
     }
 
   template <int dim>
@@ -134,7 +136,6 @@ namespace SAND
       density_ratio = .5;
       density_penalty = 3;
       lambda_2 = 0;
-      dof_handler.distribute_dofs (fe);
       cell_measure.reinit (triangulation.n_active_cells ());
       density.reinit (triangulation.n_active_cells ());
       /*displacement vector initialized as 0s*/
