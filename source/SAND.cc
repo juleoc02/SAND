@@ -62,9 +62,9 @@ namespace SAND
         void
         solve ();
         void
-        add_barriers (double barrier_size);
+        add_barriers (const double barrier_size);
         void
-        update_step (double step_size);
+        update_step (const double step_size);
         void
         output (int j);
         void
@@ -643,7 +643,7 @@ namespace SAND
 
   template <int dim>
       bool
-      SANDTopOpt<dim>::test_convergence (double step_size)
+      SANDTopOpt<dim>::test_convergence (const double step_size)
       {
         double convergence_test_number = solution.block (0).linfty_norm() * step_size;
         if (convergence_test_number < .1)
@@ -659,7 +659,7 @@ namespace SAND
 
   template <int dim>
     void
-    SANDTopOpt<dim>::update_step (double step_size)
+    SANDTopOpt<dim>::update_step (const double step_size)
     {
       displacement_sol = displacement_sol + step_size * solution.block (1);
       density = density + step_size * solution.block (0);
