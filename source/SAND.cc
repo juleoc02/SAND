@@ -67,8 +67,7 @@ namespace SAND
         update_step (double step_size);
         void
         output (int j);
-        void
-        re_setup_block_system ();
+
         bool
         test_step (double step_size);
         bool
@@ -361,32 +360,19 @@ namespace SAND
       system_rhs.collect_sizes ();
     }
 
-  template <int dim>
-    void
-    SANDTopOpt<dim>::re_setup_block_system ()
-    {
-      const unsigned int n_u = dof_handler.n_dofs ();
-      const unsigned int n_p = triangulation.n_active_cells ();
 
-      system_matrix.reinit (sparsity_pattern);
-
-      solution.block (0).reinit (n_p);
-      solution.block (1).reinit (n_u);
-      solution.block (2).reinit (n_u);
-      solution.block (3).reinit (1);
-      solution.collect_sizes ();
-
-      system_rhs.block (0).reinit (n_p);
-      system_rhs.block (1).reinit (n_u);
-      system_rhs.block (2).reinit (n_u);
-      system_rhs.block (3).reinit (1);
-      system_rhs.collect_sizes ();
-    }
 
   template <int dim>
     void
     SANDTopOpt<dim>::assemble_block_system ()
     {
+
+      /*Remove any values from old iterations*/
+      system_matrix.reinit (sparsity_pattern);
+      solution=0;
+      system_rhs=0;
+
+
       QGauss < dim > quadrature_formula (fe.degree + 1);
       QGauss < dim - 1 > face_quadrature_formula (fe.degree + 1);
       FEValues < dim > fe_values (fe, quadrature_formula,
@@ -738,7 +724,6 @@ namespace SAND
           bool convergence_reached = false;
           while ((convergence_reached == false) && (j < num_iterations))
             {
-              re_setup_block_system ();
               assemble_block_system ();
               add_barriers (barrier_size);
               solve ();
