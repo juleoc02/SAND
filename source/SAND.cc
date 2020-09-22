@@ -56,7 +56,7 @@ namespace SAND
         void
         create_triangulation ();
         void
-        make_initial_values ();
+        set_initial_state ();
         void
         set_bcids ();
         void
@@ -86,7 +86,7 @@ namespace SAND
         Vector<double> density, fe_rhs, lambda_1, cell_measure,
             displacement_sol;
         double density_ratio, volume_max, lambda_2;
-        unsigned int density_penalty;
+        unsigned int density_penalty_exponent;
 
         std::map<types::global_dof_index, double> boundary_values;
 
@@ -127,6 +127,7 @@ namespace SAND
         }
       triangulation.refine_global (4);
 
+      dof_handler.distribute_dofs (fe);
 
       /*Set BCIDs   */
       for (const auto &cell : dof_handler.active_cell_iterators ())
@@ -170,12 +171,11 @@ namespace SAND
 
   template <int dim>
     void
-    SANDTopOpt<dim>::make_initial_values ()
+    SANDTopOpt<dim>::set_initial_state ()
     {
       density_ratio = .5;
-      density_penalty = 3;
+      density_penalty_exponent = 3;
       lambda_2 = 0;
-      dof_handler.distribute_dofs (fe);
       cell_measure.reinit (triangulation.n_active_cells ());
       density.reinit (triangulation.n_active_cells ());
       /*displacement vector initialized as 0s*/
@@ -466,7 +466,7 @@ namespace SAND
           cell->get_dof_indices (local_dof_indices);
 
           penalized_density = pow (density[cell->active_cell_index ()],
-              density_penalty);
+              density_penalty_exponent);
 
           MatrixTools::local_apply_boundary_values (boundary_values,
               local_dof_indices, cell_matrix, cell_rhs, false);
@@ -501,9 +501,9 @@ namespace SAND
 
                 }
               grad_value = grad_value
-                  * density_penalty
+                  * density_penalty_exponent
                   * pow (density[cell->active_cell_index ()],
-                      density_penalty - 1);
+                      density_penalty_exponent - 1);
               system_matrix.block (2, 0).add (local_dof_indices[i],
                   cell->active_cell_index (), grad_value);
               system_matrix.block (0, 2).add (cell->active_cell_index (),
@@ -523,8 +523,8 @@ namespace SAND
                 }
             }
           laplace_density = laplace_density
-              * density_penalty * (density_penalty - 1)
-              * pow (density[cell->active_cell_index ()], density_penalty - 2);
+              * density_penalty_exponent * (density_penalty_exponent - 1)
+              * pow (density[cell->active_cell_index ()], density_penalty_exponent - 2);
           system_matrix.block (0, 0).add (cell->active_cell_index (),
               cell->active_cell_index (), laplace_density);
 
@@ -541,9 +541,9 @@ namespace SAND
                 }
 
               laplace_density_displacement = laplace_density_displacement
-                  * density_penalty
+                  * density_penalty_exponent
                   * pow (density[cell->active_cell_index ()],
-                      density_penalty - 1);
+                      density_penalty_exponent - 1);
 
               system_matrix.block (1, 0).add (local_dof_indices[i],
                   cell->active_cell_index (), laplace_density_displacement);
@@ -713,7 +713,7 @@ namespace SAND
       double step_size;
       bool accept_step;
       create_triangulation ();
-      make_initial_values ();
+      set_initial_state ();
       setup_block_system ();
       set_bcids ();
 
