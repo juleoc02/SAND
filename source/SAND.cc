@@ -62,9 +62,9 @@ namespace SAND
         void
         solve ();
         void
-        add_barriers (double barrier_size);
+        add_barriers (const double barrier_size);
         void
-        update_step (double step_size);
+        update_step (const double step_size);
         void
         output (int j);
 
@@ -909,15 +909,17 @@ namespace SAND
     }
 
   template <int dim>
+
     bool
-    SANDTopOpt<dim>::test_convergence (double step_size)
+    SANDTopOpt<dim>::test_convergence (const double step_size)
     {
       return true;
     }
 
+
   template <int dim>
     void
-    SANDTopOpt<dim>::update_step (double step_size)
+    SANDTopOpt<dim>::update_step (const double step_size)
     {
       nonlinear_solution = nonlinear_solution + step_size * linear_solution;
     }
