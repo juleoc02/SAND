@@ -31,6 +31,8 @@ deal.II/lac/sparse_direct.h
 -
 deal.II/lac/solver_gmres.h
 -
+deal.II/lac/affine_constraints.h
+-
 deal.II/grid/tria.h
 -
 deal.II/grid/grid_generator.h
@@ -51,6 +53,12 @@ deal.II/dofs/dof_tools.h
 -
 deal.II/fe/fe_values.h
 -
+deal.II/fe/fe_dgq.h
+-
+deal.II/fe/fe_system.h
+-
+deal.II/fe/fe_q.h
+-
 deal.II/numerics/vector_tools.h
 -
 deal.II/numerics/matrix_tools.h
@@ -58,10 +66,6 @@ deal.II/numerics/matrix_tools.h
 deal.II/numerics/data_out.h
 -
 deal.II/numerics/error_estimator.h
--
-deal.II/fe/fe_system.h
--
-deal.II/fe/fe_q.h
 -
 fstream
 -
@@ -21144,6 +21148,16 @@ deal.II/base/exceptions.h
 deal.II/lac/block_indices.h
 -
 vector
+-
+
+/home/justin/deal.ii-candi/deal.II-v9.2.0/include/deal.II/fe/fe_dgq.h
+deal.II/base/config.h
+-
+deal.II/base/tensor_product_polynomials.h
+-
+deal.II/base/thread_management.h
+-
+deal.II/fe/fe_poly.h
 -
 
 /home/justin/deal.ii-candi/deal.II-v9.2.0/include/deal.II/fe/fe_poly.h
