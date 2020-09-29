@@ -536,7 +536,6 @@ namespace SAND
 
       Functions::ConstantFunction<dim> lambda (1.), mu (1.);
       std::vector<Tensor<1, dim>> rhs_values (n_q_points);
-
       double penalized_density;
 
       for (const auto &cell : dof_handler.active_cell_iterators ())
