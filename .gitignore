@@ -1,0 +1,9 @@
+/build/
+
+*.vtk
+SAND
+.csettings
+.settings
+.cproject
+.project
+CmakeFiles
