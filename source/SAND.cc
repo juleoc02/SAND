@@ -596,7 +596,6 @@ namespace SAND
               nonlinear_solution.block (5), old_upper_slack_values);
 
           Tensor<1, dim> traction;
-          traction.clear ();
           traction[1] = -1;
 
           for (unsigned int q_point = 0; q_point < n_q_points; ++q_point)
