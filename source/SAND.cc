@@ -270,6 +270,7 @@ namespace SAND
 
       const unsigned int n_p = dofs_per_block[0];
       const unsigned int n_u = dofs_per_block[1];
+      std::cout <<"n_p:  " << n_p <<"   n_u   " << n_u << std::endl;
 
       BlockDynamicSparsityPattern dsp (7, 7);
       //first column has size n_p - hessian of lagrangian wrt p
@@ -386,25 +387,17 @@ namespace SAND
 
       constraints.clear ();
 
-      std::vector<bool> density_dofs (dof_handler.n_dofs (), false);
-
       ComponentMask density_mask = fe.component_mask (densities);
 
-      DoFTools::extract_dofs (dof_handler, density_mask, density_dofs);
+      IndexSet density_dofs = DoFTools::extract_dofs (dof_handler, density_mask);
 
-      const unsigned int first_density_dof = std::distance (
-          density_dofs.begin (),
-          std::find (density_dofs.begin (), density_dofs.end (), true));
+      const unsigned int first_density_dof = *density_dofs.begin ();
 
       constraints.add_line (first_density_dof);
-      for (unsigned int i = first_density_dof + 1; i < dof_handler.n_dofs ();
+      for (unsigned int i = first_density_dof + 1; i < density_dofs.n_elements();
           ++i)
         {
-          if (density_dofs[i] == true)
-            {
-              constraints.add_entry (first_density_dof, i, -1);
-            }
-
+              constraints.add_entry (first_density_dof, density_dofs.nth_index_in_set(i), -1);
         }
       constraints.set_inhomogeneity (first_density_dof, 0);
 
@@ -417,17 +410,6 @@ namespace SAND
 
       sparsity_pattern.copy_from (dsp);
 
-      for (int i = 0; i < 7; i++)
-        {
-          for (int j = 0; j < 7; j++)
-            {
-
-              std::ofstream out (
-                  "sparsity" + std::to_string (i) + "_" + std::to_string (j)
-                  + ".svg");
-              sparsity_pattern.block (i, j).print_svg (out);
-            }
-        }
 
       std::ofstream out ("sparsity.plt");
       sparsity_pattern.print_gnuplot (out);
@@ -666,16 +648,16 @@ namespace SAND
                                * (old_displacement_multiplier_symmgrads[q_point] * displacement_phi_j_symmgrad))
                           * fe_values.JxW (q_point);
 
-                      cell_matrix (j, i) -=
-                          density_penalty_exponent * std::pow (
-                              old_density_values[q_point],
-                              density_penalty_exponent - 1)
-                          * density_phi_i
-                          * (old_displacement_multiplier_divs[q_point] * displacement_phi_j_div
-                             * lambda_values[q_point]
-                             + 2 * mu_values[q_point]
-                               * (old_displacement_multiplier_symmgrads[q_point] * displacement_phi_j_symmgrad))
-                          * fe_values.JxW (q_point);
+//                      cell_matrix (j, i) -=
+//                          density_penalty_exponent * std::pow (
+//                              old_density_values[q_point],
+//                              density_penalty_exponent - 1)
+//                          * density_phi_i
+//                          * (old_displacement_multiplier_divs[q_point] * displacement_phi_j_div
+//                             * lambda_values[q_point]
+//                             + 2 * mu_values[q_point]
+//                               * (old_displacement_multiplier_symmgrads[q_point] * displacement_phi_j_symmgrad))
+//                          * fe_values.JxW (q_point);
 
                       //block(0,2) and (2,0)
 
@@ -714,9 +696,9 @@ namespace SAND
 
                       cell_matrix (i, j) += upper_slack_multiplier_phi_i
                           * density_phi_j * fe_values.JxW (q_point);
-
-                      //block(1,1) is 0.
-
+//
+//                      //block(1,1) is 0.
+//
                       //block(1,2) and (2,1)
                       cell_matrix (i, j) +=
                           std::pow (old_density_values[q_point],
@@ -875,8 +857,8 @@ namespace SAND
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
                 {
-                  system_matrix.add (local_dof_indices[i], local_dof_indices[j],
-                      cell_matrix (i, j));
+                 system_matrix.add (local_dof_indices[i], local_dof_indices[j],
+                          cell_matrix (i, j));
                 }
             }
 
@@ -926,8 +908,8 @@ namespace SAND
           dim, DataComponentInterpretation::component_is_part_of_vector);
       DataOut<dim> data_out;
       data_out.attach_dof_handler (dof_handler);
-      data_out.add_data_vector (nonlinear_solution.block (1), solution_names,
-          DataOut<dim>::type_dof_data, data_component_interpretation);
+//      data_out.add_data_vector (nonlinear_solution.block (1), solution_names,
+//          DataOut<dim>::type_dof_data, data_component_interpretation);
      data_out.add_data_vector (nonlinear_solution.block (0), "density");
       data_out.build_patches ();
       std::ofstream output ("solution" + std::to_string (j) + ".vtk");
@@ -938,7 +920,6 @@ namespace SAND
     void
     SANDTopOpt<dim>::run ()
     {
-
       double barrier_size = .1;
       double step_size = 1;
 
@@ -951,7 +932,7 @@ namespace SAND
       solve ();
       update_step(step_size);
       output(1);
-//
+
     }
 
 } // namespace SAND
