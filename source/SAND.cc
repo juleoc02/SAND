@@ -406,7 +406,7 @@ namespace SAND
       constraints.close ();
 
       DoFTools::make_sparsity_pattern (dof_handler, coupling, dsp, constraints,
-          false);
+          true);
 
       sparsity_pattern.copy_from (dsp);
 
