@@ -79,9 +79,9 @@ SAND_EXTERNAL_OBJECTS =
 
 SAND: CMakeFiles/SAND.dir/source/SAND.cc.o
 SAND: CMakeFiles/SAND.dir/build.make
-SAND: /home/justin/deal.ii-candi/deal.II-v9.2.0/lib/libdeal_II.so.9.2.0
-SAND: /home/justin/deal.ii-candi/p4est-2.2/FAST/lib/libp4est.so
-SAND: /home/justin/deal.ii-candi/p4est-2.2/FAST/lib/libsc.so
+SAND: /home/justin/deal.ii-candi/deal.II-v9.2.0/lib/libdeal_II.g.so.9.2.0
+SAND: /home/justin/deal.ii-candi/p4est-2.2/DEBUG/lib/libp4est.so
+SAND: /home/justin/deal.ii-candi/p4est-2.2/DEBUG/lib/libsc.so
 SAND: /usr/lib/x86_64-linux-gnu/libz.so
 SAND: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/librol.so
 SAND: /home/justin/deal.ii-candi/trilinos-release-12-18-1/lib/libtempus.so

@@ -6,4 +6,4 @@ SAND
 .settings
 .cproject
 .project
-CmakeFiles
+CmakeFiles/*
