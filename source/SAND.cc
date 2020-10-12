@@ -64,7 +64,7 @@ namespace SAND
         void
         add_barriers (const double barrier_size);
         void
-        update_step (const double step_size);
+        update_step ();
         void
         output (int j);
 
@@ -124,7 +124,7 @@ namespace SAND
           GridGenerator::merge_triangulations (triangulation_temp,
               triangulation, triangulation);
         }
-      triangulation.refine_global (1);
+      triangulation.refine_global (4);
 
       /*Set BCIDs   */
       for (const auto &cell : triangulation.active_cell_iterators ())
@@ -459,15 +459,15 @@ namespace SAND
       for (unsigned int i = 0; i < n_u; i++)
         {
           nonlinear_solution.block (1)[i] = 0;
-          nonlinear_solution.block (2)[i] = 1;
+          nonlinear_solution.block (2)[i] = 0;
         }
       for (unsigned int i = 0; i < n_p; i++)
         {
           nonlinear_solution.block (0)[i] = density_ratio;
-          nonlinear_solution.block (3)[i] = 1;
-          nonlinear_solution.block (4)[i] = 1;
-          nonlinear_solution.block (5)[i] = 1;
-          nonlinear_solution.block (6)[i] = 1;
+          nonlinear_solution.block (3)[i] = density_ratio;
+          nonlinear_solution.block (4)[i] = .5;
+          nonlinear_solution.block (5)[i] = 1-density_ratio;
+          nonlinear_solution.block (6)[i] = .5;
         }
       volume_max = 3;
 
@@ -648,16 +648,16 @@ namespace SAND
                                * (old_displacement_multiplier_symmgrads[q_point] * displacement_phi_j_symmgrad))
                           * fe_values.JxW (q_point);
 
-//                      cell_matrix (j, i) -=
-//                          density_penalty_exponent * std::pow (
-//                              old_density_values[q_point],
-//                              density_penalty_exponent - 1)
-//                          * density_phi_i
-//                          * (old_displacement_multiplier_divs[q_point] * displacement_phi_j_div
-//                             * lambda_values[q_point]
-//                             + 2 * mu_values[q_point]
-//                               * (old_displacement_multiplier_symmgrads[q_point] * displacement_phi_j_symmgrad))
-//                          * fe_values.JxW (q_point);
+                      cell_matrix (j, i) -=
+                          density_penalty_exponent * std::pow (
+                              old_density_values[q_point],
+                              density_penalty_exponent - 1)
+                          * density_phi_i
+                          * (old_displacement_multiplier_divs[q_point] * displacement_phi_j_div
+                             * lambda_values[q_point]
+                             + 2 * mu_values[q_point]
+                               * (old_displacement_multiplier_symmgrads[q_point] * displacement_phi_j_symmgrad))
+                          * fe_values.JxW (q_point);
 
                       //block(0,2) and (2,0)
 
@@ -696,9 +696,9 @@ namespace SAND
 
                       cell_matrix (i, j) += upper_slack_multiplier_phi_i
                           * density_phi_j * fe_values.JxW (q_point);
-//
-//                      //block(1,1) is 0.
-//
+
+                      //block(1,1) is 0.
+
                       //block(1,2) and (2,1)
                       cell_matrix (i, j) +=
                           std::pow (old_density_values[q_point],
@@ -764,6 +764,7 @@ namespace SAND
                   cell_rhs (i) += density_phi_i
                       * old_lower_slack_multiplier_values[q_point]
                       * fe_values.JxW (q_point);
+
                   cell_rhs (i) -= density_phi_i
                       * old_upper_slack_multiplier_values[q_point]
                       * fe_values.JxW (q_point);
@@ -772,10 +773,9 @@ namespace SAND
                   cell_rhs (i) +=
                       std::pow (old_density_values[q_point],
                           density_penalty_exponent)
-                      * density_phi_i
                       * (old_displacement_multiplier_divs[q_point] * displacement_phi_i_div
                          * lambda_values[q_point]
-                         + mu_values[q_point] * (old_displacement_symmgrads[q_point]
+                         + mu_values[q_point] * (old_displacement_multiplier_symmgrads[q_point]
                              * displacement_phi_i_symmgrad))
                       * fe_values.JxW (q_point);
 
@@ -783,7 +783,6 @@ namespace SAND
                   cell_rhs (i) +=
                       std::pow (old_density_values[q_point],
                           density_penalty_exponent)
-                      * density_phi_i
                       * (old_displacement_divs[q_point] * displacement_multiplier_phi_i_div
                          * lambda_values[q_point]
                          + mu_values[q_point] * (old_displacement_symmgrads[q_point]
@@ -815,7 +814,7 @@ namespace SAND
                       * fe_values.JxW (q_point);
 
                   //rhs block 6
-                  cell_rhs (i) += (old_density_values[q_point]
+                  cell_rhs (i) += (1-old_density_values[q_point]
                       - old_upper_slack_values[q_point])
                                   * upper_slack_multiplier_phi_i
                                   * fe_values.JxW (q_point);
@@ -860,6 +859,7 @@ namespace SAND
                  system_matrix.add (local_dof_indices[i], local_dof_indices[j],
                           cell_matrix (i, j));
                 }
+              system_rhs(local_dof_indices[i])+= cell_rhs(i);
             }
 
         }
@@ -873,6 +873,7 @@ namespace SAND
       SparseDirectUMFPACK A_direct;
       A_direct.initialize (system_matrix);
       A_direct.vmult (linear_solution, system_rhs);
+
 
     }
 
@@ -894,9 +895,59 @@ namespace SAND
 
   template <int dim>
     void
-    SANDTopOpt<dim>::update_step (const double step_size)
+    SANDTopOpt<dim>::update_step ()
     {
-      nonlinear_solution = nonlinear_solution + step_size * linear_solution;
+	  double fraction_to_boundary = .995;
+
+	  double step_size_s_low=0;
+	  double step_size_z_low=0;
+	  double step_size_s_high=1;
+	  double step_size_z_high=1;
+	  double step_size_s,step_size_z;
+	  bool accept_s, accept_z;
+
+	  for(unsigned int k=0; k<50; k++)
+	  {
+		  step_size_s = (step_size_s_low+step_size_s_high)/2;
+		  step_size_z = (step_size_z_low+step_size_z_high)/2;
+
+		  BlockVector<double> nonlinear_solution_test_s = (fraction_to_boundary*nonlinear_solution) + (step_size_s * linear_solution);
+
+		  BlockVector<double> nonlinear_solution_test_z = (fraction_to_boundary*nonlinear_solution) + (step_size_z * linear_solution);
+		  accept_s = (nonlinear_solution_test_s.block(3).is_non_negative()) && (nonlinear_solution_test_s.block(5).is_non_negative());
+		  accept_z = (nonlinear_solution_test_z.block(4).is_non_negative()) && (nonlinear_solution_test_z.block(6).is_non_negative());
+
+		  if(accept_s)
+		  {
+			  step_size_s_low=step_size_z;
+		  }
+		  else
+		  {
+			  step_size_s_high=step_size_z;
+		  }
+		  if(accept_z)
+		  {
+			  step_size_z_low=step_size_z;
+		  }
+		  else
+		  {
+			  step_size_z_high=step_size_z;
+		  }
+
+	  }
+	  std::cout << step_size_s << "    " << step_size_z << std::endl;
+
+
+      nonlinear_solution.block(0) = nonlinear_solution.block(0) + step_size_s * linear_solution.block(0);
+      nonlinear_solution.block(1) = nonlinear_solution.block(1) + step_size_s * linear_solution.block(1);
+      nonlinear_solution.block(2) = nonlinear_solution.block(2) + step_size_z * linear_solution.block(2);
+      nonlinear_solution.block(3) = nonlinear_solution.block(3) + step_size_s * linear_solution.block(3);
+      nonlinear_solution.block(4) = nonlinear_solution.block(4) + step_size_z * linear_solution.block(4);
+      nonlinear_solution.block(5) = nonlinear_solution.block(5) + step_size_s * linear_solution.block(5);
+      nonlinear_solution.block(6) = nonlinear_solution.block(6) + step_size_z * linear_solution.block(6);
+
+      linear_solution = 0;
+      system_matrix=0;
     }
 
   template <int dim>
@@ -920,19 +971,21 @@ namespace SAND
     void
     SANDTopOpt<dim>::run ()
     {
-      double barrier_size = .1;
-      double step_size = 1;
+      double barrier_size = 10;
 
       create_triangulation ();
       set_initial_state ();
       setup_block_system ();
       set_bcids ();
-      assemble_block_system (barrier_size);
-
-      solve ();
-      update_step(step_size);
-      output(1);
-
+      for(unsigned int loop = 0; loop < 100; loop++)
+      {
+	    assemble_block_system (barrier_size);
+		solve ();
+		update_step();
+		output(loop);
+		barrier_size = barrier_size * .2;
+      	std::cout << loop << std::endl;
+      }
     }
 
 } // namespace SAND
