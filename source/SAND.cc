@@ -194,10 +194,10 @@ namespace SAND
                           vertex_number < GeometryInfo < dim > ::vertices_per_cell;
                           ++vertex_number)
                         {
-                          const auto center = cell->vertex (vertex_number);
+                          const auto vert = cell->vertex (vertex_number);
                           /*Find bottom left corner*/
-                          if (std::fabs (center (0) - 0) < 1e-12 && std::fabs (
-                                                                        center (
+                          if (std::fabs (vert (0) - 0) < 1e-12 && std::fabs (
+                                                                        vert (
                                                                             1)
                                                                         - 0)
                                                                     < 1e-12)
@@ -218,8 +218,8 @@ namespace SAND
                               boundary_values[y_displacement_multiplier] = 0;
                             }
                           /*Find bottom right corner*/
-                          if (std::fabs (center (0) - 6) < 1e-12 && std::fabs (
-                                                                        center (
+                          if (std::fabs (vert (0) - 6) < 1e-12 && std::fabs (
+                                                                        vert (
                                                                             1)
                                                                         - 0)
                                                                     < 1e-12)
@@ -840,11 +840,6 @@ namespace SAND
                     }
                 }
             }
-
-          std::vector<types::global_dof_index> local_dof_indices;
-          local_dof_indices.resize(dofs_per_cell);
-          cell->get_dof_indices(local_dof_indices);
-
 
           MatrixTools::local_apply_boundary_values (boundary_values,local_dof_indices,
                      cell_matrix, cell_rhs, true);
