@@ -70,7 +70,7 @@ namespace SAND
         AffineConstraints<double> constraints;
         FESystem<dim> fe;
         double density_ratio, volume_max, lambda_2;
-        unsigned int density_penalty_exponent;
+        int density_penalty_exponent;
 
         std::map<types::global_dof_index, double> boundary_values;
 
@@ -741,19 +741,15 @@ namespace SAND
                     }
 
                   //rhs eqn 0
-                  cell_rhs (i) +=
-                      fe_values.JxW (q_point) *
-                      (-1* density_penalty_exponent * std::pow (old_density_values[q_point],
-                              density_penalty_exponent - 1)
-                          * density_phi_i
-                          * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
-                             * lambda_values[q_point]
-                             + 2* mu_values[q_point] * (old_displacement_symmgrads[q_point]
-                                 * old_displacement_multiplier_symmgrads[q_point]))
-                       -
-                       density_phi_i * old_upper_slack_multiplier_values[q_point]
-                       +
-                       density_phi_i * old_lower_slack_multiplier_values[q_point]);
+                  cell_rhs(i) +=
+                          fe_values.JxW(q_point) *(
+                                  -1 *density_penalty_exponent* std::pow(old_density_values[q_point],density_penalty_exponent - 1)* density_phi_i
+                                  * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
+                                  * lambda_values[q_point]
+                                  + 2 * mu_values[q_point] * (old_displacement_symmgrads[q_point]
+                                  * old_displacement_multiplier_symmgrads[q_point]))
+                                  + -1 * density_phi_i * old_upper_slack_multiplier_values[q_point]
+                                  + density_phi_i * old_lower_slack_multiplier_values[q_point]);
 
                   //rhs eqn 1 - boundary terms counted later
                   cell_rhs (i) +=
@@ -824,6 +820,7 @@ namespace SAND
                               * fe_face_values[displacements].value (i,
                                   face_q_point)
                               * fe_face_values.JxW (face_q_point);
+
                           cell_rhs (i) += traction
                               * fe_face_values[displacement_multipliers].value (
                                   i, face_q_point)
@@ -977,13 +974,13 @@ namespace SAND
       setup_block_system ();
       set_bcids ();
 
-       for (unsigned int loop = 0; loop < 5; loop++)
+       for (unsigned int loop = 0; loop < 10; loop++)
         {
           assemble_block_system (barrier_size);
           solve ();
           update_step ();
           output (loop);
-//          barrier_size = barrier_size * .2;
+          barrier_size = barrier_size * .2;
           std::cout << loop << std::endl << "RHS" << std::endl;
           system_rhs.print(std::cout);
           std::cout  << std::endl<< "linear solve" << std::endl;
