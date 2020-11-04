@@ -10,17 +10,13 @@
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/packaged_operation.h>
 #include <deal.II/lac/sparse_direct.h>
-#include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/affine_constraints.h>
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_refinement.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 
 #include <deal.II/dofs/dof_handler.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_renumbering.h>
 #include <deal.II/dofs/dof_tools.h>
 
@@ -34,7 +30,6 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
 
-#include <fstream>
 #include <iostream>
 
 namespace SAND
@@ -60,16 +55,10 @@ namespace SAND
         void
         solve ();
         void
-        add_barriers (const double barrier_size);
-        void
         update_step ();
         void
         output (int j);
 
-        bool
-        test_step (double step_size);
-        bool
-        test_convergence (double step_size);
 
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
@@ -113,7 +102,7 @@ namespace SAND
       GridGenerator::hyper_rectangle (triangulation, point_1, point_2);
 
       /*make 5 more squares*/
-      for (int n = 1; n < 6; n++)
+      for (int n = 1; n < 2; n++)
         {
           triangulation_temp.clear ();
           point_1 (0) = n;
@@ -123,7 +112,7 @@ namespace SAND
           GridGenerator::merge_triangulations (triangulation_temp,
               triangulation, triangulation);
         }
-      triangulation.refine_global (3);
+      triangulation.refine_global (0);
 
       /*Set BCIDs   */
       for (const auto &cell : triangulation.active_cell_iterators ())
@@ -138,29 +127,28 @@ namespace SAND
                   if (std::fabs (center (1) - 0) < 1e-12)
                     {
                       /*Boundary ID of 2 is the 0 neumann, so no external force*/
-                      cell->face (face_number)->set_boundary_id (2);
+                      cell->face (face_number)->set_boundary_id (0);
                     }
                   if (std::fabs (center (1) - 1) < 1e-12)
                     {
-
                       /*Find top middle*/
-                      if ((std::fabs (center (0) - 3) < .7))
+                      if ((std::fabs (center (0) - 1) < 1))
                         {
                           /*downward force is boundary id of 1*/
                           cell->face (face_number)->set_boundary_id (1);
                         }
                       else
                         {
-                          cell->face (face_number)->set_boundary_id (2);
+                          cell->face (face_number)->set_boundary_id (1);
                         }
                     }
                   if (std::fabs (center (0) - 0) < 1e-12)
                     {
-                      cell->face (face_number)->set_boundary_id (2);
+                      cell->face (face_number)->set_boundary_id (0);
                     }
-                  if (std::fabs (center (0) - 6) < 1e-12)
+                  if (std::fabs (center (0) - 2) < 1e-12)
                     {
-                      cell->face (face_number)->set_boundary_id (2);
+                      cell->face (face_number)->set_boundary_id (0);
                     }
                 }
             }
@@ -178,72 +166,72 @@ namespace SAND
     void
     SANDTopOpt<dim>::set_bcids ()
     {
-      for (const auto &cell : dof_handler.active_cell_iterators ())
-        {
-          for (unsigned int face_number = 0;
-              face_number < GeometryInfo < dim > ::faces_per_cell;
-              ++face_number)
-            {
-              if (cell->face (face_number)->at_boundary ())
-                {
-                  const auto center = cell->face (face_number)->center ();
-                  if (std::fabs (center (1) - 0) < 1e-12)
-                    {
-
-                      for (unsigned int vertex_number = 0;
-                          vertex_number < GeometryInfo < dim > ::vertices_per_cell;
-                          ++vertex_number)
-                        {
-                          const auto vert = cell->vertex (vertex_number);
-                          /*Find bottom left corner*/
-                          if (std::fabs (vert (0) - 0) < 1e-12 && std::fabs (
-                                                                        vert (
-                                                                            1)
-                                                                        - 0)
-                                                                    < 1e-12)
-                            {
-
-                              const unsigned int x_displacement =
-                                  cell->vertex_dof_index (vertex_number, 0);
-                              const unsigned int y_displacement =
-                                  cell->vertex_dof_index (vertex_number, 1);
-                              const unsigned int x_displacement_multiplier =
-                                  cell->vertex_dof_index (vertex_number, 2);
-                              const unsigned int y_displacement_multiplier =
-                                  cell->vertex_dof_index (vertex_number, 3);
-                              /*set bottom left BC*/
-                              boundary_values[x_displacement] = 0;
-                              boundary_values[y_displacement] = 0;
-                              boundary_values[x_displacement_multiplier] = 0;
-                              boundary_values[y_displacement_multiplier] = 0;
-                            }
-                          /*Find bottom right corner*/
-                          if (std::fabs (vert (0) - 6) < 1e-12 && std::fabs (
-                                                                        vert (
-                                                                            1)
-                                                                        - 0)
-                                                                    < 1e-12)
-                            {
-                              const unsigned int x_displacement =
-                                  cell->vertex_dof_index (vertex_number, 0);
-                              const unsigned int y_displacement =
-                                  cell->vertex_dof_index (vertex_number, 1);
-                              const unsigned int x_displacement_multiplier =
-                                  cell->vertex_dof_index (vertex_number, 2);
-                              const unsigned int y_displacement_multiplier =
-                                  cell->vertex_dof_index (vertex_number, 3);
-                              /*set bottom left BC*/
-                              boundary_values[x_displacement] = 0;
-                              boundary_values[y_displacement] = 0;
-                              boundary_values[x_displacement_multiplier] = 0;
-                              boundary_values[y_displacement_multiplier] = 0;
-
-                            }
-                        }
-                    }
-                }
-            }
-        }
+//      for (const auto &cell : dof_handler.active_cell_iterators ())
+//        {
+//          for (unsigned int face_number = 0;
+//              face_number < GeometryInfo < dim > ::faces_per_cell;
+//              ++face_number)
+//            {
+//              if (cell->face (face_number)->at_boundary ())
+//                {
+//                  const auto center = cell->face (face_number)->center ();
+//                  if (std::fabs (center (1) - 0) < 1e-12)
+//                    {
+//
+//                      for (unsigned int vertex_number = 0;
+//                          vertex_number < GeometryInfo < dim > ::vertices_per_cell;
+//                          ++vertex_number)
+//                        {
+//                          const auto vert = cell->vertex (vertex_number);
+//                          /*Find bottom left corner*/
+//                          if (std::fabs (vert (0) - 0) < 1e-12 && std::fabs (
+//                                                                        vert (
+//                                                                            1)
+//                                                                        - 0)
+//                                                                    < 1e-12)
+//                            {
+//
+//                              const unsigned int x_displacement =
+//                                  cell->vertex_dof_index (vertex_number, 0);
+//                              const unsigned int y_displacement =
+//                                  cell->vertex_dof_index (vertex_number, 1);
+//                              const unsigned int x_displacement_multiplier =
+//                                  cell->vertex_dof_index (vertex_number, 2);
+//                              const unsigned int y_displacement_multiplier =
+//                                  cell->vertex_dof_index (vertex_number, 3);
+//                              /*set bottom left BC*/
+//                              boundary_values[x_displacement] = 0;
+//                              boundary_values[y_displacement] = 0;
+//                              boundary_values[x_displacement_multiplier] = 0;
+//                              boundary_values[y_displacement_multiplier] = 0;
+//                            }
+//                          /*Find bottom right corner*/
+//                          if (std::fabs (vert (0) - 6) < 1e-12 && std::fabs (
+//                                                                        vert (
+//                                                                            1)
+//                                                                        - 0)
+//                                                                    < 1e-12)
+//                            {
+//                              const unsigned int x_displacement =
+//                                  cell->vertex_dof_index (vertex_number, 0);
+//                              const unsigned int y_displacement =
+//                                  cell->vertex_dof_index (vertex_number, 1);
+//                              const unsigned int x_displacement_multiplier =
+//                                  cell->vertex_dof_index (vertex_number, 2);
+//                              const unsigned int y_displacement_multiplier =
+//                                  cell->vertex_dof_index (vertex_number, 3);
+//                              /*set bottom left BC*/
+//                              boundary_values[x_displacement] = 0;
+//                              boundary_values[y_displacement] = 0;
+//                              boundary_values[x_displacement_multiplier] = 0;
+//                              boundary_values[y_displacement_multiplier] = 0;
+//
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
     }
 
   template <int dim>
@@ -253,12 +241,6 @@ namespace SAND
       const FEValuesExtractors::Scalar densities (0);
       const FEValuesExtractors::Vector displacements (1);
       const FEValuesExtractors::Vector displacement_multipliers (1 + dim);
-      const FEValuesExtractors::Scalar density_lower_slacks (1 + 2 * dim);
-      const FEValuesExtractors::Scalar density_lower_slack_multipliers (
-          2 + 2 * dim);
-      const FEValuesExtractors::Scalar density_upper_slacks (3 + 2 * dim);
-      const FEValuesExtractors::Scalar density_upper_slack_multipliers (
-          4 + 2 * dim);
 
       //MAKE n_u and n_P*****************************************************************
 
@@ -405,11 +387,23 @@ namespace SAND
         }
       constraints.set_inhomogeneity (first_density_dof, 0);
 
+        VectorTools::interpolate_boundary_values(dof_handler,
+                                                 0,
+                                                 ZeroFunction<dim>(2*dim+5),
+                                                 constraints,
+                                                 fe.component_mask(displacements));
+        VectorTools::interpolate_boundary_values(dof_handler,
+                                                 0,
+                                                 ZeroFunction<dim>(2*dim+5),
+                                                 constraints,
+                                                 fe.component_mask(displacement_multipliers));
       constraints.close ();
 
 //      DoFTools::make_sparsity_pattern (dof_handler, coupling, dsp, constraints,
 //          false);
-      //changed it to below - works now?
+//changed it to below - works now?
+
+
 
       DoFTools::make_sparsity_pattern (dof_handler,dsp);
       constraints.condense(dsp);
@@ -724,15 +718,13 @@ namespace SAND
 
                       //Equation 3 - more primal feasibility
                       cell_matrix (i, j) +=
-                          fe_values.JxW (q_point) *
-                          (lower_slack_multiplier_phi_i* density_phi_j
-                             - lower_slack_multiplier_phi_i * lower_slack_phi_j);
+                          fe_values.JxW (q_point) * lower_slack_multiplier_phi_i*
+                                  (density_phi_j - lower_slack_phi_j);
 
                       //Equation 4 - more primal feasibility
                       cell_matrix (i, j) +=
-                          fe_values.JxW (q_point) * (
-                              -1 * upper_slack_multiplier_phi_i * density_phi_j
-                            - upper_slack_multiplier_phi_i * upper_slack_phi_j);
+                          fe_values.JxW (q_point) * upper_slack_multiplier_phi_i * (
+                              -1 * density_phi_j - upper_slack_phi_j);
 
                       //Equation 5 - complementary slackness
                       cell_matrix (i, j) += fe_values.JxW (q_point)
@@ -756,7 +748,7 @@ namespace SAND
                           * density_phi_i
                           * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
                              * lambda_values[q_point]
-                             + mu_values[q_point] * (old_displacement_symmgrads[q_point]
+                             + 2* mu_values[q_point] * (old_displacement_symmgrads[q_point]
                                  * old_displacement_multiplier_symmgrads[q_point]))
                        -
                        density_phi_i * old_upper_slack_multiplier_values[q_point]
@@ -769,7 +761,7 @@ namespace SAND
                         -1 * std::pow (old_density_values[q_point], density_penalty_exponent)
                         * (old_displacement_multiplier_divs[q_point] * displacement_phi_i_div
                              * lambda_values[q_point]
-                           + mu_values[q_point] * (old_displacement_multiplier_symmgrads[q_point]
+                           + 2* mu_values[q_point] * (old_displacement_multiplier_symmgrads[q_point]
                              * displacement_phi_i_symmgrad))
                       ) ;
 
@@ -780,7 +772,7 @@ namespace SAND
                             density_penalty_exponent)
                         * (old_displacement_divs[q_point] * displacement_multiplier_phi_i_div
                            * lambda_values[q_point]
-                           + mu_values[q_point] * (old_displacement_symmgrads[q_point]
+                           + 2*mu_values[q_point] * (old_displacement_symmgrads[q_point]
                                * displacement_multiplier_phi_i_symmgrad))
                       );
 
@@ -841,7 +833,7 @@ namespace SAND
                 }
             }
 
-          MatrixTools::local_apply_boundary_values (boundary_values,local_dof_indices,
+          MatrixTools::local_apply_boundary_values (boundary_values, local_dof_indices,
                      cell_matrix, cell_rhs, true);
           constraints.distribute_local_to_global(
                cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
@@ -864,21 +856,6 @@ namespace SAND
 
       constraints.distribute(linear_solution);
 
-    }
-
-  template <int dim>
-    bool
-    SANDTopOpt<dim>::test_step (double step_size)
-    {
-      return true;
-    }
-
-  template <int dim>
-
-    bool
-    SANDTopOpt<dim>::test_convergence (const double step_size)
-    {
-      return true;
     }
 
   template <int dim>
@@ -999,14 +976,21 @@ namespace SAND
       create_triangulation ();
       setup_block_system ();
       set_bcids ();
-       for (unsigned int loop = 0; loop < 100; loop++)
+
+       for (unsigned int loop = 0; loop < 5; loop++)
         {
           assemble_block_system (barrier_size);
           solve ();
           update_step ();
           output (loop);
-          barrier_size = barrier_size * .2;
-          std::cout << loop << std::endl;
+//          barrier_size = barrier_size * .2;
+          std::cout << loop << std::endl << "RHS" << std::endl;
+          system_rhs.print(std::cout);
+          std::cout  << std::endl<< "linear solve" << std::endl;
+        linear_solution.print(std::cout);
+        std::cout  << std::endl<< "nonlinear solve" << std::endl;
+          nonlinear_solution.print(std::cout);
+          std::cout  << std::endl;
         }
     }
 
