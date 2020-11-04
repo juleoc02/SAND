@@ -102,7 +102,7 @@ namespace SAND
       GridGenerator::hyper_rectangle (triangulation, point_1, point_2);
 
       /*make 5 more squares*/
-      for (int n = 1; n < 2; n++)
+      for (int n = 1; n < 6; n++)
         {
           triangulation_temp.clear ();
           point_1 (0) = n;
@@ -127,28 +127,28 @@ namespace SAND
                   if (std::fabs (center (1) - 0) < 1e-12)
                     {
                       /*Boundary ID of 2 is the 0 neumann, so no external force*/
-                      cell->face (face_number)->set_boundary_id (0);
+                      cell->face (face_number)->set_boundary_id (2);
                     }
                   if (std::fabs (center (1) - 1) < 1e-12)
                     {
                       /*Find top middle*/
-                      if ((std::fabs (center (0) - 1) < 1))
+                      if ((std::fabs (center (0) - 3) < 1))
                         {
                           /*downward force is boundary id of 1*/
                           cell->face (face_number)->set_boundary_id (1);
                         }
                       else
                         {
-                          cell->face (face_number)->set_boundary_id (1);
+                          cell->face (face_number)->set_boundary_id (2);
                         }
                     }
                   if (std::fabs (center (0) - 0) < 1e-12)
                     {
-                      cell->face (face_number)->set_boundary_id (0);
+                      cell->face (face_number)->set_boundary_id (2);
                     }
-                  if (std::fabs (center (0) - 2) < 1e-12)
+                  if (std::fabs (center (0) - 6) < 1e-12)
                     {
-                      cell->face (face_number)->set_boundary_id (0);
+                      cell->face (face_number)->set_boundary_id (2);
                     }
                 }
             }
@@ -166,72 +166,72 @@ namespace SAND
     void
     SANDTopOpt<dim>::set_bcids ()
     {
-//      for (const auto &cell : dof_handler.active_cell_iterators ())
-//        {
-//          for (unsigned int face_number = 0;
-//              face_number < GeometryInfo < dim > ::faces_per_cell;
-//              ++face_number)
-//            {
-//              if (cell->face (face_number)->at_boundary ())
-//                {
-//                  const auto center = cell->face (face_number)->center ();
-//                  if (std::fabs (center (1) - 0) < 1e-12)
-//                    {
-//
-//                      for (unsigned int vertex_number = 0;
-//                          vertex_number < GeometryInfo < dim > ::vertices_per_cell;
-//                          ++vertex_number)
-//                        {
-//                          const auto vert = cell->vertex (vertex_number);
-//                          /*Find bottom left corner*/
-//                          if (std::fabs (vert (0) - 0) < 1e-12 && std::fabs (
-//                                                                        vert (
-//                                                                            1)
-//                                                                        - 0)
-//                                                                    < 1e-12)
-//                            {
-//
-//                              const unsigned int x_displacement =
-//                                  cell->vertex_dof_index (vertex_number, 0);
-//                              const unsigned int y_displacement =
-//                                  cell->vertex_dof_index (vertex_number, 1);
-//                              const unsigned int x_displacement_multiplier =
-//                                  cell->vertex_dof_index (vertex_number, 2);
-//                              const unsigned int y_displacement_multiplier =
-//                                  cell->vertex_dof_index (vertex_number, 3);
-//                              /*set bottom left BC*/
-//                              boundary_values[x_displacement] = 0;
-//                              boundary_values[y_displacement] = 0;
-//                              boundary_values[x_displacement_multiplier] = 0;
-//                              boundary_values[y_displacement_multiplier] = 0;
-//                            }
-//                          /*Find bottom right corner*/
-//                          if (std::fabs (vert (0) - 6) < 1e-12 && std::fabs (
-//                                                                        vert (
-//                                                                            1)
-//                                                                        - 0)
-//                                                                    < 1e-12)
-//                            {
-//                              const unsigned int x_displacement =
-//                                  cell->vertex_dof_index (vertex_number, 0);
-//                              const unsigned int y_displacement =
-//                                  cell->vertex_dof_index (vertex_number, 1);
-//                              const unsigned int x_displacement_multiplier =
-//                                  cell->vertex_dof_index (vertex_number, 2);
-//                              const unsigned int y_displacement_multiplier =
-//                                  cell->vertex_dof_index (vertex_number, 3);
-//                              /*set bottom left BC*/
-//                              boundary_values[x_displacement] = 0;
-//                              boundary_values[y_displacement] = 0;
-//                              boundary_values[x_displacement_multiplier] = 0;
-//                              boundary_values[y_displacement_multiplier] = 0;
-//
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        }
+      for (const auto &cell : dof_handler.active_cell_iterators ())
+        {
+          for (unsigned int face_number = 0;
+              face_number < GeometryInfo < dim > ::faces_per_cell;
+              ++face_number)
+            {
+              if (cell->face (face_number)->at_boundary ())
+                {
+                  const auto center = cell->face (face_number)->center ();
+                  if (std::fabs (center (1) - 0) < 1e-12)
+                    {
+
+                      for (unsigned int vertex_number = 0;
+                          vertex_number < GeometryInfo < dim > ::vertices_per_cell;
+                          ++vertex_number)
+                        {
+                          const auto vert = cell->vertex (vertex_number);
+                          /*Find bottom left corner*/
+                          if (std::fabs (vert (0) - 0) < 1e-12 && std::fabs (
+                                                                        vert (
+                                                                            1)
+                                                                        - 0)
+                                                                    < 1e-12)
+                            {
+
+                              const unsigned int x_displacement =
+                                  cell->vertex_dof_index (vertex_number, 0);
+                              const unsigned int y_displacement =
+                                  cell->vertex_dof_index (vertex_number, 1);
+                              const unsigned int x_displacement_multiplier =
+                                  cell->vertex_dof_index (vertex_number, 2);
+                              const unsigned int y_displacement_multiplier =
+                                  cell->vertex_dof_index (vertex_number, 3);
+                              /*set bottom left BC*/
+                              boundary_values[x_displacement] = 0;
+                              boundary_values[y_displacement] = 0;
+                              boundary_values[x_displacement_multiplier] = 0;
+                              boundary_values[y_displacement_multiplier] = 0;
+                            }
+                          /*Find bottom right corner*/
+                          if (std::fabs (vert (0) - 6) < 1e-12 && std::fabs (
+                                                                        vert (
+                                                                            1)
+                                                                        - 0)
+                                                                    < 1e-12)
+                            {
+                              const unsigned int x_displacement =
+                                  cell->vertex_dof_index (vertex_number, 0);
+                              const unsigned int y_displacement =
+                                  cell->vertex_dof_index (vertex_number, 1);
+                              const unsigned int x_displacement_multiplier =
+                                  cell->vertex_dof_index (vertex_number, 2);
+                              const unsigned int y_displacement_multiplier =
+                                  cell->vertex_dof_index (vertex_number, 3);
+                              /*set bottom left BC*/
+                              boundary_values[x_displacement] = 0;
+                              boundary_values[y_displacement] = 0;
+                              boundary_values[x_displacement_multiplier] = 0;
+                              boundary_values[y_displacement_multiplier] = 0;
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
   template <int dim>
