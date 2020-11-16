@@ -102,7 +102,7 @@ namespace SAND
       GridGenerator::hyper_rectangle (triangulation, point_1, point_2);
 
       /*make 5 more squares*/
-      for (int n = 1; n < 6; n++)
+      for (int n = 1; n < 2; n++)
         {
           triangulation_temp.clear ();
           point_1 (0) = n;
@@ -132,7 +132,7 @@ namespace SAND
                   if (std::fabs (center (1) - 1) < 1e-12)
                     {
                       /*Find top middle*/
-                      if ((std::fabs (center (0) - 3) < 1))
+                      if ((std::fabs (center (0) - 1) < 1))
                         {
                           /*downward force is boundary id of 1*/
                           cell->face (face_number)->set_boundary_id (1);
@@ -146,7 +146,7 @@ namespace SAND
                     {
                       cell->face (face_number)->set_boundary_id (2);
                     }
-                  if (std::fabs (center (0) - 6) < 1e-12)
+                  if (std::fabs (center (0) - 2) < 1e-12)
                     {
                       cell->face (face_number)->set_boundary_id (2);
                     }
@@ -203,7 +203,7 @@ namespace SAND
                               boundary_values[y_displacement_multiplier] = 0;
                             }
                           /*Find bottom right corner*/
-                          if (std::fabs (vert (0) - 6) < 1e-12 && std::fabs (
+                          if (std::fabs (vert (0) - 2) < 1e-12 && std::fabs (
                                                                         vert (
                                                                             1)
                                                                         - 0)
@@ -372,14 +372,14 @@ namespace SAND
       IndexSet density_dofs = DoFTools::extract_dofs (dof_handler,
           density_mask);
 
-      const unsigned int first_density_dof = *density_dofs.begin ();
-      constraints.add_line (first_density_dof);
-      for (unsigned int i = 1;
-          i < density_dofs.n_elements (); ++i)
-        {
-          constraints.add_entry (first_density_dof,
-              density_dofs.nth_index_in_set (i), -1);
-        }
+//      const unsigned int first_density_dof = *density_dofs.begin ();
+//      constraints.add_line (first_density_dof);
+//      for (unsigned int i = 1;
+//          i < density_dofs.n_elements (); ++i)
+//        {
+//          constraints.add_entry (first_density_dof,
+//              density_dofs.nth_index_in_set (i), -1);
+//        }
 
 
         const unsigned int last_density_dof = density_dofs.nth_index_in_set(density_dofs.n_elements ()-1);
@@ -843,6 +843,7 @@ namespace SAND
 
           MatrixTools::local_apply_boundary_values (boundary_values, local_dof_indices,
                      cell_matrix, cell_rhs, true);
+
           constraints.distribute_local_to_global(
                cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
