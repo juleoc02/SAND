@@ -69,7 +69,7 @@ namespace SAND
         DoFHandler<dim> dof_handler;
         AffineConstraints<double> constraints;
         FESystem<dim> fe;
-        double density_ratio, volume_max, lambda_2;
+        double density_ratio;
         int density_penalty_exponent;
 
         std::map<types::global_dof_index, double> boundary_values;
@@ -185,10 +185,7 @@ namespace SAND
                           const auto vert = cell->vertex (vertex_number);
                           /*Find bottom left corner*/
                           if (std::fabs (vert (0) - 0) < 1e-12 && std::fabs (
-                                                                        vert (
-                                                                            1)
-                                                                        - 0)
-                                                                    < 1e-12)
+                                                vert (1)- 0) < 1e-12)
                             {
 
                               const unsigned int x_displacement =
@@ -212,20 +209,19 @@ namespace SAND
                                                                         - 0)
                                                                     < 1e-12)
                             {
-                              const unsigned int x_displacement =
-                                  cell->vertex_dof_index (vertex_number, 0);
                               const unsigned int y_displacement =
                                   cell->vertex_dof_index (vertex_number, 1);
-                              const unsigned int x_displacement_multiplier =
-                                  cell->vertex_dof_index (vertex_number, 2);
                               const unsigned int y_displacement_multiplier =
                                   cell->vertex_dof_index (vertex_number, 3);
+                                const unsigned int x_displacement =
+                                        cell->vertex_dof_index (vertex_number, 0);
+                                const unsigned int x_displacement_multiplier =
+                                        cell->vertex_dof_index (vertex_number, 2);
                               /*set bottom left BC*/
-                              boundary_values[x_displacement] = 0;
                               boundary_values[y_displacement] = 0;
-                              boundary_values[x_displacement_multiplier] = 0;
                               boundary_values[y_displacement_multiplier] = 0;
-
+                              boundary_values[x_displacement] = 0;
+                              boundary_values[x_displacement_multiplier] = 0;
                             }
                         }
                     }
@@ -377,7 +373,6 @@ namespace SAND
           density_mask);
 
       const unsigned int first_density_dof = *density_dofs.begin ();
-
       constraints.add_line (first_density_dof);
       for (unsigned int i = 1;
           i < density_dofs.n_elements (); ++i)
@@ -385,18 +380,30 @@ namespace SAND
           constraints.add_entry (first_density_dof,
               density_dofs.nth_index_in_set (i), -1);
         }
-      constraints.set_inhomogeneity (first_density_dof, 0);
 
-        VectorTools::interpolate_boundary_values(dof_handler,
-                                                 0,
-                                                 ZeroFunction<dim>(2*dim+5),
-                                                 constraints,
-                                                 fe.component_mask(displacements));
-        VectorTools::interpolate_boundary_values(dof_handler,
-                                                 0,
-                                                 ZeroFunction<dim>(2*dim+5),
-                                                 constraints,
-                                                 fe.component_mask(displacement_multipliers));
+
+        const unsigned int last_density_dof = density_dofs.nth_index_in_set(density_dofs.n_elements ()-1);
+        constraints.add_line (last_density_dof);
+        for (unsigned int i = 1;
+             i < density_dofs.n_elements (); ++i)
+        {
+            constraints.add_entry (last_density_dof,
+                                   density_dofs.nth_index_in_set (i-1), -1);
+        }
+
+
+//      constraints.set_inhomogeneity (first_density_dof, 0);
+//
+//        VectorTools::interpolate_boundary_values(dof_handler,
+//                                                 0,
+//                                                 ZeroFunction<dim>(2*dim+5),
+//                                                 constraints,
+//                                                 fe.component_mask(displacements));
+//        VectorTools::interpolate_boundary_values(dof_handler,
+//                                                 0,
+//                                                 ZeroFunction<dim>(2*dim+5),
+//                                                 constraints,
+//                                                 fe.component_mask(displacement_multipliers));
       constraints.close ();
 
 //      DoFTools::make_sparsity_pattern (dof_handler, coupling, dsp, constraints,
@@ -467,7 +474,6 @@ namespace SAND
           nonlinear_solution.block (5)[i] = 1 - density_ratio;
           nonlinear_solution.block (6)[i] = .5;
         }
-      volume_max = 3;
 
     }
   template <int dim>
@@ -644,7 +650,9 @@ namespace SAND
                       cell_matrix (i, j) +=
                           fe_values.JxW (q_point) *
                           (-1* density_phi_i * lower_slack_multiplier_phi_j
+
                            + density_phi_i * upper_slack_multiplier_phi_j
+
                            + density_penalty_exponent * (density_penalty_exponent
                                - 1)
                              * std::pow (
@@ -656,6 +664,7 @@ namespace SAND
                                 * lambda_values[q_point]
                                 + 2 * mu_values[q_point]
                                   * (old_displacement_symmgrads[q_point] * old_displacement_multiplier_symmgrads[q_point]))
+
                            + density_penalty_exponent * std::pow (
                                  old_density_values[q_point],
                                  density_penalty_exponent - 1)
@@ -664,6 +673,7 @@ namespace SAND
                                 * lambda_values[q_point]
                                 + 2 * mu_values[q_point]
                                   * (old_displacement_symmgrads[q_point] * displacement_multiplier_phi_j_symmgrad))
+
                            + density_penalty_exponent * std::pow (
                                  old_density_values[q_point],
                                  density_penalty_exponent - 1)
@@ -735,6 +745,7 @@ namespace SAND
                       cell_matrix (i, j) += fe_values.JxW (q_point)
                           * (upper_slack_phi_i * upper_slack_multiplier_phi_j
                              * old_upper_slack_values[q_point]
+
                              + upper_slack_phi_i * upper_slack_phi_j
                                * old_upper_slack_multiplier_values[q_point]);
 
@@ -744,12 +755,12 @@ namespace SAND
                   cell_rhs(i) +=
                           fe_values.JxW(q_point) *(
                                   -1 *density_penalty_exponent* std::pow(old_density_values[q_point],density_penalty_exponent - 1)* density_phi_i
-                                  * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
-                                  * lambda_values[q_point]
-                                  + 2 * mu_values[q_point] * (old_displacement_symmgrads[q_point]
-                                  * old_displacement_multiplier_symmgrads[q_point]))
+                                      * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
+                                      * lambda_values[q_point]
+                                      + 2 * mu_values[q_point] * (old_displacement_symmgrads[q_point]
+                                      * old_displacement_multiplier_symmgrads[q_point]))
                                   + -1 * density_phi_i * old_upper_slack_multiplier_values[q_point]
-                                  + density_phi_i * old_lower_slack_multiplier_values[q_point]);
+                                + density_phi_i * old_lower_slack_multiplier_values[q_point]);
 
                   //rhs eqn 1 - boundary terms counted later
                   cell_rhs (i) +=
@@ -904,7 +915,6 @@ namespace SAND
             {
               step_size_z_high = step_size_z;
             }
-
         }
       std::cout << step_size_s_low << "    " << step_size_z_low << std::endl;
 
@@ -974,20 +984,17 @@ namespace SAND
       setup_block_system ();
       set_bcids ();
 
-       for (unsigned int loop = 0; loop < 10; loop++)
+       for (unsigned int loop = 0; loop < 2; loop++)
         {
           assemble_block_system (barrier_size);
           solve ();
           update_step ();
           output (loop);
-          barrier_size = barrier_size * .2;
-          std::cout << loop << std::endl << "RHS" << std::endl;
-          system_rhs.print(std::cout);
-          std::cout  << std::endl<< "linear solve" << std::endl;
-        linear_solution.print(std::cout);
-        std::cout  << std::endl<< "nonlinear solve" << std::endl;
-          nonlinear_solution.print(std::cout);
-          std::cout  << std::endl;
+          barrier_size = barrier_size * .9;
+          std::cout << "current_values" << std::endl;
+          nonlinear_solution.block(0).print(std::cout);
+
+
         }
     }
 
