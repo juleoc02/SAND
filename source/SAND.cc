@@ -102,7 +102,7 @@ namespace SAND
       GridGenerator::hyper_rectangle (triangulation, point_1, point_2);
 
       /*make 5 more squares*/
-      for (int n = 1; n < 2; n++)
+      for (int n = 1; n < 3; n++)
         {
           triangulation_temp.clear ();
           point_1 (0) = n;
@@ -132,7 +132,7 @@ namespace SAND
                   if (std::fabs (center (1) - 1) < 1e-12)
                     {
                       /*Find top middle*/
-                      if ((std::fabs (center (0) - 1) < 1))
+                      if ((std::fabs (center (0) - 1.5) < 1))
                         {
                           /*downward force is boundary id of 1*/
                           cell->face (face_number)->set_boundary_id (1);
@@ -146,7 +146,7 @@ namespace SAND
                     {
                       cell->face (face_number)->set_boundary_id (2);
                     }
-                  if (std::fabs (center (0) - 2) < 1e-12)
+                  if (std::fabs (center (0) - 3) < 1e-12)
                     {
                       cell->face (face_number)->set_boundary_id (2);
                     }
@@ -203,7 +203,7 @@ namespace SAND
                               boundary_values[y_displacement_multiplier] = 0;
                             }
                           /*Find bottom right corner*/
-                          if (std::fabs (vert (0) - 2) < 1e-12 && std::fabs (
+                          if (std::fabs (vert (0) - 3) < 1e-12 && std::fabs (
                                                                         vert (
                                                                             1)
                                                                         - 0)
