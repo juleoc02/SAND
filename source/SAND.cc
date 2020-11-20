@@ -102,7 +102,7 @@ namespace SAND
       GridGenerator::hyper_rectangle (triangulation, point_1, point_2);
 
       /*make 5 more squares*/
-      for (int n = 1; n < 3; n++)
+      for (int n = 1; n < 6; n++)
         {
           triangulation_temp.clear ();
           point_1 (0) = n;
@@ -112,7 +112,7 @@ namespace SAND
           GridGenerator::merge_triangulations (triangulation_temp,
               triangulation, triangulation);
         }
-      triangulation.refine_global (0);
+      triangulation.refine_global (3);
 
       /*Set BCIDs   */
       for (const auto &cell : triangulation.active_cell_iterators ())
@@ -132,7 +132,7 @@ namespace SAND
                   if (std::fabs (center (1) - 1) < 1e-12)
                     {
                       /*Find top middle*/
-                      if ((std::fabs (center (0) - 1.5) < 1))
+                      if ((std::fabs (center (0) - 3) < 1))
                         {
                           /*downward force is boundary id of 1*/
                           cell->face (face_number)->set_boundary_id (1);
@@ -146,7 +146,7 @@ namespace SAND
                     {
                       cell->face (face_number)->set_boundary_id (2);
                     }
-                  if (std::fabs (center (0) - 3) < 1e-12)
+                  if (std::fabs (center (0) - 6) < 1e-12)
                     {
                       cell->face (face_number)->set_boundary_id (2);
                     }
@@ -203,7 +203,7 @@ namespace SAND
                               boundary_values[y_displacement_multiplier] = 0;
                             }
                           /*Find bottom right corner*/
-                          if (std::fabs (vert (0) - 3) < 1e-12 && std::fabs (
+                          if (std::fabs (vert (0) - 6) < 1e-12 && std::fabs (
                                                                         vert (
                                                                             1)
                                                                         - 0)
@@ -856,8 +856,9 @@ namespace SAND
     void
     SANDTopOpt<dim>::solve ()
     {
-      constraints.condense(system_matrix);
-      constraints.condense(system_rhs);
+            //This broke everything. Unsure why.
+//      constraints.condense(system_matrix);
+//      constraints.condense(system_rhs);
 
       SparseDirectUMFPACK A_direct;
       A_direct.initialize (system_matrix);
@@ -991,10 +992,16 @@ namespace SAND
           solve ();
           update_step ();
           output (loop);
-          barrier_size = barrier_size * .9;
+          barrier_size = barrier_size * .2;
           std::cout << "current_values" << std::endl;
           nonlinear_solution.block(0).print(std::cout);
 
+          for(unsigned int i=0; i<7; i++)
+            for(unsigned int j=0; j<7; j++)
+            {
+                std::ofstream myfile ("matrix" + std::to_string (loop) + "," + std::to_string(i) +  "," + std::to_string(j) + ".txt");
+                system_matrix.block(i,j).print_formatted(myfile, 10, true,0,"0",1);
+            }
 
         }
     }
