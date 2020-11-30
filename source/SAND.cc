@@ -70,7 +70,7 @@ namespace SAND
         AffineConstraints<double> constraints;
         FESystem<dim> fe;
         double density_ratio;
-        int density_penalty_exponent;
+        double density_penalty_exponent;
 
         std::map<types::global_dof_index, double> boundary_values;
 
@@ -728,26 +728,26 @@ namespace SAND
 
                       //Equation 3 - more primal feasibility
                       cell_matrix (i, j) +=
-                          fe_values.JxW (q_point) * lower_slack_multiplier_phi_i*
+                          -1 * fe_values.JxW (q_point) * lower_slack_multiplier_phi_i*
                                   (density_phi_j - lower_slack_phi_j);
 
                       //Equation 4 - more primal feasibility
                       cell_matrix (i, j) +=
-                          fe_values.JxW (q_point) * upper_slack_multiplier_phi_i * (
-                              -1 * density_phi_j - upper_slack_phi_j);
+                          -1*fe_values.JxW (q_point) * upper_slack_multiplier_phi_i * (
+                               -1*density_phi_j - upper_slack_phi_j);
 
                       //Equation 5 - complementary slackness
-                      cell_matrix (i, j) += fe_values.JxW (q_point)
-                          * (lower_slack_phi_i * lower_slack_multiplier_phi_j * old_lower_slack_values[q_point]
-                             + lower_slack_phi_i * lower_slack_phi_j * old_lower_slack_multiplier_values[q_point]);
+                      cell_matrix (i, j) +=  fe_values.JxW (q_point)
+                          * (lower_slack_phi_i * lower_slack_multiplier_phi_j
+                             + lower_slack_phi_i * lower_slack_phi_j * old_lower_slack_multiplier_values[q_point]/ old_lower_slack_values[q_point]);
 
                       //Equation 6 - complementary slackness
                       cell_matrix (i, j) += fe_values.JxW (q_point)
                           * (upper_slack_phi_i * upper_slack_multiplier_phi_j
-                             * old_upper_slack_values[q_point]
+
 
                              + upper_slack_phi_i * upper_slack_phi_j
-                               * old_upper_slack_multiplier_values[q_point]);
+                               * old_upper_slack_multiplier_values[q_point]/old_upper_slack_values[q_point]);
 
                     }
 
@@ -785,27 +785,27 @@ namespace SAND
 
                   //rhs eqn 3
                   cell_rhs (i) +=
-                      -1 * lower_slack_multiplier_phi_i
+                       lower_slack_multiplier_phi_i
                       * (old_density_values[q_point] - old_lower_slack_values[q_point])
                       * fe_values.JxW (q_point);
 
                   //rhs eqn 4
                   cell_rhs (i) +=
-                      -1 * upper_slack_multiplier_phi_i
+                      upper_slack_multiplier_phi_i
                       * (1 - old_density_values[q_point]
                          - old_upper_slack_values[q_point])
                       * fe_values.JxW (q_point);
 
                   //rhs eqn 5
                   cell_rhs (i) +=
-                      -1 * lower_slack_phi_i
-                      * (old_lower_slack_values[q_point] * old_lower_slack_multiplier_values[q_point] - barrier_size)
+                       -1*lower_slack_phi_i
+                      * (old_lower_slack_multiplier_values[q_point] - barrier_size/old_lower_slack_values[q_point] )
                       * fe_values.JxW (q_point);
 
                   //rhs block 6
                   cell_rhs (i) +=
                       -1 * upper_slack_phi_i
-                      * (old_upper_slack_values[q_point] * old_upper_slack_multiplier_values[q_point] - barrier_size)
+                      * ( old_upper_slack_multiplier_values[q_point] - barrier_size/old_upper_slack_values[q_point])
                       * fe_values.JxW (q_point);
 
                 }
@@ -981,27 +981,31 @@ namespace SAND
     SANDTopOpt<dim>::run ()
     {
       double barrier_size = .25;
-
+      density_penalty_exponent = 1;
       create_triangulation ();
       setup_block_system ();
       set_bcids ();
 
-       for (unsigned int loop = 0; loop < 2; loop++)
+       for (unsigned int loop = 0; loop < 100; loop++)
         {
           assemble_block_system (barrier_size);
           solve ();
           update_step ();
           output (loop);
           barrier_size = barrier_size * .2;
-          std::cout << "current_values" << std::endl;
-          nonlinear_solution.block(0).print(std::cout);
 
-          for(unsigned int i=0; i<7; i++)
-            for(unsigned int j=0; j<7; j++)
-            {
-                std::ofstream myfile ("matrix" + std::to_string (loop) + "," + std::to_string(i) +  "," + std::to_string(j) + ".txt");
-                system_matrix.block(i,j).print_formatted(myfile, 10, true,0,"0",1);
-            }
+
+//          density_penalty_exponent = 3 - .9*(3 -density_penalty_exponent);
+
+//          std::cout << "current_values" << std::endl;
+//          nonlinear_solution.block(0).print(std::cout);
+//
+//          for(unsigned int i=0; i<7; i++)
+//            for(unsigned int j=0; j<7; j++)
+//            {
+//                std::ofstream myfile ("matrix" + std::to_string (loop) + "," + std::to_string(i) +  "," + std::to_string(j) + ".txt");
+//                system_matrix.block(i,j).print_formatted(myfile, 10, true,0,"0",1);
+//            }
 
         }
     }
