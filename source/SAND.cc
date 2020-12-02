@@ -132,7 +132,7 @@ namespace SAND
                   if (std::fabs (center (1) - 1) < 1e-12)
                     {
                       /*Find top middle*/
-                      if ((std::fabs (center (0) - 3) < 1))
+                      if ((std::fabs (center (0) - 3) < .1))
                         {
                           /*downward force is boundary id of 1*/
                           cell->face (face_number)->set_boundary_id (1);
@@ -220,8 +220,6 @@ namespace SAND
                               /*set bottom left BC*/
                               boundary_values[y_displacement] = 0;
                               boundary_values[y_displacement_multiplier] = 0;
-                              boundary_values[x_displacement] = 0;
-                              boundary_values[x_displacement_multiplier] = 0;
                             }
                         }
                     }
@@ -459,7 +457,6 @@ namespace SAND
       system_rhs.collect_sizes ();
 
       density_ratio = .5;
-      density_penalty_exponent = 3;
 
       for (unsigned int i = 0; i < n_u; i++)
         {
@@ -470,9 +467,9 @@ namespace SAND
         {
           nonlinear_solution.block (0)[i] = density_ratio;
           nonlinear_solution.block (3)[i] = density_ratio;
-          nonlinear_solution.block (4)[i] = .5;
+          nonlinear_solution.block (4)[i] = 50;
           nonlinear_solution.block (5)[i] = 1 - density_ratio;
-          nonlinear_solution.block (6)[i] = .5;
+          nonlinear_solution.block (6)[i] = 50;
         }
 
     }
@@ -971,6 +968,8 @@ namespace SAND
       data_out.attach_dof_handler (dof_handler);
       data_out.add_data_vector (nonlinear_solution, solution_names,
           DataOut<dim>::type_dof_data, data_component_interpretation);
+//      data_out.add_data_vector (linear_solution, solution_names,
+//          DataOut<dim>::type_dof_data, data_component_interpretation);
       data_out.build_patches ();
       std::ofstream output ("solution" + std::to_string (j) + ".vtk");
       data_out.write_vtk (output);
@@ -980,8 +979,8 @@ namespace SAND
     void
     SANDTopOpt<dim>::run ()
     {
-      double barrier_size = .25;
-      density_penalty_exponent = 1;
+      double barrier_size = 25;
+      density_penalty_exponent = 3;
       create_triangulation ();
       setup_block_system ();
       set_bcids ();
@@ -991,11 +990,20 @@ namespace SAND
           assemble_block_system (barrier_size);
           solve ();
           update_step ();
-          output (loop);
-          barrier_size = barrier_size * .2;
+          if (loop % 1 == 0)
+          {
+              output (loop/1);
+              std::cout << loop << std::endl;
+          }
+
+          std::cout << system_rhs.l2_norm() << std::endl;
+          if (system_rhs.l2_norm()<1e-6)
+          {
+              barrier_size = barrier_size * .2;
+              std::cout << "barrier size is   " << barrier_size << std::endl;
+          }
 
 
-//          density_penalty_exponent = 3 - .9*(3 -density_penalty_exponent);
 
 //          std::cout << "current_values" << std::endl;
 //          nonlinear_solution.block(0).print(std::cout);
