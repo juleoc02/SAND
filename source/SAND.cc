@@ -763,9 +763,7 @@ namespace SAND {
                         //Equation 0
                         cell_matrix(i, j) +=
                                 fe_values.JxW(q_point) *
-                                (-1 * density_phi_i * lower_slack_multiplier_phi_j
-
-                                 + density_phi_i * upper_slack_multiplier_phi_j
+                                (
 
                                  - density_phi_i * unfiltered_density_multiplier_phi_j
 
@@ -825,7 +823,12 @@ namespace SAND {
 
                                 );
 
-                        //Equation 2 has to do with the filter, and is calculated elsewhere.
+                        //Equation 2 has to do with the filter, which is calculated elsewhere.
+                        cell_matrix(i, j) +=
+                                fe_values.JxW(q_point) * (
+                                        -1 * unfiltered_density_phi_i * lower_slack_multiplier_phi_j
+                                        +unfiltered_density_phi_i * upper_slack_multiplier_phi_j);
+
 
                         //Equation 3 - Primal Feasibility
 
@@ -853,12 +856,12 @@ namespace SAND {
                         //Equation 4 - more primal feasibility
                         cell_matrix(i, j) +=
                                 -1 * fe_values.JxW(q_point) * lower_slack_multiplier_phi_i *
-                                (density_phi_j - lower_slack_phi_j);
+                                (unfiltered_density_phi_j - lower_slack_phi_j);
 
                         //Equation 5 - more primal feasibility
                         cell_matrix(i, j) +=
                                 -1 * fe_values.JxW(q_point) * upper_slack_multiplier_phi_i * (
-                                        -1 * density_phi_j - upper_slack_phi_j);
+                                        -1 * unfiltered_density_phi_j - upper_slack_phi_j);
 
                         //Equation 6 - more primal feasibility - part with filter added later
                         cell_matrix(i, j) +=
@@ -885,21 +888,19 @@ namespace SAND {
 
                     //rhs eqn 0
                     cell_rhs(i) +=
-                            fe_values.JxW(q_point) * (
-                                    -1 * density_penalty_exponent *
+                            -1*fe_values.JxW(q_point) * (
+                                    density_penalty_exponent *
                                     std::pow(old_density_values[q_point], density_penalty_exponent - 1) * density_phi_i
                                     * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
                                        * lambda_values[q_point]
                                        + 2 * mu_values[q_point] * (old_displacement_symmgrads[q_point]
                                                                    * old_displacement_multiplier_symmgrads[q_point]))
-                                    + -1 * density_phi_i * old_upper_slack_multiplier_values[q_point]
-                                    + density_phi_i * old_lower_slack_multiplier_values[q_point]
-                                    + density_phi_i * old_unfiltered_density_multiplier_values[q_point]);
+                                    - density_phi_i * old_unfiltered_density_multiplier_values[q_point]);
 
                     //rhs eqn 1 - boundary terms counted later
                     cell_rhs(i) +=
-                            fe_values.JxW(q_point) * (
-                                    -1 * std::pow(old_density_values[q_point], density_penalty_exponent)
+                            -1*fe_values.JxW(q_point) * (
+                                    std::pow(old_density_values[q_point], density_penalty_exponent)
                                     * (old_displacement_multiplier_divs[q_point] * displacement_phi_i_div
                                        * lambda_values[q_point]
                                        + 2 * mu_values[q_point] * (old_displacement_multiplier_symmgrads[q_point]
@@ -908,8 +909,10 @@ namespace SAND {
 
                     //rhs eqn 2
                     cell_rhs(i) +=
-                            fe_values.JxW(q_point) * (
-                                    -1 * unfiltered_density_phi_i * filter_adjoint_unfiltered_density_multiplier_values[q_point]
+                            -1*fe_values.JxW(q_point) * (
+                                    unfiltered_density_phi_i * filter_adjoint_unfiltered_density_multiplier_values[q_point]
+                                    + unfiltered_density_phi_i * old_upper_slack_multiplier_values[q_point]
+                                    + -1* unfiltered_density_phi_i * old_lower_slack_multiplier_values[q_point]
                             );
 
 
@@ -917,8 +920,8 @@ namespace SAND {
 
                     //rhs eqn 3 - boundary terms counted later
                     cell_rhs(i) +=
-                            fe_values.JxW(q_point) * (
-                                    -1 * std::pow(old_density_values[q_point], density_penalty_exponent)
+                            -1*fe_values.JxW(q_point) * (
+                                    std::pow(old_density_values[q_point], density_penalty_exponent)
                                     * (old_displacement_divs[q_point] * displacement_multiplier_phi_i_div
                                        * lambda_values[q_point]
                                        + 2 * mu_values[q_point] * (displacement_multiplier_phi_i_symmgrad
@@ -927,36 +930,39 @@ namespace SAND {
 
                     //rhs eqn 4
                     cell_rhs(i) +=
-                            lower_slack_multiplier_phi_i
-                            * (old_density_values[q_point] - old_lower_slack_values[q_point])
-                            * fe_values.JxW(q_point);
+                            fe_values.JxW(q_point) *
+                                    (lower_slack_multiplier_phi_i
+                                     * (old_unfiltered_density_values[q_point] - old_lower_slack_values[q_point])
+                                    ) ;
 
                     //rhs eqn 5
                     cell_rhs(i) +=
-                            upper_slack_multiplier_phi_i
-                            * (1 - old_density_values[q_point]
-                               - old_upper_slack_values[q_point])
-                            * fe_values.JxW(q_point);
+                            fe_values.JxW(q_point)*(
+                                    upper_slack_multiplier_phi_i
+                            * (1 - old_unfiltered_density_values[q_point]
+                               - old_upper_slack_values[q_point]))
+                            ;
 
                     //rhs eqn 6
                     cell_rhs(i) +=
+                            fe_values.JxW(q_point)* (
                             unfiltered_density_multiplier_phi_i
                             * (old_density_values[q_point] - filtered_unfiltered_density_values[q_point])
-                            * fe_values.JxW(q_point);
+                                                    );
 
                     //rhs eqn 7
                     cell_rhs(i) +=
-                            -1 * lower_slack_phi_i
+                            -1 *fe_values.JxW(q_point) * ( lower_slack_phi_i
                             * (old_lower_slack_multiplier_values[q_point] -
                                barrier_size / old_lower_slack_values[q_point])
-                            * fe_values.JxW(q_point);
+                                                         ) ;
 
                     //rhs eqn 8
                     cell_rhs(i) +=
-                            -1 * upper_slack_phi_i
+                            -1  * fe_values.JxW(q_point)* (upper_slack_phi_i
                             * (old_upper_slack_multiplier_values[q_point] -
-                               barrier_size / old_upper_slack_values[q_point])
-                            * fe_values.JxW(q_point);
+                               barrier_size / old_upper_slack_values[q_point]))
+                           ;
 
                 }
 
