@@ -400,8 +400,10 @@ namespace SAND {
         BlockDynamicSparsityPattern dsp(9, 9);
 
         //Assign each block the appropriate size
-        for (int k = 0; k < 9; k++) {
-            for (int j = 0; j < 9; j++) {
+        for (int k = 0; k < 9; k++)
+        {
+            for (int j = 0; j < 9; j++)
+            {
                 dsp.block(j, k).reinit(block_sizes[j], block_sizes[k]);
             }
         }
@@ -429,14 +431,20 @@ namespace SAND {
         coupling[2 + 2 * dim][0] = DoFTools::always;
 
         for (int i = 0; i < dim; i++) {
-
-
             for (int k = 0; k < dim; k++) {
                 coupling[1 + i][2 + dim + k] = DoFTools::always;
                 coupling[2 + dim + k][1 + i] = DoFTools::always;
             }
         }
 
+
+        coupling[2*dim + 6][2*dim+5] = DoFTools::always;
+        coupling[2*dim + 5][2*dim+6] = DoFTools::always;
+        coupling[2*dim + 5][2*dim+5] = DoFTools::always;
+
+        coupling[2*dim + 4][2*dim+3] = DoFTools::always;
+        coupling[2*dim + 3][2*dim+4] = DoFTools::always;
+        coupling[2*dim + 3][2*dim+3] = DoFTools::always;
 
         constraints.clear();
 
@@ -459,7 +467,7 @@ namespace SAND {
 //      DoFTools::make_sparsity_pattern (dof_handler, dsp, constraints,
 //          false);
 //changed it to below - works now? Even when I just put the coupling in something breaks - want to fix this when I'm trying to speed stuff up.
-        DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints);
+        DoFTools::make_sparsity_pattern(dof_handler,dsp, constraints);
 
         std::set<unsigned int> neighbor_ids;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
@@ -876,8 +884,6 @@ namespace SAND {
                         //Equation 8 - complementary slackness
                         cell_matrix(i, j) += fe_values.JxW(q_point)
                                              * (upper_slack_phi_i * upper_slack_multiplier_phi_j
-
-
                                                 + upper_slack_phi_i * upper_slack_phi_j
                                                   * old_upper_slack_multiplier_values[q_point] /
                                                   old_upper_slack_values[q_point]);
@@ -1047,7 +1053,8 @@ namespace SAND {
         double step_size_s, step_size_z;
         bool accept_s, accept_z;
 
-        for (unsigned int k = 0; k < 50; k++) {
+        for (unsigned int k = 0; k < 50; k++)
+        {
             step_size_s = (step_size_s_low + step_size_s_high) / 2;
             step_size_z = (step_size_z_low + step_size_z_high) / 2;
 
@@ -1077,7 +1084,7 @@ namespace SAND {
         }
         std::cout << step_size_s_low << "    " << step_size_z_low << std::endl;
         return {step_size_s_low,step_size_z_low};
-            }
+    }
 
     /**This checks to see if the maximal feasible step size in fact decreases the value of our merit function.
      * If so, it updates the solution values accordingly. If not, it backsteps until it does.
