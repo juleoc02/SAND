@@ -59,8 +59,11 @@ namespace SAND {
         void
         solve();
 
+        std::vector<double>
+        calculate_max_step_size();
+
         void
-        update_step();
+        update_step(std::vector<double> max_step, double barrier_size);
 
         void
         output(int j);
@@ -70,6 +73,12 @@ namespace SAND {
 
         double
         calculate_solution_merit(BlockVector<double> test_solution, double barrier_size, double penalty_parameter);
+
+        BlockVector<double>
+        calculate_test_rhs(BlockVector<double> test_solution, double barrier_size, double penalty_parameter);
+
+        double
+        calculate_rhs_error(BlockVector<double> rhs_vector);
 
         double
         get_compliance_plus_elasticity_error(BlockVector<double> test_solution, double penalty_parameter);
@@ -1038,8 +1047,8 @@ namespace SAND {
     }
 
     template<int dim>
-    void
-    SANDTopOpt<dim>::update_step() {
+    std::vector<double>
+    SANDTopOpt<dim>::calculate_max_step_size() {
 
         double fraction_to_boundary = .995;
 
@@ -1079,69 +1088,330 @@ namespace SAND {
             }
         }
         std::cout << step_size_s_low << "    " << step_size_z_low << std::endl;
+        std::vector<double> max_step = {step_size_s_low, step_size_z_low};
+        return max_step;
+    }
+
+    template<int dim>
+    void
+    SANDTopOpt<dim>::update_step(std::vector<double> max_step, double barrier_size) {
+
+        double step_size_s_low = max_step[0];
+        double step_size_z_low = max_step[1];
+        double current_merit = calculate_rhs_error(system_rhs);
+        std::cout << "current merit:   " << current_merit << std::endl;
+        BlockVector<double> test_solution = nonlinear_solution;
+        test_solution = 0;
+        bool step_found = false;
 
 
-        nonlinear_solution.block(0) = nonlinear_solution.block(0)
-                                      + step_size_s_low * linear_solution.block(0);
-        nonlinear_solution.block(1) = nonlinear_solution.block(1)
-                                      + step_size_s_low * linear_solution.block(1);
-        nonlinear_solution.block(2) = nonlinear_solution.block(2)
-                                      + step_size_s_low * linear_solution.block(2);
-        nonlinear_solution.block(3) = nonlinear_solution.block(3)
-                                      + step_size_z_low * linear_solution.block(3);
-        nonlinear_solution.block(4) = nonlinear_solution.block(4)
-                                      + step_size_z_low * linear_solution.block(4);
-        nonlinear_solution.block(5) = nonlinear_solution.block(5)
-                                      + step_size_s_low * linear_solution.block(5);
-        nonlinear_solution.block(6) = nonlinear_solution.block(6)
-                                      + step_size_z_low * linear_solution.block(6);
-        nonlinear_solution.block(7) = nonlinear_solution.block(7)
-                                      + step_size_s_low * linear_solution.block(7);
-        nonlinear_solution.block(8) = nonlinear_solution.block(8)
-                                      + step_size_z_low * linear_solution.block(8);
+        for(int k=0; k<5 && step_found == false; k++)
+        {
+            test_solution.block(0) = nonlinear_solution.block(0)
+                                     + step_size_s_low * linear_solution.block(0);
+            test_solution.block(1) = nonlinear_solution.block(1)
+                                     + step_size_s_low * linear_solution.block(1);
+            test_solution.block(2) = nonlinear_solution.block(2)
+                                     + step_size_s_low * linear_solution.block(2);
+            test_solution.block(3) = nonlinear_solution.block(3)
+                                     + step_size_z_low * linear_solution.block(3);
+            test_solution.block(4) = nonlinear_solution.block(4)
+                                     + step_size_z_low * linear_solution.block(4);
+            test_solution.block(5) = nonlinear_solution.block(5)
+                                     + step_size_s_low * linear_solution.block(5);
+            test_solution.block(6) = nonlinear_solution.block(6)
+                                     + step_size_z_low * linear_solution.block(6);
+            test_solution.block(7) = nonlinear_solution.block(7)
+                                     + step_size_s_low * linear_solution.block(7);
+            test_solution.block(8) = nonlinear_solution.block(8)
+                                     + step_size_z_low * linear_solution.block(8);
+
+            double test_merit = calculate_rhs_error(calculate_test_rhs(test_solution, barrier_size, 1));
+            std::cout << "test merit:   " << test_merit << std::endl;
+
+            if(test_merit < current_merit)
+            {
+                step_found = true;
+            }
+            else
+            {
+                step_size_s_low = step_size_s_low/2;
+                step_size_z_low = step_size_z_low/2;
+            }
+
+        }
+        std::cout << step_size_s_low << "   " << step_size_z_low << std::endl;
+        nonlinear_solution = test_solution;
+    }
+
+    template<int dim>
+    BlockVector<double>
+    SANDTopOpt<dim>::calculate_test_rhs(BlockVector<double> test_solution, double barrier_size, double penalty_parameter) {
+        const FEValuesExtractors::Scalar densities(0);
+        const FEValuesExtractors::Vector displacements(1);
+        const FEValuesExtractors::Scalar unfiltered_densities(1 + dim);
+        const FEValuesExtractors::Vector displacement_multipliers(2 + dim);
+        const FEValuesExtractors::Scalar unfiltered_density_multipliers(2 + 2 * dim);
+        const FEValuesExtractors::Scalar density_lower_slacks(3 + 2 * dim);
+        const FEValuesExtractors::Scalar density_lower_slack_multipliers(
+                4 + 2 * dim);
+        const FEValuesExtractors::Scalar density_upper_slacks(5 + 2 * dim);
+        const FEValuesExtractors::Scalar density_upper_slack_multipliers(
+                6 + 2 * dim);
+
+        /*Remove any values from old iterations*/
+
+        system_matrix.reinit(sparsity_pattern);
+        BlockVector<double> test_rhs;
+        test_rhs = system_rhs;
+        test_rhs = 0;
+
+        QGauss<dim> quadrature_formula(fe.degree + 1);
+        QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
+        FEValues<dim> fe_values(fe, quadrature_formula,
+                                update_values | update_gradients | update_quadrature_points
+                                | update_JxW_values);
+        FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
+                                         update_values | update_quadrature_points | update_normal_vectors
+                                         | update_JxW_values);
+
+        const unsigned int dofs_per_cell = fe.dofs_per_cell;
+        const unsigned int n_q_points = quadrature_formula.size();
+        const unsigned int n_face_q_points = face_quadrature_formula.size();
+
+        FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
+        Vector<double> cell_rhs(dofs_per_cell);
+        FullMatrix<double> full_density_cell_matrix(dofs_per_cell,
+                                                    dofs_per_cell);
+        FullMatrix<double> full_density_cell_matrix_for_Au(dofs_per_cell,
+                                                           dofs_per_cell);
+
+        std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+
+        std::vector<double> lambda_values(n_q_points);
+        std::vector<double> mu_values(n_q_points);
+
+        Functions::ConstantFunction<dim> lambda(1.), mu(1.);
+        std::vector<Tensor<1, dim>> rhs_values(n_q_points);
+
+        BlockVector<double> filtered_unfiltered_density_solution = nonlinear_solution;
+        BlockVector<double> filter_adjoint_unfiltered_density_multiplier_solution = nonlinear_solution;
+        filtered_unfiltered_density_solution.block(2) = 0;
+        filter_adjoint_unfiltered_density_multiplier_solution.block(4) = 0;
+
+        filter_matrix.vmult(filtered_unfiltered_density_solution.block(2), nonlinear_solution.block(2));
+        filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(4),
+                             nonlinear_solution.block(4));
+
+
+        for (const auto &cell : dof_handler.active_cell_iterators()) {
+            cell_matrix = 0;
+            full_density_cell_matrix = 0;
+            full_density_cell_matrix_for_Au = 0;
+            cell_rhs = 0;
+
+            cell->get_dof_indices(local_dof_indices);
+
+            fe_values.reinit(cell);
+
+            lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
+            mu.value_list(fe_values.get_quadrature_points(), mu_values);
+
+            std::vector<double> old_density_values(n_q_points);
+            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
+            std::vector<double> old_displacement_divs(n_q_points);
+            std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
+                    n_q_points);
+            std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
+                    n_q_points);
+            std::vector<double> old_displacement_multiplier_divs(n_q_points);
+            std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
+                    n_q_points);
+            std::vector<double> old_lower_slack_multiplier_values(n_q_points);
+            std::vector<double> old_upper_slack_multiplier_values(n_q_points);
+            std::vector<double> old_lower_slack_values(n_q_points);
+            std::vector<double> old_upper_slack_values(n_q_points);
+            std::vector<double> old_unfiltered_density_values(n_q_points);
+            std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
+            std::vector<double> filtered_unfiltered_density_values(n_q_points);
+            std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
+
+
+            fe_values[densities].get_function_values(test_solution,
+                                                     old_density_values);
+            fe_values[displacements].get_function_values(test_solution,
+                                                         old_displacement_values);
+            fe_values[displacements].get_function_divergences(test_solution,
+                                                              old_displacement_divs);
+            fe_values[displacements].get_function_symmetric_gradients(
+                    test_solution, old_displacement_symmgrads);
+            fe_values[displacement_multipliers].get_function_values(
+                    test_solution, old_displacement_multiplier_values);
+            fe_values[displacement_multipliers].get_function_divergences(
+                    test_solution, old_displacement_multiplier_divs);
+            fe_values[displacement_multipliers].get_function_symmetric_gradients(
+                    test_solution, old_displacement_multiplier_symmgrads);
+            fe_values[density_lower_slacks].get_function_values(
+                    test_solution, old_lower_slack_values);
+            fe_values[density_lower_slack_multipliers].get_function_values(
+                    test_solution, old_lower_slack_multiplier_values);
+            fe_values[density_upper_slacks].get_function_values(
+                    test_solution, old_upper_slack_values);
+            fe_values[density_upper_slack_multipliers].get_function_values(
+                    test_solution, old_upper_slack_multiplier_values);
+            fe_values[unfiltered_densities].get_function_values(
+                    test_solution, old_unfiltered_density_values);
+            fe_values[unfiltered_density_multipliers].get_function_values(
+                    test_solution, old_unfiltered_density_multiplier_values);
+            fe_values[unfiltered_densities].get_function_values(
+                    filtered_unfiltered_density_solution, filtered_unfiltered_density_values);
+            fe_values[unfiltered_density_multipliers].get_function_values(
+                    filter_adjoint_unfiltered_density_multiplier_solution,
+                    filter_adjoint_unfiltered_density_multiplier_values);
+
+            Tensor<1, dim> traction;
+            traction[1] = -1;
+
+            for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
+
+                for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                    const SymmetricTensor<2, dim> displacement_phi_i_symmgrad =
+                            fe_values[displacements].symmetric_gradient(i, q_point);
+                    const double displacement_phi_i_div =
+                            fe_values[displacements].divergence(i, q_point);
+
+                    const SymmetricTensor<2, dim> displacement_multiplier_phi_i_symmgrad =
+                            fe_values[displacement_multipliers].symmetric_gradient(i,
+                                                                                   q_point);
+                    const double displacement_multiplier_phi_i_div =
+                            fe_values[displacement_multipliers].divergence(i,
+                                                                           q_point);
+
+
+                    const double density_phi_i = fe_values[densities].value(i,
+                                                                            q_point);
+                    const double unfiltered_density_phi_i = fe_values[unfiltered_densities].value(i,
+                                                                                                  q_point);
+                    const double unfiltered_density_multiplier_phi_i = fe_values[unfiltered_density_multipliers].value(
+                            i, q_point);
+
+                    const double lower_slack_multiplier_phi_i =
+                            fe_values[density_lower_slack_multipliers].value(i,
+                                                                             q_point);
+
+                    const double lower_slack_phi_i =
+                            fe_values[density_lower_slacks].value(i, q_point);
+
+                    const double upper_slack_phi_i =
+                            fe_values[density_upper_slacks].value(i, q_point);
+
+                    const double upper_slack_multiplier_phi_i =
+                            fe_values[density_upper_slack_multipliers].value(i,
+                                                                             q_point);
+
+                    //rhs eqn 0
+                    cell_rhs(i) +=
+                            -1 * fe_values.JxW(q_point) * (
+                                    density_penalty_exponent *
+                                    std::pow(old_density_values[q_point], density_penalty_exponent - 1) * density_phi_i
+                                    * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
+                                       * lambda_values[q_point]
+                                       + 2 * mu_values[q_point] * (old_displacement_symmgrads[q_point]
+                                                                   * old_displacement_multiplier_symmgrads[q_point]))
+                                    - density_phi_i * old_unfiltered_density_multiplier_values[q_point]);
+
+                    //rhs eqn 1 - boundary terms counted later
+                    cell_rhs(i) +=
+                            -1 * fe_values.JxW(q_point) * (
+                                    std::pow(old_density_values[q_point], density_penalty_exponent)
+                                    * (old_displacement_multiplier_divs[q_point] * displacement_phi_i_div
+                                       * lambda_values[q_point]
+                                       + 2 * mu_values[q_point] * (old_displacement_multiplier_symmgrads[q_point]
+                                                                   * displacement_phi_i_symmgrad))
+                            );
+
+                    //rhs eqn 2
+                    cell_rhs(i) +=
+                            -1 * fe_values.JxW(q_point) * (
+                                    unfiltered_density_phi_i *
+                                    filter_adjoint_unfiltered_density_multiplier_values[q_point]
+                                    + unfiltered_density_phi_i * old_upper_slack_multiplier_values[q_point]
+                                    + -1 * unfiltered_density_phi_i * old_lower_slack_multiplier_values[q_point]
+                            );
+
+
+
+
+                    //rhs eqn 3 - boundary terms counted later
+                    cell_rhs(i) +=
+                            -1 * fe_values.JxW(q_point) * (
+                                    std::pow(old_density_values[q_point], density_penalty_exponent)
+                                    * (old_displacement_divs[q_point] * displacement_multiplier_phi_i_div
+                                       * lambda_values[q_point]
+                                       + 2 * mu_values[q_point] * (displacement_multiplier_phi_i_symmgrad
+                                                                   * old_displacement_symmgrads[q_point]))
+                            );
+
+                    //rhs eqn 4
+                    cell_rhs(i) +=
+                            fe_values.JxW(q_point) *
+                            (lower_slack_multiplier_phi_i
+                             * (old_unfiltered_density_values[q_point] - old_lower_slack_values[q_point])
+                            );
+
+                    //rhs eqn 5
+                    cell_rhs(i) +=
+                            fe_values.JxW(q_point) * (
+                                    upper_slack_multiplier_phi_i
+                                    * (1 - old_unfiltered_density_values[q_point]
+                                       - old_upper_slack_values[q_point]));
+
+                    //rhs eqn 6
+                    cell_rhs(i) +=
+                            fe_values.JxW(q_point) * (
+                                    unfiltered_density_multiplier_phi_i
+                                    * (old_density_values[q_point] - filtered_unfiltered_density_values[q_point])
+                            );
+
+                    //rhs eqn 7
+                    cell_rhs(i) +=
+                            -1 * fe_values.JxW(q_point) * (lower_slack_phi_i
+                                                           * (old_lower_slack_multiplier_values[q_point] -
+                                                              barrier_size / old_lower_slack_values[q_point])
+                            );
+
+                    //rhs eqn 8
+                    cell_rhs(i) +=
+                            -1 * fe_values.JxW(q_point) * (upper_slack_phi_i
+                                                           * (old_upper_slack_multiplier_values[q_point] -
+                                                              barrier_size / old_upper_slack_values[q_point]));
+
+                }
+
+            }
+
+
+            MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
+                                                     cell_matrix, cell_rhs, true);
+
+            constraints.distribute_local_to_global(
+                    cell_matrix, cell_rhs, local_dof_indices, system_matrix, test_rhs);
+
+
+        }
+        return test_rhs;
+
     }
 
     template<int dim>
     double
-    SANDTopOpt<dim>::calculate_solution_merit(BlockVector<double> test_solution, double barrier_size, double penalty_parameter)
+    SANDTopOpt<dim>::calculate_rhs_error(BlockVector<double> rhs)
     {
-        double solution_merit = 0;
+        double merit = 0;
+        merit = rhs.block(0).l1_norm() + rhs.block(1).l1_norm() +rhs.block(2).l1_norm() + 100* rhs.block(3).l1_norm()
+                + 100*rhs.block(4).l1_norm() +100*rhs.block(5).l1_norm() +100*rhs.block(6).l1_norm() +rhs.block(7).l1_norm() +rhs.block(8).l1_norm();
+        return merit;
 
-        //term for elasticity constraint - I need something like A(rho)u - f
-        solution_merit = solution_merit + get_compliance_plus_elasticity_error(test_solution, penalty_parameter);
-        std::cout << "compliance and elasticity error   " << solution_merit << std::endl;
-
-        //term for filter constraint
-        Vector<double>filtered_unfiltered_density;
-        filtered_unfiltered_density.reinit(filter_matrix.m());
-        filter_matrix.vmult(filtered_unfiltered_density, test_solution.block(2));
-        filtered_unfiltered_density = (filtered_unfiltered_density - test_solution.block(0));
-
-        solution_merit = solution_merit + penalty_parameter*filtered_unfiltered_density.l2_norm();
-
-        //term for inequality constraints on slacks
-        for (int k = 0; k < test_solution.block(5).size(); k++) {
-            solution_merit = solution_merit - barrier_size * std::log(test_solution.block(5)[k]);
-        }
-        for (int k = 0; k < test_solution.block(7).size(); k++) {
-            solution_merit = solution_merit - barrier_size * std::log(test_solution.block(7)[k]);
-        }
-
-
-        //term for slack variable equality constraint
-        Vector<double> slack_error;
-        slack_error = test_solution.block(2) - test_solution.block(5);
-        solution_merit = solution_merit + penalty_parameter * slack_error.l2_norm();
-        //above is lower slack, below is upper
-        double sum = 0;
-        for (int k = 0; k < test_solution.block(7).size(); k++)
-        {
-            sum = sum + std::pow(1 - test_solution.block(2)[k] - test_solution.block(7)[k], 2);
-        }
-        solution_merit = solution_merit + penalty_parameter * std::pow(sum, .5);
-
-
-        return solution_merit;
     }
 
     template<int dim>
@@ -1376,14 +1646,13 @@ namespace SAND {
         for (unsigned int loop = 0; loop < 100; loop++) {
             assemble_block_system(barrier_size);
             solve();
-            update_step();
+            update_step(calculate_max_step_size(),barrier_size);
             if (loop % 1 == 0) {
                 output(loop / 1);
                 std::cout << loop << std::endl;
             }
-            std::cout << calculate_solution_merit(nonlinear_solution, barrier_size, 1.0) << std::endl;
-            std::cout << system_rhs.l2_norm() << std::endl;
-            if (system_rhs.l2_norm() < 1e-10) {
+            std::cout << calculate_rhs_error(system_rhs) << std::endl;
+            if (calculate_rhs_error(system_rhs) < 1e-10) {
                 barrier_size = barrier_size * .2;
                 std::cout << "barrier size is   " << barrier_size << std::endl;
             }
