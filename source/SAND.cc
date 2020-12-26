@@ -1104,7 +1104,6 @@ namespace SAND {
         test_solution = 0;
         bool step_found = false;
 
-
         for(int k=0; k<5 && step_found == false; k++)
         {
             test_solution.block(0) = nonlinear_solution.block(0)
@@ -1140,6 +1139,7 @@ namespace SAND {
             }
 
         }
+
         std::cout << step_size_s_low << "   " << step_size_z_low << std::endl;
         nonlinear_solution = test_solution;
     }
@@ -1388,8 +1388,34 @@ namespace SAND {
 
                 }
 
+
             }
 
+            for (unsigned int face_number = 0;
+                 face_number < GeometryInfo<dim>::faces_per_cell;
+                 ++face_number) {
+                if (cell->face(face_number)->at_boundary() && cell->face(
+                        face_number)->boundary_id()
+                                                              == 1) {
+                    fe_face_values.reinit(cell, face_number);
+
+                    for (unsigned int face_q_point = 0;
+                         face_q_point < n_face_q_points; ++face_q_point) {
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                            cell_rhs(i) += -1
+                                           * traction
+                                           * fe_face_values[displacements].value(i,
+                                                                                 face_q_point)
+                                           * fe_face_values.JxW(face_q_point);
+
+                            cell_rhs(i) += traction
+                                           * fe_face_values[displacement_multipliers].value(
+                                    i, face_q_point)
+                                           * fe_face_values.JxW(face_q_point);
+                        }
+                    }
+                }
+            }
 
             MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
                                                      cell_matrix, cell_rhs, true);
@@ -1408,8 +1434,10 @@ namespace SAND {
     SANDTopOpt<dim>::calculate_rhs_error(BlockVector<double> rhs)
     {
         double merit = 0;
-        merit = rhs.block(0).l1_norm() + rhs.block(1).l1_norm() +rhs.block(2).l1_norm() + 100* rhs.block(3).l1_norm()
-                + 100*rhs.block(4).l1_norm() +100*rhs.block(5).l1_norm() +100*rhs.block(6).l1_norm() +rhs.block(7).l1_norm() +rhs.block(8).l1_norm();
+        merit = rhs.block(0).l1_norm() + 100*rhs.block(1).l1_norm() +100*rhs.block(2).l1_norm() + 100* rhs.block(3).l1_norm()
+                + 100*rhs.block(4).l1_norm() +100*rhs.block(5).l1_norm() +100*rhs.block(6).l1_norm() +100*rhs.block(7).l1_norm() +100*rhs.block(8).l1_norm();
+        std::cout << rhs.block(0).l1_norm() <<"   "<< rhs.block(1).l1_norm() <<"   "<< rhs.block(2).l1_norm() <<"   "<< rhs.block(3).l1_norm()
+                      <<"   "<<rhs.block(4).l1_norm() <<"   "<< rhs.block(5).l1_norm() <<"   "<< rhs.block(6).l1_norm() <<"   "<< rhs.block(7).l1_norm() <<"   "<< rhs.block(8).l1_norm() <<std::endl;
         return merit;
 
     }
@@ -1527,11 +1555,7 @@ namespace SAND {
                         const double density_phi_j = fe_values[densities].value(
                                 j, q_point);
 
-
-
-
                         //Storing this in a new big matrix because I can...
-
                         cell_matrix(i, j) +=
                                 fe_values.JxW(q_point) * (
                                         std::pow(
@@ -1646,12 +1670,13 @@ namespace SAND {
         for (unsigned int loop = 0; loop < 100; loop++) {
             assemble_block_system(barrier_size);
             solve();
+            std::cout << "actual error:   "  << calculate_rhs_error(system_rhs) << std::endl;
             update_step(calculate_max_step_size(),barrier_size);
             if (loop % 1 == 0) {
                 output(loop / 1);
                 std::cout << loop << std::endl;
             }
-            std::cout << calculate_rhs_error(system_rhs) << std::endl;
+
             if (calculate_rhs_error(system_rhs) < 1e-10) {
                 barrier_size = barrier_size * .2;
                 std::cout << "barrier size is   " << barrier_size << std::endl;
