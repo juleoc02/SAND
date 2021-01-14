@@ -31,6 +31,7 @@
 #include <deal.II/numerics/error_estimator.h>
 
 #include <iostream>
+#include <algorithm>
 
 namespace SAND {
     using namespace dealii;
@@ -72,7 +73,7 @@ namespace SAND {
         setup_filter_matrix();
 
         double
-        calculate_solution_merit(BlockVector<double> test_solution, double barrier_size, double penalty_parameter);
+        calculate_exact_merit(BlockVector<double> test_solution, double barrier_size, double penalty_parameter);
 
         BlockVector<double>
         calculate_test_rhs(BlockVector<double> test_solution, double barrier_size, double penalty_parameter);
@@ -1087,7 +1088,7 @@ namespace SAND {
                 step_size_z_high = step_size_z;
             }
         }
-        std::cout << step_size_s_low << "    " << step_size_z_low << std::endl;
+//        std::cout << step_size_s_low << "    " << step_size_z_low << std::endl;
         std::vector<double> max_step = {step_size_s_low, step_size_z_low};
         return max_step;
     }
@@ -1098,11 +1099,13 @@ namespace SAND {
 
         double step_size_s_low = max_step[0];
         double step_size_z_low = max_step[1];
-        double current_merit = calculate_rhs_error(system_rhs);
-        std::cout << "current merit:   " << current_merit << std::endl;
+        double current_merit = calculate_exact_merit(nonlinear_solution, barrier_size, 1);
+//        std::cout << "current merit:   " << current_merit << std::endl;
         BlockVector<double> test_solution = nonlinear_solution;
         test_solution = 0;
-        bool step_found = false;
+
+        //TO USE THE MERIT FUNCTION, CHANGE THIS TO FALSE
+        bool step_found = true;
 
         for(int k=0; k<5 && step_found == false; k++)
         {
@@ -1125,7 +1128,7 @@ namespace SAND {
             test_solution.block(8) = nonlinear_solution.block(8)
                                      + step_size_z_low * linear_solution.block(8);
 
-            double test_merit = calculate_rhs_error(calculate_test_rhs(test_solution, barrier_size, 1));
+            double test_merit = calculate_exact_merit(test_solution, barrier_size, 1);
             std::cout << "test merit:   " << test_merit << std::endl;
 
             if(test_merit < current_merit)
@@ -1140,9 +1143,33 @@ namespace SAND {
 
         }
 
-        std::cout << step_size_s_low << "   " << step_size_z_low << std::endl;
+        //ALL OF THIS ISNT NEEDED WHEN USING MERIT FUNCTION...
+        test_solution.block(0) = nonlinear_solution.block(0)
+                                 + step_size_s_low * linear_solution.block(0);
+        test_solution.block(1) = nonlinear_solution.block(1)
+                                 + step_size_s_low * linear_solution.block(1);
+        test_solution.block(2) = nonlinear_solution.block(2)
+                                 + step_size_s_low * linear_solution.block(2);
+        test_solution.block(3) = nonlinear_solution.block(3)
+                                 + step_size_z_low * linear_solution.block(3);
+        test_solution.block(4) = nonlinear_solution.block(4)
+                                 + step_size_z_low * linear_solution.block(4);
+        test_solution.block(5) = nonlinear_solution.block(5)
+                                 + step_size_s_low * linear_solution.block(5);
+        test_solution.block(6) = nonlinear_solution.block(6)
+                                 + step_size_z_low * linear_solution.block(6);
+        test_solution.block(7) = nonlinear_solution.block(7)
+                                 + step_size_s_low * linear_solution.block(7);
+        test_solution.block(8) = nonlinear_solution.block(8)
+                                 + step_size_z_low * linear_solution.block(8);
+        //...DOWN TO HERE
+
+//        std::cout << step_size_s_low << "   " << step_size_z_low << std::endl;
         nonlinear_solution = test_solution;
     }
+
+
+
 
     template<int dim>
     BlockVector<double>
@@ -1436,180 +1463,149 @@ namespace SAND {
         double merit = 0;
         merit = rhs.block(0).l1_norm() + 100*rhs.block(1).l1_norm() +100*rhs.block(2).l1_norm() + 100* rhs.block(3).l1_norm()
                 + 100*rhs.block(4).l1_norm() +100*rhs.block(5).l1_norm() +100*rhs.block(6).l1_norm() +100*rhs.block(7).l1_norm() +100*rhs.block(8).l1_norm();
-        std::cout << rhs.block(0).l1_norm() <<"   "<< rhs.block(1).l1_norm() <<"   "<< rhs.block(2).l1_norm() <<"   "<< rhs.block(3).l1_norm()
-                      <<"   "<<rhs.block(4).l1_norm() <<"   "<< rhs.block(5).l1_norm() <<"   "<< rhs.block(6).l1_norm() <<"   "<< rhs.block(7).l1_norm() <<"   "<< rhs.block(8).l1_norm() <<std::endl;
+//        std::cout << rhs.block(0).l1_norm() <<"   "<< rhs.block(1).l1_norm() <<"   "<< rhs.block(2).l1_norm() <<"   "<< rhs.block(3).l1_norm()
+//                      <<"   "<<rhs.block(4).l1_norm() <<"   "<< rhs.block(5).l1_norm() <<"   "<< rhs.block(6).l1_norm() <<"   "<< rhs.block(7).l1_norm() <<"   "<< rhs.block(8).l1_norm() <<std::endl;
         return merit;
 
     }
 
     template<int dim>
     double
-    SANDTopOpt<dim>::get_compliance_plus_elasticity_error(BlockVector<double> test_solution, double penalty_parameter) {
-        BlockSparseMatrix<double> elasticity_matrix;
-        elasticity_matrix.reinit(sparsity_pattern);
-        BlockVector<double> elasticity_rhs;
-        elasticity_rhs=system_rhs;
-        elasticity_rhs = 0;
+    SANDTopOpt<dim>::calculate_exact_merit(BlockVector<double> test_solution, double barrier_size, double penalty_parameter)
+    {
+       double fraction_to_boundary = .995;
 
-        const FEValuesExtractors::Scalar densities(0);
-        const FEValuesExtractors::Vector displacements(1);
+       double objective_function_merit = 0;
+       double elasticity_constraint_merit = 0;
+       double filter_constraint_merit = 0;
+       double lower_slack_merit = 0;
+       double upper_slack_merit = 0;
 
+       //Calculate objective function
+       //Loop over cells, integrate along boundary because I only have external force
+        {
+            const FEValuesExtractors::Vector displacements(1);
+            QGauss<dim> quadrature_formula(fe.degree + 1);
+            QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
+            FEValues<dim> fe_values(fe, quadrature_formula,
+                                    update_values | update_gradients | update_quadrature_points
+                                    | update_JxW_values);
+            FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
+                                             update_values | update_quadrature_points | update_normal_vectors
+                                             | update_JxW_values);
 
-        /*Remove any values from old iterations*/
-        system_matrix.reinit(sparsity_pattern);
-
-        QGauss<dim> quadrature_formula(fe.degree + 1);
-        QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
-        FEValues<dim> fe_values(fe, quadrature_formula,
-                                update_values | update_gradients | update_quadrature_points
-                                | update_JxW_values);
-        FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
-                                         update_values | update_quadrature_points | update_normal_vectors
-                                         | update_JxW_values);
-
-        const unsigned int dofs_per_cell = fe.dofs_per_cell;
-        const unsigned int n_q_points = quadrature_formula.size();
-        const unsigned int n_face_q_points = face_quadrature_formula.size();
-
-        FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-        Vector<double> cell_rhs(dofs_per_cell);
-
-        std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-
-        std::vector<double> lambda_values(n_q_points);
-        std::vector<double> mu_values(n_q_points);
-
-        Functions::ConstantFunction<dim> lambda(1.), mu(1.);
-        std::vector<Tensor<1, dim>> rhs_values(n_q_points);
-
-        BlockVector<double> filtered_unfiltered_density_solution = test_solution;
-        BlockVector<double> filter_adjoint_unfiltered_density_multiplier_solution = test_solution;
-        filtered_unfiltered_density_solution.block(2) = 0;
-        filter_adjoint_unfiltered_density_multiplier_solution.block(4) = 0;
-
-        filter_matrix.vmult(filtered_unfiltered_density_solution.block(2), test_solution.block(2));
-        filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(4),
-                             nonlinear_solution.block(4));
+            const unsigned int n_q_points = quadrature_formula.size();
+            const unsigned int n_face_q_points = face_quadrature_formula.size();
 
 
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
-            cell_matrix = 0;
-            cell_rhs = 0;
+            for (const auto &cell : dof_handler.active_cell_iterators()) {
 
-            cell->get_dof_indices(local_dof_indices);
+                std::vector<Tensor<1, dim>> old_displacement_face_values(n_face_q_points);
 
-            fe_values.reinit(cell);
+                Tensor<1, dim> traction;
+                traction[1] = -1;
 
-            lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
-            mu.value_list(fe_values.get_quadrature_points(), mu_values);
-
-            std::vector<double> old_density_values(n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
-            std::vector<double> old_displacement_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
-                    n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
-                    n_q_points);
-            std::vector<double> old_displacement_multiplier_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
-                    n_q_points);
-            std::vector<double> old_lower_slack_multiplier_values(n_q_points);
-            std::vector<double> old_upper_slack_multiplier_values(n_q_points);
-            std::vector<double> old_lower_slack_values(n_q_points);
-            std::vector<double> old_upper_slack_values(n_q_points);
-            std::vector<double> old_unfiltered_density_values(n_q_points);
-            std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
-            std::vector<double> filtered_unfiltered_density_values(n_q_points);
-            std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
-
-
-            fe_values[densities].get_function_values(test_solution,
-                                                     old_density_values);
-            fe_values[displacements].get_function_values(test_solution,
-                                                         old_displacement_values);
-            fe_values[displacements].get_function_divergences(test_solution,
-                                                              old_displacement_divs);
-            fe_values[displacements].get_function_symmetric_gradients(
-                    test_solution, old_displacement_symmgrads);
-
-
-            Tensor<1, dim> traction;
-            traction[1] = -1;
-
-            for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
-
-                for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                    const SymmetricTensor<2, dim> displacement_phi_i_symmgrad =
-                            fe_values[displacements].symmetric_gradient(i, q_point);
-                    const double displacement_phi_i_div =
-                            fe_values[displacements].divergence(i, q_point);
-
-
-                    for (unsigned int j = 0; j < dofs_per_cell; ++j) {
-                        const SymmetricTensor<2, dim> displacement_phi_j_symmgrad =
-                                fe_values[displacements].symmetric_gradient(j,
-                                                                            q_point);
-                        const double displacement_phi_j_div =
-                                fe_values[displacements].divergence(j, q_point);
-
-                        const double density_phi_j = fe_values[densities].value(
-                                j, q_point);
-
-                        //Storing this in a new big matrix because I can...
-                        cell_matrix(i, j) +=
-                                fe_values.JxW(q_point) * (
-                                        std::pow(
-                                                old_density_values[q_point],
-                                                density_penalty_exponent)
-                                        * (displacement_phi_i_div * displacement_phi_j_div
-                                           * lambda_values[q_point]
-                                           + 2 * mu_values[q_point]
-                                             * (displacement_phi_i_symmgrad*
-                                                displacement_phi_j_symmgrad))
-                                                );
-
-
-                    }
-
-                }
                 for (unsigned int face_number = 0;
                      face_number < GeometryInfo<dim>::faces_per_cell;
                      ++face_number) {
                     if (cell->face(face_number)->at_boundary() && cell->face(
-                            face_number)->boundary_id()
-                                                                  == 1) {
+                            face_number)->boundary_id()== 1)
+                    {
                         fe_face_values.reinit(cell, face_number);
-
+                        fe_face_values[displacements].get_function_values(test_solution,
+                                                                          old_displacement_face_values);
                         for (unsigned int face_q_point = 0;
                              face_q_point < n_face_q_points; ++face_q_point) {
-                            for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                                cell_rhs(i) += traction
-                                               * fe_face_values[displacements].value(i,
-                                                                                     face_q_point)
-                                               * fe_face_values.JxW(face_q_point);
-                            }
+                            objective_function_merit +=
+                                    traction
+                                    * old_displacement_face_values[face_q_point]
+                                    * fe_face_values.JxW(face_q_point);
                         }
                     }
                 }
-
-
-                MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
-                                                         cell_matrix, cell_rhs, true);
-
-                constraints.distribute_local_to_global(
-                        cell_matrix, cell_rhs, local_dof_indices, elasticity_matrix, elasticity_rhs);
-
-
             }
-
-
         }
-        Vector<double> lhs_vector;
-        lhs_vector.reinit(elasticity_matrix.block(1,1).m());
-        elasticity_matrix.block(1,1).vmult(lhs_vector,test_solution.block(1));
-        lhs_vector = lhs_vector - elasticity_rhs.block(1);
-        return penalty_parameter*lhs_vector.l2_norm() + test_solution.block(1) * elasticity_rhs.block(1);
+        //
+        BlockVector<double> test_rhs = calculate_test_rhs(test_solution, barrier_size, 1);
+
+
+        //calculate elasticity constraint merit
+        {
+            //First need to find biggest multiplier y - I then add 1 because it starts at 0 for no real good reason. I don't like this bit...
+            double multiplier;
+            if (2 * nonlinear_solution.block(3).linfty_norm() > 10)
+            {
+                multiplier = 2 * nonlinear_solution.block(3).linfty_norm();
+            }
+            else
+            {
+                multiplier = 10;
+            }
+            elasticity_constraint_merit = multiplier * test_rhs.block(3).l1_norm();
+        }
+
+        //calculate filter constraint merit
+        {
+            //First need to find biggest multiplier y - I then add 1 because it starts at 0 for no real good reason. I don't like this bit...
+            double multiplier = 2 * nonlinear_solution.block(4).linfty_norm() + 1;
+            filter_constraint_merit = multiplier * test_rhs.block(4).l1_norm();
+        }
+
+        //calculate lower slack merit
+        {
+            //First need to find biggest multiplier y - This uses the fraction to boundary and actually should work pretty well.
+            double minimum_slack = 1;
+            for (int k = 0; k < nonlinear_solution.block(5).size(); k++)
+            {
+                if (nonlinear_solution.block(5)[k] < minimum_slack)
+                {
+                    minimum_slack = nonlinear_solution.block(5)[k];
+                }
+            }
+            double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
+            double inequality_violation = 0;
+            for (int k = 0; k < test_solution.block(2).size(); k++)
+            {
+                if (test_solution.block(2)[k] < 0)
+                {
+                    inequality_violation += -1 * test_solution.block(2)[k];
+                }
+            }
+            lower_slack_merit = multiplier *  inequality_violation;
+        }
+
+        //calculate upper slack merit
+        {
+            double minimum_slack = 1;
+            for (int k = 0; k < nonlinear_solution.block(7).size(); k++)
+            {
+                if (nonlinear_solution.block(7)[k] < minimum_slack)
+                {
+                    minimum_slack = nonlinear_solution.block(7)[k];
+                }
+            }
+            double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
+            double inequality_violation = 0;
+            for (int k = 0; k < test_solution.block(2).size(); k++)
+            {
+                if (test_solution.block(2)[k] > 1)
+                {
+                    inequality_violation += test_solution.block(2)[k] - 1;
+                }
+            }
+            upper_slack_merit = multiplier *  inequality_violation;
+        }
+
+
+
+        double total_merit;
+//        std::cout << "merit parts:  " << objective_function_merit << "  " << elasticity_constraint_merit << "  " <<
+//            filter_constraint_merit << "  " <<  lower_slack_merit << "  " <<  upper_slack_merit << std::endl;
+        total_merit = objective_function_merit + elasticity_constraint_merit + filter_constraint_merit + lower_slack_merit + upper_slack_merit;
+        return total_merit;
     }
+
+
 
 
     template<int dim>
@@ -1672,12 +1668,13 @@ namespace SAND {
             solve();
             std::cout << "actual error:   "  << calculate_rhs_error(system_rhs) << std::endl;
             update_step(calculate_max_step_size(),barrier_size);
-            if (loop % 1 == 0) {
+            if (loop % 1 == 0)
+            {
                 output(loop / 1);
                 std::cout << loop << std::endl;
             }
-
-            if (calculate_rhs_error(system_rhs) < 1e-10) {
+            if (calculate_rhs_error(system_rhs) < 1e-8)
+            {
                 barrier_size = barrier_size * .2;
                 std::cout << "barrier size is   " << barrier_size << std::endl;
             }
