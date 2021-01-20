@@ -61,13 +61,13 @@ namespace SAND {
         solve();
 
         std::vector<double>
-        calculate_max_step_size();
+        calculate_max_step_size() const;
 
         void
         update_step(const std::vector<double> &max_step, const double barrier_size);
 
         void
-        output(const unsigned int j);
+        output(const unsigned int j) const;
 
         void
         setup_filter_matrix();
@@ -79,10 +79,10 @@ namespace SAND {
         calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter);
 
         double
-        calculate_rhs_error(const BlockVector<double> &rhs_vector);
+        calculate_rhs_error(const BlockVector<double> &rhs_vector) const;
 
         double
-        get_compliance_plus_elasticity_error(const BlockVector<double> &test_solution, const double penalty_parameter);
+        get_compliance_plus_elasticity_error(const BlockVector<double> &test_solution, const double penalty_parameter) const;
 
 
         BlockSparsityPattern sparsity_pattern;
@@ -1049,7 +1049,7 @@ namespace SAND {
 
     template<int dim>
     std::vector<double>
-    SANDTopOpt<dim>::calculate_max_step_size() {
+    SANDTopOpt<dim>::calculate_max_step_size() const {
 
         double fraction_to_boundary = .995;
 
@@ -1458,7 +1458,7 @@ namespace SAND {
 
     template<int dim>
     double
-    SANDTopOpt<dim>::calculate_rhs_error(const BlockVector<double> &rhs)
+    SANDTopOpt<dim>::calculate_rhs_error(const BlockVector<double> &rhs) const
     {
         double merit = 0;
         merit = rhs.block(0).l1_norm() + 100*rhs.block(1).l1_norm() +100*rhs.block(2).l1_norm() + 100* rhs.block(3).l1_norm()
@@ -1525,7 +1525,7 @@ namespace SAND {
             }
         }
         //
-        BlockVector<double> test_rhs = calculate_test_rhs(test_solution, barrier_size, 1);
+        const BlockVector<double> test_rhs = calculate_test_rhs(test_solution, barrier_size, 1);
 
 
         //calculate elasticity constraint merit
@@ -1609,7 +1609,7 @@ namespace SAND {
 
     template<int dim>
     void
-    SANDTopOpt<dim>::output(const unsigned int j) {
+    SANDTopOpt<dim>::output(const unsigned int j) const {
         std::vector<std::string> solution_names(1, "density");
         std::vector<DataComponentInterpretation::DataComponentInterpretation> data_component_interpretation(
                 1, DataComponentInterpretation::component_is_scalar);
