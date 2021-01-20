@@ -133,17 +133,15 @@ namespace SAND {
         std::set<unsigned int> neighbor_ids;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check_temp;
-        unsigned int n_neighbors, i;
         double distance;
 
         /*finds neighbors-of-neighbors until it is out to specified radius*/
         for (const auto &cell : dof_handler.active_cell_iterators()) {
-            i = cell->active_cell_index();
-            neighbor_ids.clear();
-            neighbor_ids.insert(i);
-            cells_to_check.clear();
-            cells_to_check.insert(cell);
-            n_neighbors = 1;
+            const unsigned int i = cell->active_cell_index();
+            neighbor_ids = {i};
+            cells_to_check = {cell};
+            
+            unsigned int n_neighbors = 1;
             while (true) {
                 cells_to_check_temp.clear();
                 for (auto check_cell : cells_to_check) {
@@ -179,13 +177,12 @@ namespace SAND {
 
 /*find these cells again to add values to matrix*/
         for (const auto &cell : dof_handler.active_cell_iterators()) {
-            i = cell->active_cell_index();
-            neighbor_ids.clear();
-            neighbor_ids.insert(i);
-            cells_to_check.clear();
-            cells_to_check.insert(cell);
-            cells_to_check_temp.clear();
-            n_neighbors = 1;
+            const unsigned int i = cell->active_cell_index();
+            neighbor_ids = {i};
+            cells_to_check = {cell};
+            cells_to_check_temp = {};
+            
+            unsigned int n_neighbors = 1;
             filter_matrix.add(i, i, filter_r);
             while (true) {
                 cells_to_check_temp.clear();
@@ -218,7 +215,7 @@ namespace SAND {
         }
 
         for (const auto &cell : dof_handler.active_cell_iterators()) {
-            i = cell->active_cell_index();
+            const unsigned int i = cell->active_cell_index();
             double denominator = 0;
             typename SparseMatrix<double>::iterator iter = filter_matrix.begin(
                     i);
