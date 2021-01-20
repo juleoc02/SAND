@@ -1659,9 +1659,11 @@ namespace SAND {
             solve();
             std::cout << "actual error:   "  << calculate_rhs_error(system_rhs) << std::endl;
             update_step(calculate_max_step_size(),barrier_size);
-            if (loop % 1 == 0)
+
+            const unsigned int output_every_n_steps = 1;
+            if (loop % output_every_n_steps == 0)
             {
-                output(loop / 1);
+                output(loop / output_every_n_steps);
                 std::cout << loop << std::endl;
             }
             if (calculate_rhs_error(system_rhs) < 1e-8)
