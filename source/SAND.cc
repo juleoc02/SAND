@@ -117,8 +117,10 @@ namespace SAND {
                (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 1,
                FE_DGQ<dim>(0) ^ 1,
                (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 1,
-               FE_DGQ<dim>(0) ^ 5) {
-
+               FE_DGQ<dim>(0) ^ 5),
+            density_penalty_exponent (3),
+            filter_r (.25)
+    {
     }
 
     template<int dim>
@@ -1646,12 +1648,12 @@ namespace SAND {
     void
     SANDTopOpt<dim>::run() {
         double barrier_size = 25;
-        density_penalty_exponent = 3;
-        filter_r = .25;
+
         create_triangulation();
         setup_block_system();
         set_bcids();
         setup_filter_matrix();
+        
         for (unsigned int loop = 0; loop < 100; loop++) {
             assemble_block_system(barrier_size);
             solve();
