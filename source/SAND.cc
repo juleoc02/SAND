@@ -242,7 +242,7 @@ namespace SAND {
         GridGenerator::hyper_rectangle(triangulation, point_1, point_2);
 
         /*make 5 more squares*/
-        for (int n = 1; n < 6; n++) {
+        for (unsigned int n = 1; n < 6; n++) {
             triangulation_temp.clear();
             point_1(0) = n;
             point_2(0) = n + 1;
@@ -333,10 +333,10 @@ namespace SAND {
                                         cell->vertex_dof_index(vertex_number, 1);
                                 const unsigned int y_displacement_multiplier =
                                         cell->vertex_dof_index(vertex_number, 3);
-                                const unsigned int x_displacement =
-                                        cell->vertex_dof_index(vertex_number, 0);
-                                const unsigned int x_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 2);
+                                // const unsigned int x_displacement =
+                                //         cell->vertex_dof_index(vertex_number, 0);
+                                // const unsigned int x_displacement_multiplier =
+                                //         cell->vertex_dof_index(vertex_number, 2);
                                 /*set bottom left BC*/
                                 boundary_values[y_displacement] = 0;
                                 boundary_values[y_displacement_multiplier] = 0;
@@ -370,8 +370,8 @@ namespace SAND {
 
         BlockDynamicSparsityPattern dsp(9, 9);
 
-        for (int k = 0; k < 9; k++) {
-            for (int j = 0; j < 9; j++) {
+        for (unsigned int k = 0; k < 9; k++) {
+            for (unsigned int j = 0; j < 9; j++) {
                 dsp.block(j, k).reinit(block_sizes[j], block_sizes[k]);
             }
         }
@@ -382,7 +382,7 @@ namespace SAND {
 //
 //        coupling[0][0] = DoFTools::always;
 //
-//        for (int i = 0; i < dim; i++) {
+//        for (unsigned int i = 0; i < dim; i++) {
 //            coupling[0][1 + i] = DoFTools::always;
 //            coupling[1 + i][0] = DoFTools::always;
 //        }
@@ -390,7 +390,7 @@ namespace SAND {
 //        coupling[0][1 + dim] = DoFTools::none;
 //        coupling[1 + dim][0] = DoFTools::none;
 //
-//        for (int i = 0; i < dim; i++) {
+//        for (unsigned int i = 0; i < dim; i++) {
 //            coupling[0][2 + dim + i] = DoFTools::always;
 //            coupling[2 + dim + i][0] = DoFTools::always;
 //        }
@@ -406,35 +406,35 @@ namespace SAND {
 //        coupling[2 + 2 * dim + 3][0] = DoFTools::none;
 //        coupling[2 + 2 * dim + 4][0] = DoFTools::none;
 //
-//        for (int i = 0; i < dim; i++) {
-//            for (int k = 0; k < dim; k++) {
+//        for (unsigned int i = 0; i < dim; i++) {
+//            for (unsigned int k = 0; k < dim; k++) {
 //                coupling[1 + i][1 + k] = DoFTools::none;
 //            }
 //            coupling[1 + i][1 + dim ] = DoFTools::none;
 //            coupling[1 + dim ][1 + i] = DoFTools::none;
 //
-//            for (int k = 0; k < dim; k++) {
+//            for (unsigned int k = 0; k < dim; k++) {
 //                coupling[1 + i][2 + dim + k] = DoFTools::always;
 //                coupling[2 + dim + k][1 + i] = DoFTools::always;
 //            }
-//            for (int k = 0; k < 5; k++) {
+//            for (unsigned int k = 0; k < 5; k++) {
 //                coupling[1 + i][2 + 2 * dim + k] = DoFTools::none;
 //                coupling[2 + 2 * dim + k][1 + i] = DoFTools::none;
 //            }
 //        }
 //
 //        coupling[1+dim][1+dim]= DoFTools::none;
-//        for (int k = 0; k < dim; k++) {
+//        for (unsigned int k = 0; k < dim; k++) {
 //            coupling[1 + dim][2 + dim + k] = DoFTools::none;
 //            coupling[2 + dim + k][1 + dim] = DoFTools::none;
 //        }
-//        for (int k = 1; k < 5; k++) {
+//        for (unsigned int k = 1; k < 5; k++) {
 //            coupling[1 + dim][2 + 2 * dim + k] = DoFTools::none;
 //            coupling[2 + 2 * dim + k][1 + dim] = DoFTools::none;
 //        }
 //
-//        for (int i = 0; i < dim+5; i++) {
-//            for (int k = 0; k < dim + 5; k++) {
+//        for (unsigned int i = 0; i < dim+5; i++) {
+//            for (unsigned int k = 0; k < dim + 5; k++) {
 //                coupling[2 + dim + i][2 + dim + k] = DoFTools::none;
 //                coupling[2 + dim + k][2 + dim + i] = DoFTools::none;
 //            }
@@ -545,7 +545,7 @@ namespace SAND {
         nonlinear_solution.reinit(9);
         system_rhs.reinit(9);
 
-        for (int j = 0; j < 9; j++) {
+        for (unsigned int j = 0; j < 9; j++) {
             linear_solution.block(j).reinit(block_sizes[j]);
             nonlinear_solution.block(j).reinit(block_sizes[j]);
             system_rhs.block(j).reinit(block_sizes[j]);
@@ -1173,7 +1173,7 @@ namespace SAND {
 
     template<int dim>
     BlockVector<double>
-    SANDTopOpt<dim>::calculate_test_rhs(BlockVector<double> test_solution, double barrier_size, double penalty_parameter) {
+    SANDTopOpt<dim>::calculate_test_rhs(BlockVector<double> test_solution, double barrier_size, double /*penalty_parameter*/) {
         const FEValuesExtractors::Scalar densities(0);
         const FEValuesExtractors::Vector displacements(1);
         const FEValuesExtractors::Scalar unfiltered_densities(1 + dim);
@@ -1471,7 +1471,7 @@ namespace SAND {
 
     template<int dim>
     double
-    SANDTopOpt<dim>::calculate_exact_merit(BlockVector<double> test_solution, double barrier_size, double penalty_parameter)
+    SANDTopOpt<dim>::calculate_exact_merit(BlockVector<double> test_solution, double barrier_size, double /*penalty_parameter*/)
     {
        double fraction_to_boundary = .995;
 
@@ -1494,7 +1494,6 @@ namespace SAND {
                                              update_values | update_quadrature_points | update_normal_vectors
                                              | update_JxW_values);
 
-            const unsigned int n_q_points = quadrature_formula.size();
             const unsigned int n_face_q_points = face_quadrature_formula.size();
 
 
@@ -1555,7 +1554,7 @@ namespace SAND {
         {
             //First need to find biggest multiplier y - This uses the fraction to boundary and actually should work pretty well.
             double minimum_slack = 1;
-            for (int k = 0; k < nonlinear_solution.block(5).size(); k++)
+            for (unsigned int k = 0; k < nonlinear_solution.block(5).size(); k++)
             {
                 if (nonlinear_solution.block(5)[k] < minimum_slack)
                 {
@@ -1564,7 +1563,7 @@ namespace SAND {
             }
             double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
             double inequality_violation = 0;
-            for (int k = 0; k < test_solution.block(2).size(); k++)
+            for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
             {
                 if (test_solution.block(2)[k] < 0)
                 {
@@ -1577,7 +1576,7 @@ namespace SAND {
         //calculate upper slack merit
         {
             double minimum_slack = 1;
-            for (int k = 0; k < nonlinear_solution.block(7).size(); k++)
+            for (unsigned int k = 0; k < nonlinear_solution.block(7).size(); k++)
             {
                 if (nonlinear_solution.block(7)[k] < minimum_slack)
                 {
@@ -1586,7 +1585,7 @@ namespace SAND {
             }
             double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
             double inequality_violation = 0;
-            for (int k = 0; k < test_solution.block(2).size(); k++)
+            for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
             {
                 if (test_solution.block(2)[k] > 1)
                 {
