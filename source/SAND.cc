@@ -1546,7 +1546,7 @@ namespace SAND {
         //calculate filter constraint merit
         {
             //First need to find biggest multiplier y - I then add 1 because it starts at 0 for no real good reason. I don't like this bit...
-            double multiplier = 2 * nonlinear_solution.block(4).linfty_norm() + 1;
+            const double multiplier = 2 * nonlinear_solution.block(4).linfty_norm() + 1;
             filter_constraint_merit = multiplier * test_rhs.block(4).l1_norm();
         }
 
@@ -1555,12 +1555,7 @@ namespace SAND {
             //First need to find biggest multiplier y - This uses the fraction to boundary and actually should work pretty well.
             double minimum_slack = 1;
             for (unsigned int k = 0; k < nonlinear_solution.block(5).size(); k++)
-            {
-                if (nonlinear_solution.block(5)[k] < minimum_slack)
-                {
-                    minimum_slack = nonlinear_solution.block(5)[k];
-                }
-            }
+                minimum_slack = std::min(minimum_slack, nonlinear_solution.block(5)[k]);
             double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
             double inequality_violation = 0;
             for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
