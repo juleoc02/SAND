@@ -31,6 +31,7 @@
 #include <deal.II/numerics/error_estimator.h>
 
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 
 namespace SAND {
