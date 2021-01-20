@@ -1572,12 +1572,7 @@ namespace SAND {
         {
             double minimum_slack = 1;
             for (unsigned int k = 0; k < nonlinear_solution.block(7).size(); k++)
-            {
-                if (nonlinear_solution.block(7)[k] < minimum_slack)
-                {
-                    minimum_slack = nonlinear_solution.block(7)[k];
-                }
-            }
+                minimum_slack = std::min(minimum_slack, nonlinear_solution.block(7)[k]);
             double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
             double inequality_violation = 0;
             for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
