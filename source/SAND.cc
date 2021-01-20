@@ -74,10 +74,10 @@ namespace SAND {
         setup_filter_matrix();
 
         double
-        calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter);
+        calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter) const;
 
         BlockVector<double>
-        calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter);
+        calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter) const;
 
         double
         calculate_rhs_error(const BlockVector<double> &rhs_vector) const;
@@ -1174,7 +1174,7 @@ namespace SAND {
 
     template<int dim>
     BlockVector<double>
-    SANDTopOpt<dim>::calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/) {
+    SANDTopOpt<dim>::calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/) const {
         const FEValuesExtractors::Scalar densities(0);
         const FEValuesExtractors::Vector displacements(1);
         const FEValuesExtractors::Scalar unfiltered_densities(1 + dim);
@@ -1189,7 +1189,6 @@ namespace SAND {
 
         /*Remove any values from old iterations*/
 
-        system_matrix.reinit(sparsity_pattern);
         BlockVector<double> test_rhs;
         test_rhs = system_rhs;
         test_rhs = 0;
@@ -1207,12 +1206,8 @@ namespace SAND {
         const unsigned int n_q_points = quadrature_formula.size();
         const unsigned int n_face_q_points = face_quadrature_formula.size();
 
-        FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
         Vector<double> cell_rhs(dofs_per_cell);
-        FullMatrix<double> full_density_cell_matrix(dofs_per_cell,
-                                                    dofs_per_cell);
-        FullMatrix<double> full_density_cell_matrix_for_Au(dofs_per_cell,
-                                                           dofs_per_cell);
+        FullMatrix<double> dummy_cell_matrix(dofs_per_cell,dofs_per_cell);
 
         std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
@@ -1233,9 +1228,6 @@ namespace SAND {
 
 
         for (const auto &cell : dof_handler.active_cell_iterators()) {
-            cell_matrix = 0;
-            full_density_cell_matrix = 0;
-            full_density_cell_matrix_for_Au = 0;
             cell_rhs = 0;
 
             cell->get_dof_indices(local_dof_indices);
@@ -1446,10 +1438,10 @@ namespace SAND {
             }
 
             MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
-                                                     cell_matrix, cell_rhs, true);
+                                                     dummy_cell_matrix, cell_rhs, true);
 
             constraints.distribute_local_to_global(
-                    cell_matrix, cell_rhs, local_dof_indices, system_matrix, test_rhs);
+                    cell_rhs, local_dof_indices, test_rhs);
 
 
         }
@@ -1472,7 +1464,7 @@ namespace SAND {
 
     template<int dim>
     double
-    SANDTopOpt<dim>::calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/)
+    SANDTopOpt<dim>::calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/) const
     {
        double fraction_to_boundary = .995;
 
