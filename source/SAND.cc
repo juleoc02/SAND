@@ -55,7 +55,7 @@ namespace SAND {
         setup_block_system();
 
         void
-        assemble_block_system(double barrier_size);
+        assemble_block_system(const double barrier_size);
 
         void
         solve();
@@ -64,25 +64,25 @@ namespace SAND {
         calculate_max_step_size();
 
         void
-        update_step(const std::vector<double> &max_step, double barrier_size);
+        update_step(const std::vector<double> &max_step, const double barrier_size);
 
         void
-        output(int j);
+        output(const unsigned int j);
 
         void
         setup_filter_matrix();
 
         double
-        calculate_exact_merit(const BlockVector<double> &test_solution, double barrier_size, double penalty_parameter);
+        calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter);
 
         BlockVector<double>
-        calculate_test_rhs(const BlockVector<double> &test_solution, double barrier_size, double penalty_parameter);
+        calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter);
 
         double
         calculate_rhs_error(const BlockVector<double> &rhs_vector);
 
         double
-        get_compliance_plus_elasticity_error(const BlockVector<double> &test_solution, double penalty_parameter);
+        get_compliance_plus_elasticity_error(const BlockVector<double> &test_solution, const double penalty_parameter);
 
 
         BlockSparsityPattern sparsity_pattern;
@@ -1095,7 +1095,7 @@ namespace SAND {
 
     template<int dim>
     void
-    SANDTopOpt<dim>::update_step(const std::vector<double> &max_step, double barrier_size) {
+    SANDTopOpt<dim>::update_step(const std::vector<double> &max_step, const double barrier_size) {
 
         double step_size_s_low = max_step[0];
         double step_size_z_low = max_step[1];
@@ -1173,7 +1173,7 @@ namespace SAND {
 
     template<int dim>
     BlockVector<double>
-    SANDTopOpt<dim>::calculate_test_rhs(const BlockVector<double> &test_solution, double barrier_size, double /*penalty_parameter*/) {
+    SANDTopOpt<dim>::calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/) {
         const FEValuesExtractors::Scalar densities(0);
         const FEValuesExtractors::Vector displacements(1);
         const FEValuesExtractors::Scalar unfiltered_densities(1 + dim);
@@ -1471,7 +1471,7 @@ namespace SAND {
 
     template<int dim>
     double
-    SANDTopOpt<dim>::calculate_exact_merit(const BlockVector<double> &test_solution, double barrier_size, double /*penalty_parameter*/)
+    SANDTopOpt<dim>::calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/)
     {
        double fraction_to_boundary = .995;
 
@@ -1609,7 +1609,7 @@ namespace SAND {
 
     template<int dim>
     void
-    SANDTopOpt<dim>::output(int j) {
+    SANDTopOpt<dim>::output(const unsigned int j) {
         std::vector<std::string> solution_names(1, "density");
         std::vector<DataComponentInterpretation::DataComponentInterpretation> data_component_interpretation(
                 1, DataComponentInterpretation::component_is_scalar);
