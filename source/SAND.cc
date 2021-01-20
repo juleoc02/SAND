@@ -46,16 +46,16 @@ namespace SAND {
 
     private:
         void
-        setup_block_system();
-
-        void
-        assemble_block_system(double barrier_size);
-
-        void
         create_triangulation();
 
         void
         set_bcids();
+
+        void
+        setup_block_system();
+
+        void
+        assemble_block_system(double barrier_size);
 
         void
         solve();
