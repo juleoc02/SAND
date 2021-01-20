@@ -1454,8 +1454,15 @@ namespace SAND {
     SANDTopOpt<dim>::calculate_rhs_error(const BlockVector<double> &rhs) const
     {
         double merit = 0;
-        merit = rhs.block(0).l1_norm() + 100*rhs.block(1).l1_norm() +100*rhs.block(2).l1_norm() + 100* rhs.block(3).l1_norm()
-                + 100*rhs.block(4).l1_norm() +100*rhs.block(5).l1_norm() +100*rhs.block(6).l1_norm() +100*rhs.block(7).l1_norm() +100*rhs.block(8).l1_norm();
+        merit = rhs.block(0).l1_norm()
+                + 100*rhs.block(1).l1_norm()
+                + 100*rhs.block(2).l1_norm()
+                + 100*rhs.block(3).l1_norm()
+                + 100*rhs.block(4).l1_norm()
+                + 100*rhs.block(5).l1_norm()
+                + 100*rhs.block(6).l1_norm()
+                + 100*rhs.block(7).l1_norm()
+                + 100*rhs.block(8).l1_norm();
 //        std::cout << rhs.block(0).l1_norm() <<"   "<< rhs.block(1).l1_norm() <<"   "<< rhs.block(2).l1_norm() <<"   "<< rhs.block(3).l1_norm()
 //                      <<"   "<<rhs.block(4).l1_norm() <<"   "<< rhs.block(5).l1_norm() <<"   "<< rhs.block(6).l1_norm() <<"   "<< rhs.block(7).l1_norm() <<"   "<< rhs.block(8).l1_norm() <<std::endl;
         return merit;
