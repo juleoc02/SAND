@@ -99,9 +99,9 @@ namespace SAND {
         AffineConstraints<double> constraints;
         FESystem<dim> fe;
         DynamicSparsityPattern filter_dsp;
-        double density_ratio;
-        double density_penalty_exponent;
-        double filter_r;
+        const double density_ratio;
+        const double density_penalty_exponent;
+        const double filter_r;
 
 
         std::map<types::global_dof_index, double> boundary_values;
@@ -118,6 +118,7 @@ namespace SAND {
                FE_DGQ<dim>(0) ^ 1,
                (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 1,
                FE_DGQ<dim>(0) ^ 5),
+            density_ratio (.5),
             density_penalty_exponent (3),
             filter_r (.25)
     {
@@ -557,8 +558,6 @@ namespace SAND {
         linear_solution.collect_sizes();
         nonlinear_solution.collect_sizes();
         system_rhs.collect_sizes();
-
-        density_ratio = .5;
 
         for (unsigned int i = 0; i < n_u; i++) {
             nonlinear_solution.block(1)[i] = 0;
