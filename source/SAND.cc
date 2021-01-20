@@ -1473,7 +1473,7 @@ namespace SAND {
     double
     SANDTopOpt<dim>::calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/) const
     {
-       double fraction_to_boundary = .995;
+       const double fraction_to_boundary = .995;
 
        double objective_function_merit = 0;
        double elasticity_constraint_merit = 0;
@@ -1483,7 +1483,7 @@ namespace SAND {
 
        //Calculate objective function
        //Loop over cells, integrate along boundary because I only have external force
-        {
+       {
             const FEValuesExtractors::Vector displacements(1);
             QGauss<dim> quadrature_formula(fe.degree + 1);
             QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
@@ -1497,9 +1497,9 @@ namespace SAND {
             const unsigned int n_face_q_points = face_quadrature_formula.size();
 
 
-            for (const auto &cell : dof_handler.active_cell_iterators()) {
+            std::vector<Tensor<1, dim>> old_displacement_face_values(n_face_q_points);
 
-                std::vector<Tensor<1, dim>> old_displacement_face_values(n_face_q_points);
+            for (const auto &cell : dof_handler.active_cell_iterators()) {
 
                 Tensor<1, dim> traction;
                 traction[1] = -1;
