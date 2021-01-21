@@ -62,7 +62,7 @@ namespace SAND {
         solve();
 
         std::pair<double,double>
-        calculate_max_step_size() const;
+        calculate_max_step_size(const BlockVector<double> state, const BlockVector<double> step) const;
 
         void
         update_step(const std::pair<double,double> &max_step, const double barrier_size);
@@ -82,8 +82,14 @@ namespace SAND {
         double
         calculate_rhs_error(const BlockVector<double> &rhs_vector) const;
 
-        double
-        get_compliance_plus_elasticity_error(const BlockVector<double> &test_solution, const double penalty_parameter) const;
+        BlockVector<double>
+        find_max_step(const BlockVector<double> state, const double barrier_size);
+
+        BlockVector<double>
+        take_scaled_step(const BlockVector<double> state,const BlockVector<double> step,const double descent_requirement,const double barrier_size);
+
+        bool
+        check_convergence(const BlockVector<double> state,const double barrier_size);
 
 
         BlockSparsityPattern sparsity_pattern;
@@ -93,7 +99,6 @@ namespace SAND {
         BlockVector<double> linear_solution;
         BlockVector<double> system_rhs;
         BlockVector<double> nonlinear_solution;
-        Vector<double> force_vector;
         Triangulation<dim> triangulation;
         DoFHandler<dim> dof_handler;
         AffineConstraints<double> constraints;
@@ -102,6 +107,7 @@ namespace SAND {
         const double density_ratio;
         const double density_penalty_exponent;
         const double filter_r;
+        double penalty_multiplier;
 
 
         std::map<types::global_dof_index, double> boundary_values;
@@ -120,7 +126,8 @@ namespace SAND {
                FE_DGQ<dim>(0) ^ 5),
             density_ratio (.5),
             density_penalty_exponent (3),
-            filter_r (.25)
+            filter_r (.25),
+            penalty_multiplier (1)
     {
     }
 
@@ -1048,7 +1055,7 @@ namespace SAND {
 
     template<int dim>
     std::pair<double,double>
-    SANDTopOpt<dim>::calculate_max_step_size() const {
+    SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> state, const BlockVector<double> step) const {
 
         const double fraction_to_boundary = .995;
 
@@ -1062,18 +1069,16 @@ namespace SAND {
             step_size_s = (step_size_s_low + step_size_s_high) / 2;
             step_size_z = (step_size_z_low + step_size_z_high) / 2;
 
-            const BlockVector<double> nonlinear_solution_test_s =
-                    (fraction_to_boundary * nonlinear_solution) + (step_size_s
-                                                                   * linear_solution);
+            const BlockVector<double> state_test_s =
+                    (fraction_to_boundary * state) + (step_size_s * step);
 
-            const BlockVector<double> nonlinear_solution_test_z =
-                    (fraction_to_boundary * nonlinear_solution) + (step_size_z
-                                                                   * linear_solution);
+            const BlockVector<double> state_test_z =
+                    (fraction_to_boundary * state) + (step_size_z * step);
 
-            const bool accept_s = (nonlinear_solution_test_s.block(5).is_non_negative())
-                                  && (nonlinear_solution_test_s.block(7).is_non_negative());
-            const bool accept_z = (nonlinear_solution_test_z.block(6).is_non_negative())
-                                  && (nonlinear_solution_test_z.block(8).is_non_negative());
+            const bool accept_s = (state_test_s.block(5).is_non_negative())
+                                  && (state_test_s.block(7).is_non_negative());
+            const bool accept_z = (state_test_z.block(6).is_non_negative())
+                                  && (state_test_z.block(8).is_non_negative());
 
             if (accept_s) {
                 step_size_s_low = step_size_s;
@@ -1140,7 +1145,7 @@ namespace SAND {
 
         }
 
-        //ALL OF THIS ISNT NEEDED WHEN USING MERIT FUNCTION...
+        //ALL OF THIS ISN'T NEEDED WHEN USING MERIT FUNCTION...
         test_solution.block(0) = nonlinear_solution.block(0)
                                  + step_size_s_low * linear_solution.block(0);
         test_solution.block(1) = nonlinear_solution.block(1)
@@ -1186,7 +1191,8 @@ namespace SAND {
         /*Remove any values from old iterations*/
 
         BlockVector<double> test_rhs;
-        test_rhs.reinit (system_rhs);
+        test_rhs = system_rhs;
+        test_rhs = 0;
 
         const QGauss<dim> quadrature_formula(fe.degree + 1);
         const QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
@@ -1240,7 +1246,6 @@ namespace SAND {
         std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
         std::vector<double> filtered_unfiltered_density_values(n_q_points);
         std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
-
 
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             cell_rhs = 0;
@@ -1525,59 +1530,49 @@ namespace SAND {
 
         //calculate elasticity constraint merit
         {
-            //First need to find biggest multiplier y - I then add 1 because it starts at 0 for no real good reason. I don't like this bit...
-            double multiplier;
-            if (2 * nonlinear_solution.block(3).linfty_norm() > 10)
-            {
-                multiplier = 2 * nonlinear_solution.block(3).linfty_norm();
-            }
-            else
-            {
-                multiplier = 10;
-            }
-            elasticity_constraint_merit = multiplier * test_rhs.block(3).l1_norm();
+
+            elasticity_constraint_merit = penalty_multiplier * test_rhs.block(3).l1_norm();
         }
 
         //calculate filter constraint merit
         {
-            //First need to find biggest multiplier y - I then add 1 because it starts at 0 for no real good reason. I don't like this bit...
-            const double multiplier = 2 * nonlinear_solution.block(4).linfty_norm() + 1;
-            filter_constraint_merit = multiplier * test_rhs.block(4).l1_norm();
+            filter_constraint_merit = penalty_multiplier * test_rhs.block(4).l1_norm();
         }
 
         //calculate lower slack merit
         {
-            //First need to find biggest multiplier y - This uses the fraction to boundary and actually should work pretty well.
-            double minimum_slack = 1;
-            for (unsigned int k = 0; k < nonlinear_solution.block(5).size(); k++)
-                minimum_slack = std::min(minimum_slack, nonlinear_solution.block(5)[k]);
-            double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
-            double inequality_violation = 0;
-            for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
-            {
-                if (test_solution.block(2)[k] < 0)
-                {
-                    inequality_violation += -1 * test_solution.block(2)[k];
-                }
-            }
-            lower_slack_merit = multiplier *  inequality_violation;
+//            //First need to find biggest multiplier y - This uses the fraction to boundary and actually should work pretty well.
+//            double minimum_slack = 1;
+//            for (unsigned int k = 0; k < nonlinear_solution.block(5).size(); k++)
+//                minimum_slack = std::min(minimum_slack, nonlinear_solution.block(5)[k]);
+//            double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
+//            double inequality_violation = 0;
+//            for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
+//            {
+//                if (test_solution.block(2)[k] < 0)
+//                {
+//                    inequality_violation += -1 * test_solution.block(2)[k];
+//                }
+//            }
+            lower_slack_merit = filter_constraint_merit = penalty_multiplier * test_rhs.block(6).l1_norm();
         }
 
         //calculate upper slack merit
         {
-            double minimum_slack = 1;
-            for (unsigned int k = 0; k < nonlinear_solution.block(7).size(); k++)
-                minimum_slack = std::min(minimum_slack, nonlinear_solution.block(7)[k]);
-            double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
-            double inequality_violation = 0;
-            for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
-            {
-                if (test_solution.block(2)[k] > 1)
-                {
-                    inequality_violation += test_solution.block(2)[k] - 1;
-                }
-            }
-            upper_slack_merit = multiplier *  inequality_violation;
+//            double minimum_slack = 1;
+//            for (unsigned int k = 0; k < nonlinear_solution.block(7).size(); k++)
+//                minimum_slack = std::min(minimum_slack, nonlinear_solution.block(7)[k]);
+//            double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
+//            double inequality_violation = 0;
+//            for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
+//            {
+//                if (test_solution.block(2)[k] > 1)
+//                {
+//                    inequality_violation += test_solution.block(2)[k] - 1;
+//                }
+//            }
+//            upper_slack_merit = multiplier *  inequality_violation;
+            filter_constraint_merit = penalty_multiplier * test_rhs.block(8).l1_norm();
         }
 
 
@@ -1587,6 +1582,115 @@ namespace SAND {
 //            filter_constraint_merit << "  " <<  lower_slack_merit << "  " <<  upper_slack_merit << std::endl;
         total_merit = objective_function_merit + elasticity_constraint_merit + filter_constraint_merit + lower_slack_merit + upper_slack_merit;
         return total_merit;
+    }
+
+    template<int dim>
+    BlockVector<double>
+    SANDTopOpt<dim>::find_max_step(const BlockVector<double> state,const double barrier_size)
+    {
+        nonlinear_solution = state;
+        assemble_block_system(barrier_size);
+        solve();
+        const BlockVector<double> step = linear_solution;
+
+        //Going to update penalty_multiplier in here too. Taken from 18.36 in Nocedal Wright
+
+        double test_penalty_multiplier;
+        double hess_part = 0;
+        double grad_part = 0;
+        double constraint_norm = 0;
+        const std::vector<unsigned int> decision_variable_locations = {0, 1, 2};
+        const std::vector<unsigned int> equality_constraint_locations = {3, 4, 6, 8};
+        for(unsigned int i = 0; i<3; i++)
+        {
+            for(unsigned int j = 0; j<3; j++)
+            {
+                Vector<double> temp_vector;
+                temp_vector.reinit(step.block(decision_variable_locations[i]).size());
+                system_matrix.block(decision_variable_locations[i],decision_variable_locations[j]).vmult(temp_vector, step.block(decision_variable_locations[j]));
+                hess_part = hess_part + step.block(decision_variable_locations[i]) * temp_vector;
+            }
+            grad_part = grad_part - system_rhs.block(decision_variable_locations[i])*step.block(decision_variable_locations[i]);
+        }
+
+        for(unsigned int i = 0; i<4; i++)
+        {
+            constraint_norm =   constraint_norm + system_rhs.block(decision_variable_locations[i]).l1_norm();
+        }
+
+        if (hess_part > 0)
+        {
+            test_penalty_multiplier = (grad_part + .5 * hess_part)/(.05 * constraint_norm);
+        }
+        else
+        {
+            test_penalty_multiplier = (grad_part + .5 * hess_part)/(.05 * constraint_norm);
+        }
+        std::cout << "test_penalty_multiplier: " << test_penalty_multiplier << std::endl;
+        if (test_penalty_multiplier > penalty_multiplier)
+        {
+            penalty_multiplier = test_penalty_multiplier;
+            std::cout << "penalty multiplier updated to " << penalty_multiplier << std::endl;
+        };
+
+
+
+        const auto max_step_sizes= calculate_max_step_size(state,step);
+        const double step_size_s = max_step_sizes.first;
+        const double step_size_z = max_step_sizes.second;
+        BlockVector<double> max_step(9);
+
+        max_step.block(0) = step_size_s * linear_solution.block(0);
+        max_step.block(1) = step_size_s * linear_solution.block(1);
+        max_step.block(2) = step_size_s * linear_solution.block(2);
+        max_step.block(3) = step_size_z * linear_solution.block(3);
+        max_step.block(4) = step_size_z * linear_solution.block(4);
+        max_step.block(5) = step_size_s * linear_solution.block(5);
+        max_step.block(6) = step_size_z * linear_solution.block(6);
+        max_step.block(7) = step_size_s * linear_solution.block(7);
+        max_step.block(8) = step_size_z * linear_solution.block(8);
+
+        return max_step;
+    }
+
+
+
+    template<int dim>
+    BlockVector<double>
+    SANDTopOpt<dim>::take_scaled_step(const BlockVector<double> state,const BlockVector<double> max_step,const double descent_requirement, const double barrier_size)
+    {
+        double step_size = 1;
+            for(unsigned int k = 0; k<10; k++)
+            {
+                const double merit_derivative = (calculate_exact_merit(state + .0001 * max_step,barrier_size, 1) - calculate_exact_merit(state,barrier_size, 1))/.0001;
+                if(calculate_exact_merit(state + step_size * max_step,barrier_size, 1) <calculate_exact_merit(state,barrier_size, 1) + step_size * descent_requirement * merit_derivative )
+                {
+                    break;
+                }
+                else
+                {
+                    step_size = step_size/2;
+                }
+            }
+        return state + (step_size * max_step);
+
+    }
+
+    template<int dim>
+    bool
+    SANDTopOpt<dim>::check_convergence(const BlockVector<double> state,  const double barrier_size)
+    {
+               const double convergence_condition = 1e-9;
+               const BlockVector<double> test_rhs = calculate_test_rhs(state,barrier_size,1);
+               std::cout << test_rhs.l1_norm();
+               if (test_rhs.l1_norm()<convergence_condition)
+               {
+                   return true;
+               }
+               else
+               {
+                   return false;
+               }
     }
 
 
@@ -1647,24 +1751,123 @@ namespace SAND {
         setup_boundary_values();
         setup_filter_matrix();
         
-        for (unsigned int loop = 0; loop < 100; loop++) {
-            assemble_block_system(barrier_size);
-            solve();
-            std::cout << "actual error:   "  << calculate_rhs_error(system_rhs) << std::endl;
-            update_step(calculate_max_step_size(),barrier_size);
+//        for (unsigned int loop = 0; loop < 100; loop++) {
+//            assemble_block_system(barrier_size);
+//            solve();
+//            std::cout << "actual error:   "  << calculate_rhs_error(system_rhs) << std::endl;
+//            update_step(calculate_max_step_size(),barrier_size);
+//
+//            const unsigned int output_every_n_steps = 1;
+//            if (loop % output_every_n_steps == 0)
+//            {
+//                output(loop / output_every_n_steps);
+//                std::cout << loop << std::endl;
+//            }
+//            if (calculate_rhs_error(system_rhs) < 1e-8)
+//            {
+//                barrier_size = barrier_size * .2;
+//                std::cout << "barrier size is   " << barrier_size << std::endl;
+//            }
+//        }
+        const unsigned int max_uphill_steps = 8;
+        unsigned int iteration_number = 0;
+        const double descent_requirement = .1;
+        //while barrier value above minimal value and total iterations under some value
+        BlockVector<double> current_state = nonlinear_solution;
+        BlockVector<double> current_step;
+        while(barrier_size > .005 && iteration_number < 100)
+        {
+            bool converged = false;
+            //while not converged
+            while(!converged)
+            {
+                bool found_step = false;
+                //save current state as watchdog state
 
-            const unsigned int output_every_n_steps = 1;
-            if (loop % output_every_n_steps == 0)
-            {
-                output(loop / output_every_n_steps);
-                std::cout << loop << std::endl;
+                const BlockVector<double> watchdog_state = current_state;
+                BlockVector<double> watchdog_step;
+                double goal_merit;
+                //for 1-8 steps - this is the number of steps away we will let it go uphill before demanding downhill
+                for(unsigned int k = 0; k<max_uphill_steps; k++)
+                {
+                    //compute step from current state  - function from kktSystem
+                    current_step = find_max_step(current_state, barrier_size);
+                    // save the first of these as the watchdog step
+                    if(k==0)
+                    {
+                        watchdog_step = current_step;
+                        //goal merit is (merit of watchdog state) + descent requirement * linear derivative of merit of watchdog state in direction of watchdog step)
+                    }
+                    //apply full step to current state
+                    current_state=current_state+current_step;
+                    //if merit of current state is less than goal
+                    double current_merit = calculate_exact_merit(current_state, barrier_size, 1);
+                    std::cout << "current merit is: " <<current_merit << "  and  ";
+                    goal_merit = calculate_exact_merit(watchdog_state,barrier_size,1) + descent_requirement * (calculate_exact_merit(watchdog_state+.0001*watchdog_step,barrier_size,1) - calculate_exact_merit(watchdog_state,barrier_size,1 ))/.0001;
+                    std::cout << "goal merit is "<<goal_merit <<std::endl;
+                    if(current_merit < goal_merit)
+                    {
+                        //Accept current state
+                        // iterate number of steps by number of steps taken in this process
+                        iteration_number = iteration_number + k + 1;
+                        //found step = true
+                        found_step = true;
+                        std::cout << "found workable step after " << k << " iterations"<<std::endl;
+                        //break for loop
+                        break;
+                        //end if
+                    }
+                    //end for
+                }
+                //if found step = false
+                if (found_step == false)
+                {
+                    //Compute step from current state
+                    current_step = find_max_step(current_state,barrier_size);
+                    //find step length so that merit of stretch state - sized step from current length - is less than merit of (current state + descent requirement * linear derivative of merit of current state in direction of current step)
+                    //update stretch state with found step length
+                    const BlockVector<double> stretch_state = take_scaled_step(current_state, current_step, descent_requirement, barrier_size);
+                    //if current merit is less than watchdog merit, or if stretch merit is less than earlier goal merit
+                    if(calculate_exact_merit(current_state,barrier_size,1) < calculate_exact_merit(watchdog_state,barrier_size,1) || calculate_exact_merit(stretch_state,barrier_size,1) < goal_merit)
+                    {
+                        std::cout << "in if" << std::endl;
+                        current_state = stretch_state;
+                        iteration_number = iteration_number + max_uphill_steps + 1;
+                    }
+                    else
+                    {
+                        std::cout << "in else" << std::endl;
+                        //if merit of stretch state is bigger than watchdog merit
+                        if (calculate_exact_merit(stretch_state,barrier_size,1) > calculate_exact_merit(watchdog_state,barrier_size,1))
+                        {
+                            //find step length from watchdog state that meets descent requirement
+                            current_state = take_scaled_step(watchdog_state, watchdog_step, descent_requirement, barrier_size);
+                            //update iteration count
+                            iteration_number = iteration_number +  max_uphill_steps + 1;
+                        }
+                        else
+                        {
+                            //calculate direction from stretch state
+                            const BlockVector<double> stretch_step = find_max_step(stretch_state,barrier_size);
+                            //find step length from stretch state that meets descent requirement
+                            current_state = take_scaled_step(stretch_state, stretch_step, descent_requirement,barrier_size);
+                            //update iteration count
+                            iteration_number = iteration_number + max_uphill_steps + 2;
+                        }
+                    }
+                }
+                //output current state
+                output(iteration_number);
+                //check convergence
+                converged = check_convergence(current_state, barrier_size);
+                //end while
             }
-            if (calculate_rhs_error(system_rhs) < 1e-8)
-            {
-                barrier_size = barrier_size * .2;
-                std::cout << "barrier size is   " << barrier_size << std::endl;
-            }
+            barrier_size = barrier_size * .2;
+            std::cout << "barrier size reduced to " << barrier_size << std::endl;
+            penalty_multiplier = 1;
+            //end while
         }
+
     }
 
 } // namespace SAND
