@@ -367,7 +367,7 @@ namespace SAND {
         const unsigned int n_p = dofs_per_block[0];
         const unsigned int n_u = dofs_per_block[1];
         std::cout << "n_p:  " << n_p << "   n_u   " << n_u << std::endl;
-        std::vector<unsigned int> block_sizes = {n_p, n_u, n_p, n_u, n_p, n_p, n_p, n_p, n_p};
+        const std::vector<unsigned int> block_sizes = {n_p, n_u, n_p, n_u, n_p, n_p, n_p, n_p, n_p};
 
         BlockDynamicSparsityPattern dsp(9, 9);
 
@@ -443,9 +443,9 @@ namespace SAND {
 
         constraints.clear();
 
-        ComponentMask density_mask = fe.component_mask(densities);
+        const ComponentMask density_mask = fe.component_mask(densities);
 
-        IndexSet density_dofs = DoFTools::extract_dofs(dof_handler,
+        const IndexSet density_dofs = DoFTools::extract_dofs(dof_handler,
                                                        density_mask);
 
 //      const unsigned int first_density_dof = *density_dofs.begin ();
