@@ -617,7 +617,7 @@ namespace SAND {
         std::vector<double> lambda_values(n_q_points);
         std::vector<double> mu_values(n_q_points);
 
-        Functions::ConstantFunction<dim> lambda(1.), mu(1.);
+        const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
         std::vector<Tensor<1, dim>> rhs_values(n_q_points);
 
         BlockVector<double> filtered_unfiltered_density_solution = nonlinear_solution;
@@ -628,6 +628,26 @@ namespace SAND {
         filter_matrix.vmult(filtered_unfiltered_density_solution.block(2), nonlinear_solution.block(2));
         filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(4),
                              nonlinear_solution.block(4));
+
+
+        std::vector<double> old_density_values(n_q_points);
+        std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
+        std::vector<double> old_displacement_divs(n_q_points);
+        std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
+          n_q_points);
+        std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
+          n_q_points);
+        std::vector<double> old_displacement_multiplier_divs(n_q_points);
+        std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
+          n_q_points);
+        std::vector<double> old_lower_slack_multiplier_values(n_q_points);
+        std::vector<double> old_upper_slack_multiplier_values(n_q_points);
+        std::vector<double> old_lower_slack_values(n_q_points);
+        std::vector<double> old_upper_slack_values(n_q_points);
+        std::vector<double> old_unfiltered_density_values(n_q_points);
+        std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
+        std::vector<double> filtered_unfiltered_density_values(n_q_points);
+        std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
 
 
         for (const auto &cell : dof_handler.active_cell_iterators()) {
@@ -642,26 +662,6 @@ namespace SAND {
 
             lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
             mu.value_list(fe_values.get_quadrature_points(), mu_values);
-
-            std::vector<double> old_density_values(n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
-            std::vector<double> old_displacement_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
-                    n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
-                    n_q_points);
-            std::vector<double> old_displacement_multiplier_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
-                    n_q_points);
-            std::vector<double> old_lower_slack_multiplier_values(n_q_points);
-            std::vector<double> old_upper_slack_multiplier_values(n_q_points);
-            std::vector<double> old_lower_slack_values(n_q_points);
-            std::vector<double> old_upper_slack_values(n_q_points);
-            std::vector<double> old_unfiltered_density_values(n_q_points);
-            std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
-            std::vector<double> filtered_unfiltered_density_values(n_q_points);
-            std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
-
 
             fe_values[densities].get_function_values(nonlinear_solution,
                                                      old_density_values);
