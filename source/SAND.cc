@@ -1050,31 +1050,30 @@ namespace SAND {
     std::vector<double>
     SANDTopOpt<dim>::calculate_max_step_size() const {
 
-        double fraction_to_boundary = .995;
+        const double fraction_to_boundary = .995;
 
         double step_size_s_low = 0;
         double step_size_z_low = 0;
         double step_size_s_high = 1;
         double step_size_z_high = 1;
         double step_size_s, step_size_z;
-        bool accept_s, accept_z;
 
         for (unsigned int k = 0; k < 50; k++) {
             step_size_s = (step_size_s_low + step_size_s_high) / 2;
             step_size_z = (step_size_z_low + step_size_z_high) / 2;
 
-            BlockVector<double> nonlinear_solution_test_s =
+            const BlockVector<double> nonlinear_solution_test_s =
                     (fraction_to_boundary * nonlinear_solution) + (step_size_s
                                                                    * linear_solution);
 
-            BlockVector<double> nonlinear_solution_test_z =
+            const BlockVector<double> nonlinear_solution_test_z =
                     (fraction_to_boundary * nonlinear_solution) + (step_size_z
                                                                    * linear_solution);
 
-            accept_s = (nonlinear_solution_test_s.block(5).is_non_negative())
-                       && (nonlinear_solution_test_s.block(7).is_non_negative());
-            accept_z = (nonlinear_solution_test_z.block(6).is_non_negative())
-                       && (nonlinear_solution_test_z.block(8).is_non_negative());
+            const bool accept_s = (nonlinear_solution_test_s.block(5).is_non_negative())
+                                  && (nonlinear_solution_test_s.block(7).is_non_negative());
+            const bool accept_z = (nonlinear_solution_test_z.block(6).is_non_negative())
+                                  && (nonlinear_solution_test_z.block(8).is_non_negative());
 
             if (accept_s) {
                 step_size_s_low = step_size_s;
