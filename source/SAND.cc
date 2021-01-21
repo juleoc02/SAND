@@ -61,11 +61,11 @@ namespace SAND {
         void
         solve();
 
-        std::vector<double>
+        std::pair<double,double>
         calculate_max_step_size() const;
 
         void
-        update_step(const std::vector<double> &max_step, const double barrier_size);
+        update_step(const std::pair<double,double> &max_step, const double barrier_size);
 
         void
         output(const unsigned int j) const;
@@ -1047,7 +1047,7 @@ namespace SAND {
     }
 
     template<int dim>
-    std::vector<double>
+    std::pair<double,double>
     SANDTopOpt<dim>::calculate_max_step_size() const {
 
         const double fraction_to_boundary = .995;
@@ -1087,16 +1087,15 @@ namespace SAND {
             }
         }
 //        std::cout << step_size_s_low << "    " << step_size_z_low << std::endl;
-        std::vector<double> max_step = {step_size_s_low, step_size_z_low};
-        return max_step;
+        return {step_size_s_low, step_size_z_low};
     }
 
     template<int dim>
     void
-    SANDTopOpt<dim>::update_step(const std::vector<double> &max_step, const double barrier_size) {
+    SANDTopOpt<dim>::update_step(const std::pair<double,double> &max_step, const double barrier_size) {
 
-        double step_size_s_low = max_step[0];
-        double step_size_z_low = max_step[1];
+        double step_size_s_low = max_step.first;
+        double step_size_z_low = max_step.second;
         double current_merit = calculate_exact_merit(nonlinear_solution, barrier_size, 1);
 //        std::cout << "current merit:   " << current_merit << std::endl;
         BlockVector<double> test_solution = nonlinear_solution;
