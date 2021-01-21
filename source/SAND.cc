@@ -1473,7 +1473,7 @@ namespace SAND {
     double
     SANDTopOpt<dim>::calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/) const
     {
-       const double fraction_to_boundary = .995;
+       //const double fraction_to_boundary = .995;
 
        double objective_function_merit = 0;
        double elasticity_constraint_merit = 0;
@@ -1633,8 +1633,6 @@ namespace SAND {
             std::cout << "penalty multiplier updated to " << penalty_multiplier << std::endl;
         }
 
-
-
         const auto max_step_sizes= calculate_max_step_size(state,step);
         const double step_size_s = max_step_sizes.first;
         const double step_size_z = max_step_sizes.second;
@@ -1771,7 +1769,7 @@ namespace SAND {
 //        }
         const unsigned int max_uphill_steps = 8;
         unsigned int iteration_number = 0;
-        const double descent_requirement = .1;
+        const double descent_requirement = .0001;
         //while barrier value above minimal value and total iterations under some value
         BlockVector<double> current_state = nonlinear_solution;
         BlockVector<double> current_step;
