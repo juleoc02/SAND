@@ -62,10 +62,10 @@ namespace SAND {
         solve();
 
         std::pair<double,double>
-        calculate_max_step_size(const BlockVector<double> state, const BlockVector<double> step) const;
+        calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const;
 
-        void
-        update_step(const std::pair<double,double> &max_step, const double barrier_size);
+//        void
+//        update_step(const std::pair<double,double> &max_step, const double barrier_size);
 
         void
         output(const unsigned int j) const;
@@ -79,17 +79,17 @@ namespace SAND {
         BlockVector<double>
         calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter) const;
 
-        double
-        calculate_rhs_error(const BlockVector<double> &rhs_vector) const;
+//        double
+//        calculate_rhs_error(const BlockVector<double> &rhs_vector) const;
 
         BlockVector<double>
-        find_max_step(const BlockVector<double> state, const double barrier_size);
+        find_max_step(const BlockVector<double> &state, const double barrier_size);
 
         BlockVector<double>
-        take_scaled_step(const BlockVector<double> state,const BlockVector<double> step,const double descent_requirement,const double barrier_size);
+        take_scaled_step(const BlockVector<double> &state,const BlockVector<double> &step,const double descent_requirement,const double barrier_size);
 
         bool
-        check_convergence(const BlockVector<double> state,const double barrier_size);
+        check_convergence(const BlockVector<double> &state,const double barrier_size);
 
 
         BlockSparsityPattern sparsity_pattern;
@@ -196,7 +196,7 @@ namespace SAND {
                 for (auto check_cell : cells_to_check) {
                     for (unsigned int n = 0; n < GeometryInfo<dim>::faces_per_cell; ++n) {
                         if (!(check_cell->face(n)->at_boundary())) {
-                            double distance = cell->center().distance(
+                            distance = cell->center().distance(
                                     check_cell->neighbor(n)->center());
                             if ((distance < filter_r) && !(neighbor_ids.count(
                                     check_cell->neighbor(n)->active_cell_index()))) {
@@ -563,18 +563,18 @@ namespace SAND {
         nonlinear_solution.collect_sizes();
         system_rhs.collect_sizes();
 
-        for (unsigned int i = 0; i < n_u; i++) {
-            nonlinear_solution.block(1)[i] = 0;
-            nonlinear_solution.block(3)[i] = 0;
+        for (unsigned int k = 0; k < n_u; k++) {
+            nonlinear_solution.block(1)[k] = 0;
+            nonlinear_solution.block(3)[k] = 0;
         }
-        for (unsigned int i = 0; i < n_p; i++) {
-            nonlinear_solution.block(0)[i] = density_ratio;
-            nonlinear_solution.block(2)[i] = density_ratio;
-            nonlinear_solution.block(4)[i] = density_ratio;
-            nonlinear_solution.block(5)[i] = density_ratio;
-            nonlinear_solution.block(6)[i] = 50;
-            nonlinear_solution.block(7)[i] = 1 - density_ratio;
-            nonlinear_solution.block(8)[i] = 50;
+        for (unsigned int k = 0; k < n_p; k++) {
+            nonlinear_solution.block(0)[k] = density_ratio;
+            nonlinear_solution.block(2)[k] = density_ratio;
+            nonlinear_solution.block(4)[k] = density_ratio;
+            nonlinear_solution.block(5)[k] = density_ratio;
+            nonlinear_solution.block(6)[k] = 50;
+            nonlinear_solution.block(7)[k] = 1 - density_ratio;
+            nonlinear_solution.block(8)[k] = 50;
         }
 
     }
@@ -1055,7 +1055,7 @@ namespace SAND {
 
     template<int dim>
     std::pair<double,double>
-    SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> state, const BlockVector<double> step) const {
+    SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
 
         const double fraction_to_boundary = .995;
 
@@ -1095,81 +1095,81 @@ namespace SAND {
         return {step_size_s_low, step_size_z_low};
     }
 
-    template<int dim>
-    void
-    SANDTopOpt<dim>::update_step(const std::pair<double,double> &max_step, const double barrier_size) {
-
-        double step_size_s_low = max_step.first;
-        double step_size_z_low = max_step.second;
-        double current_merit = calculate_exact_merit(nonlinear_solution, barrier_size, 1);
-//        std::cout << "current merit:   " << current_merit << std::endl;
-        BlockVector<double> test_solution = nonlinear_solution;
-        test_solution = 0;
-
-        //TO USE THE MERIT FUNCTION, CHANGE THIS TO FALSE
-        bool step_found = true;
-
-        for(int k=0; k<5 && step_found == false; k++)
-        {
-            test_solution.block(0) = nonlinear_solution.block(0)
-                                     + step_size_s_low * linear_solution.block(0);
-            test_solution.block(1) = nonlinear_solution.block(1)
-                                     + step_size_s_low * linear_solution.block(1);
-            test_solution.block(2) = nonlinear_solution.block(2)
-                                     + step_size_s_low * linear_solution.block(2);
-            test_solution.block(3) = nonlinear_solution.block(3)
-                                     + step_size_z_low * linear_solution.block(3);
-            test_solution.block(4) = nonlinear_solution.block(4)
-                                     + step_size_z_low * linear_solution.block(4);
-            test_solution.block(5) = nonlinear_solution.block(5)
-                                     + step_size_s_low * linear_solution.block(5);
-            test_solution.block(6) = nonlinear_solution.block(6)
-                                     + step_size_z_low * linear_solution.block(6);
-            test_solution.block(7) = nonlinear_solution.block(7)
-                                     + step_size_s_low * linear_solution.block(7);
-            test_solution.block(8) = nonlinear_solution.block(8)
-                                     + step_size_z_low * linear_solution.block(8);
-
-            double test_merit = calculate_exact_merit(test_solution, barrier_size, 1);
-            std::cout << "test merit:   " << test_merit << std::endl;
-
-            if(test_merit < current_merit)
-            {
-                step_found = true;
-            }
-            else
-            {
-                step_size_s_low = step_size_s_low/2;
-                step_size_z_low = step_size_z_low/2;
-            }
-
-        }
-
-        //ALL OF THIS ISN'T NEEDED WHEN USING MERIT FUNCTION...
-        test_solution.block(0) = nonlinear_solution.block(0)
-                                 + step_size_s_low * linear_solution.block(0);
-        test_solution.block(1) = nonlinear_solution.block(1)
-                                 + step_size_s_low * linear_solution.block(1);
-        test_solution.block(2) = nonlinear_solution.block(2)
-                                 + step_size_s_low * linear_solution.block(2);
-        test_solution.block(3) = nonlinear_solution.block(3)
-                                 + step_size_z_low * linear_solution.block(3);
-        test_solution.block(4) = nonlinear_solution.block(4)
-                                 + step_size_z_low * linear_solution.block(4);
-        test_solution.block(5) = nonlinear_solution.block(5)
-                                 + step_size_s_low * linear_solution.block(5);
-        test_solution.block(6) = nonlinear_solution.block(6)
-                                 + step_size_z_low * linear_solution.block(6);
-        test_solution.block(7) = nonlinear_solution.block(7)
-                                 + step_size_s_low * linear_solution.block(7);
-        test_solution.block(8) = nonlinear_solution.block(8)
-                                 + step_size_z_low * linear_solution.block(8);
-        //...DOWN TO HERE
-
-//        std::cout << step_size_s_low << "   " << step_size_z_low << std::endl;
-        nonlinear_solution = test_solution;
-    }
-
+//    template<int dim>
+//    void
+//    SANDTopOpt<dim>::update_step(const std::pair<double,double> &max_step, const double barrier_size) {
+//
+//        double step_size_s_low = max_step.first;
+//        double step_size_z_low = max_step.second;
+//        double current_merit = calculate_exact_merit(nonlinear_solution, barrier_size, 1);
+////        std::cout << "current merit:   " << current_merit << std::endl;
+//        BlockVector<double> test_solution = nonlinear_solution;
+//        test_solution = 0;
+//
+//        //TO USE THE MERIT FUNCTION, CHANGE THIS TO FALSE
+//        bool step_found = true;
+//
+//        for(int k=0; k<5 && step_found == false; k++)
+//        {
+//            test_solution.block(0) = nonlinear_solution.block(0)
+//                                     + step_size_s_low * linear_solution.block(0);
+//            test_solution.block(1) = nonlinear_solution.block(1)
+//                                     + step_size_s_low * linear_solution.block(1);
+//            test_solution.block(2) = nonlinear_solution.block(2)
+//                                     + step_size_s_low * linear_solution.block(2);
+//            test_solution.block(3) = nonlinear_solution.block(3)
+//                                     + step_size_z_low * linear_solution.block(3);
+//            test_solution.block(4) = nonlinear_solution.block(4)
+//                                     + step_size_z_low * linear_solution.block(4);
+//            test_solution.block(5) = nonlinear_solution.block(5)
+//                                     + step_size_s_low * linear_solution.block(5);
+//            test_solution.block(6) = nonlinear_solution.block(6)
+//                                     + step_size_z_low * linear_solution.block(6);
+//            test_solution.block(7) = nonlinear_solution.block(7)
+//                                     + step_size_s_low * linear_solution.block(7);
+//            test_solution.block(8) = nonlinear_solution.block(8)
+//                                     + step_size_z_low * linear_solution.block(8);
+//
+//            double test_merit = calculate_exact_merit(test_solution, barrier_size, 1);
+//            std::cout << "test merit:   " << test_merit << std::endl;
+//
+//            if(test_merit < current_merit)
+//            {
+//                step_found = true;
+//            }
+//            else
+//            {
+//                step_size_s_low = step_size_s_low/2;
+//                step_size_z_low = step_size_z_low/2;
+//            }
+//
+//        }
+//
+//        //ALL OF THIS ISN'T NEEDED WHEN USING MERIT FUNCTION...
+//        test_solution.block(0) = nonlinear_solution.block(0)
+//                                 + step_size_s_low * linear_solution.block(0);
+//        test_solution.block(1) = nonlinear_solution.block(1)
+//                                 + step_size_s_low * linear_solution.block(1);
+//        test_solution.block(2) = nonlinear_solution.block(2)
+//                                 + step_size_s_low * linear_solution.block(2);
+//        test_solution.block(3) = nonlinear_solution.block(3)
+//                                 + step_size_z_low * linear_solution.block(3);
+//        test_solution.block(4) = nonlinear_solution.block(4)
+//                                 + step_size_z_low * linear_solution.block(4);
+//        test_solution.block(5) = nonlinear_solution.block(5)
+//                                 + step_size_s_low * linear_solution.block(5);
+//        test_solution.block(6) = nonlinear_solution.block(6)
+//                                 + step_size_z_low * linear_solution.block(6);
+//        test_solution.block(7) = nonlinear_solution.block(7)
+//                                 + step_size_s_low * linear_solution.block(7);
+//        test_solution.block(8) = nonlinear_solution.block(8)
+//                                 + step_size_z_low * linear_solution.block(8);
+//        //...DOWN TO HERE
+//
+////        std::cout << step_size_s_low << "   " << step_size_z_low << std::endl;
+//        nonlinear_solution = test_solution;
+//    }
+//
 
 
 
@@ -1449,25 +1449,25 @@ namespace SAND {
 
     }
 
-    template<int dim>
-    double
-    SANDTopOpt<dim>::calculate_rhs_error(const BlockVector<double> &rhs) const
-    {
-        double merit = 0;
-        merit = rhs.block(0).l1_norm()
-                + 100*rhs.block(1).l1_norm()
-                + 100*rhs.block(2).l1_norm()
-                + 100*rhs.block(3).l1_norm()
-                + 100*rhs.block(4).l1_norm()
-                + 100*rhs.block(5).l1_norm()
-                + 100*rhs.block(6).l1_norm()
-                + 100*rhs.block(7).l1_norm()
-                + 100*rhs.block(8).l1_norm();
-//        std::cout << rhs.block(0).l1_norm() <<"   "<< rhs.block(1).l1_norm() <<"   "<< rhs.block(2).l1_norm() <<"   "<< rhs.block(3).l1_norm()
-//                      <<"   "<<rhs.block(4).l1_norm() <<"   "<< rhs.block(5).l1_norm() <<"   "<< rhs.block(6).l1_norm() <<"   "<< rhs.block(7).l1_norm() <<"   "<< rhs.block(8).l1_norm() <<std::endl;
-        return merit;
-
-    }
+//    template<int dim>
+//    double
+//    SANDTopOpt<dim>::calculate_rhs_error(const BlockVector<double> &rhs) const
+//    {
+//        double merit = 0;
+//        merit = rhs.block(0).l1_norm()
+//                + 100*rhs.block(1).l1_norm()
+//                + 100*rhs.block(2).l1_norm()
+//                + 100*rhs.block(3).l1_norm()
+//                + 100*rhs.block(4).l1_norm()
+//                + 100*rhs.block(5).l1_norm()
+//                + 100*rhs.block(6).l1_norm()
+//                + 100*rhs.block(7).l1_norm()
+//                + 100*rhs.block(8).l1_norm();
+////        std::cout << rhs.block(0).l1_norm() <<"   "<< rhs.block(1).l1_norm() <<"   "<< rhs.block(2).l1_norm() <<"   "<< rhs.block(3).l1_norm()
+////                      <<"   "<<rhs.block(4).l1_norm() <<"   "<< rhs.block(5).l1_norm() <<"   "<< rhs.block(6).l1_norm() <<"   "<< rhs.block(7).l1_norm() <<"   "<< rhs.block(8).l1_norm() <<std::endl;
+//        return merit;
+//
+//    }
 
     template<int dim>
     double
@@ -1586,7 +1586,7 @@ namespace SAND {
 
     template<int dim>
     BlockVector<double>
-    SANDTopOpt<dim>::find_max_step(const BlockVector<double> state,const double barrier_size)
+    SANDTopOpt<dim>::find_max_step(const BlockVector<double> &state,const double barrier_size)
     {
         nonlinear_solution = state;
         assemble_block_system(barrier_size);
@@ -1624,14 +1624,14 @@ namespace SAND {
         }
         else
         {
-            test_penalty_multiplier = (grad_part + .5 * hess_part)/(.05 * constraint_norm);
+            test_penalty_multiplier = (grad_part)/(.05 * constraint_norm);
         }
         std::cout << "test_penalty_multiplier: " << test_penalty_multiplier << std::endl;
         if (test_penalty_multiplier > penalty_multiplier)
         {
             penalty_multiplier = test_penalty_multiplier;
             std::cout << "penalty multiplier updated to " << penalty_multiplier << std::endl;
-        };
+        }
 
 
 
@@ -1657,7 +1657,7 @@ namespace SAND {
 
     template<int dim>
     BlockVector<double>
-    SANDTopOpt<dim>::take_scaled_step(const BlockVector<double> state,const BlockVector<double> max_step,const double descent_requirement, const double barrier_size)
+    SANDTopOpt<dim>::take_scaled_step(const BlockVector<double> &state,const BlockVector<double> &max_step,const double descent_requirement, const double barrier_size)
     {
         double step_size = 1;
             for(unsigned int k = 0; k<10; k++)
@@ -1678,7 +1678,7 @@ namespace SAND {
 
     template<int dim>
     bool
-    SANDTopOpt<dim>::check_convergence(const BlockVector<double> state,  const double barrier_size)
+    SANDTopOpt<dim>::check_convergence(const BlockVector<double> &state,  const double barrier_size)
     {
                const double convergence_condition = 1e-9;
                const BlockVector<double> test_rhs = calculate_test_rhs(state,barrier_size,1);
@@ -1820,7 +1820,7 @@ namespace SAND {
                     //end for
                 }
                 //if found step = false
-                if (found_step == false)
+                if (!found_step)
                 {
                     //Compute step from current state
                     current_step = find_max_step(current_state,barrier_size);
