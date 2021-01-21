@@ -31,6 +31,7 @@
 #include <deal.II/numerics/error_estimator.h>
 
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 
 namespace SAND {
@@ -46,43 +47,43 @@ namespace SAND {
 
     private:
         void
-        setup_block_system();
-
-        void
-        assemble_block_system(double barrier_size);
-
-        void
         create_triangulation();
 
         void
-        set_bcids();
+        setup_block_system();
+
+        void
+        setup_boundary_values();
+
+        void
+        assemble_block_system(const double barrier_size);
 
         void
         solve();
 
-        std::vector<double>
-        calculate_max_step_size();
+        std::pair<double,double>
+        calculate_max_step_size() const;
 
         void
-        update_step(std::vector<double> max_step, double barrier_size);
+        update_step(const std::pair<double,double> &max_step, const double barrier_size);
 
         void
-        output(int j);
+        output(const unsigned int j) const;
 
         void
         setup_filter_matrix();
 
         double
-        calculate_exact_merit(BlockVector<double> test_solution, double barrier_size, double penalty_parameter);
+        calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter) const;
 
         BlockVector<double>
-        calculate_test_rhs(BlockVector<double> test_solution, double barrier_size, double penalty_parameter);
+        calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter) const;
 
         double
-        calculate_rhs_error(BlockVector<double> rhs_vector);
+        calculate_rhs_error(const BlockVector<double> &rhs_vector) const;
 
         double
-        get_compliance_plus_elasticity_error(BlockVector<double> test_solution, double penalty_parameter);
+        get_compliance_plus_elasticity_error(const BlockVector<double> &test_solution, const double penalty_parameter) const;
 
 
         BlockSparsityPattern sparsity_pattern;
@@ -98,9 +99,9 @@ namespace SAND {
         AffineConstraints<double> constraints;
         FESystem<dim> fe;
         DynamicSparsityPattern filter_dsp;
-        double density_ratio;
-        double density_penalty_exponent;
-        double filter_r;
+        const double density_ratio;
+        const double density_penalty_exponent;
+        const double filter_r;
 
 
         std::map<types::global_dof_index, double> boundary_values;
@@ -116,8 +117,11 @@ namespace SAND {
                (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 1,
                FE_DGQ<dim>(0) ^ 1,
                (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 1,
-               FE_DGQ<dim>(0) ^ 5) {
-
+               FE_DGQ<dim>(0) ^ 5),
+            density_ratio (.5),
+            density_penalty_exponent (3),
+            filter_r (.25)
+    {
     }
 
     template<int dim>
@@ -129,17 +133,15 @@ namespace SAND {
         std::set<unsigned int> neighbor_ids;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check_temp;
-        unsigned int n_neighbors, i;
         double distance;
 
         /*finds neighbors-of-neighbors until it is out to specified radius*/
         for (const auto &cell : dof_handler.active_cell_iterators()) {
-            i = cell->active_cell_index();
-            neighbor_ids.clear();
-            neighbor_ids.insert(i);
-            cells_to_check.clear();
-            cells_to_check.insert(cell);
-            n_neighbors = 1;
+            const unsigned int i = cell->active_cell_index();
+            neighbor_ids = {i};
+            cells_to_check = {cell};
+            
+            unsigned int n_neighbors = 1;
             while (true) {
                 cells_to_check_temp.clear();
                 for (auto check_cell : cells_to_check) {
@@ -175,13 +177,12 @@ namespace SAND {
 
 /*find these cells again to add values to matrix*/
         for (const auto &cell : dof_handler.active_cell_iterators()) {
-            i = cell->active_cell_index();
-            neighbor_ids.clear();
-            neighbor_ids.insert(i);
-            cells_to_check.clear();
-            cells_to_check.insert(cell);
-            cells_to_check_temp.clear();
-            n_neighbors = 1;
+            const unsigned int i = cell->active_cell_index();
+            neighbor_ids = {i};
+            cells_to_check = {cell};
+            cells_to_check_temp = {};
+            
+            unsigned int n_neighbors = 1;
             filter_matrix.add(i, i, filter_r);
             while (true) {
                 cells_to_check_temp.clear();
@@ -214,7 +215,7 @@ namespace SAND {
         }
 
         for (const auto &cell : dof_handler.active_cell_iterators()) {
-            i = cell->active_cell_index();
+            const unsigned int i = cell->active_cell_index();
             double denominator = 0;
             typename SparseMatrix<double>::iterator iter = filter_matrix.begin(
                     i);
@@ -242,7 +243,7 @@ namespace SAND {
         GridGenerator::hyper_rectangle(triangulation, point_1, point_2);
 
         /*make 5 more squares*/
-        for (int n = 1; n < 6; n++) {
+        for (unsigned int n = 1; n < 6; n++) {
             triangulation_temp.clear();
             point_1(0) = n;
             point_2(0) = n + 1;
@@ -292,7 +293,7 @@ namespace SAND {
 
     template<int dim>
     void
-    SANDTopOpt<dim>::set_bcids() {
+    SANDTopOpt<dim>::setup_boundary_values() {
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             for (unsigned int face_number = 0;
                  face_number < GeometryInfo<dim>::faces_per_cell;
@@ -333,10 +334,10 @@ namespace SAND {
                                         cell->vertex_dof_index(vertex_number, 1);
                                 const unsigned int y_displacement_multiplier =
                                         cell->vertex_dof_index(vertex_number, 3);
-                                const unsigned int x_displacement =
-                                        cell->vertex_dof_index(vertex_number, 0);
-                                const unsigned int x_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 2);
+                                // const unsigned int x_displacement =
+                                //         cell->vertex_dof_index(vertex_number, 0);
+                                // const unsigned int x_displacement_multiplier =
+                                //         cell->vertex_dof_index(vertex_number, 2);
                                 /*set bottom left BC*/
                                 boundary_values[y_displacement] = 0;
                                 boundary_values[y_displacement_multiplier] = 0;
@@ -366,12 +367,12 @@ namespace SAND {
         const unsigned int n_p = dofs_per_block[0];
         const unsigned int n_u = dofs_per_block[1];
         std::cout << "n_p:  " << n_p << "   n_u   " << n_u << std::endl;
-        std::vector<unsigned int> block_sizes = {n_p, n_u, n_p, n_u, n_p, n_p, n_p, n_p, n_p};
+        const std::vector<unsigned int> block_sizes = {n_p, n_u, n_p, n_u, n_p, n_p, n_p, n_p, n_p};
 
         BlockDynamicSparsityPattern dsp(9, 9);
 
-        for (int k = 0; k < 9; k++) {
-            for (int j = 0; j < 9; j++) {
+        for (unsigned int k = 0; k < 9; k++) {
+            for (unsigned int j = 0; j < 9; j++) {
                 dsp.block(j, k).reinit(block_sizes[j], block_sizes[k]);
             }
         }
@@ -382,7 +383,7 @@ namespace SAND {
 //
 //        coupling[0][0] = DoFTools::always;
 //
-//        for (int i = 0; i < dim; i++) {
+//        for (unsigned int i = 0; i < dim; i++) {
 //            coupling[0][1 + i] = DoFTools::always;
 //            coupling[1 + i][0] = DoFTools::always;
 //        }
@@ -390,7 +391,7 @@ namespace SAND {
 //        coupling[0][1 + dim] = DoFTools::none;
 //        coupling[1 + dim][0] = DoFTools::none;
 //
-//        for (int i = 0; i < dim; i++) {
+//        for (unsigned int i = 0; i < dim; i++) {
 //            coupling[0][2 + dim + i] = DoFTools::always;
 //            coupling[2 + dim + i][0] = DoFTools::always;
 //        }
@@ -406,35 +407,35 @@ namespace SAND {
 //        coupling[2 + 2 * dim + 3][0] = DoFTools::none;
 //        coupling[2 + 2 * dim + 4][0] = DoFTools::none;
 //
-//        for (int i = 0; i < dim; i++) {
-//            for (int k = 0; k < dim; k++) {
+//        for (unsigned int i = 0; i < dim; i++) {
+//            for (unsigned int k = 0; k < dim; k++) {
 //                coupling[1 + i][1 + k] = DoFTools::none;
 //            }
 //            coupling[1 + i][1 + dim ] = DoFTools::none;
 //            coupling[1 + dim ][1 + i] = DoFTools::none;
 //
-//            for (int k = 0; k < dim; k++) {
+//            for (unsigned int k = 0; k < dim; k++) {
 //                coupling[1 + i][2 + dim + k] = DoFTools::always;
 //                coupling[2 + dim + k][1 + i] = DoFTools::always;
 //            }
-//            for (int k = 0; k < 5; k++) {
+//            for (unsigned int k = 0; k < 5; k++) {
 //                coupling[1 + i][2 + 2 * dim + k] = DoFTools::none;
 //                coupling[2 + 2 * dim + k][1 + i] = DoFTools::none;
 //            }
 //        }
 //
 //        coupling[1+dim][1+dim]= DoFTools::none;
-//        for (int k = 0; k < dim; k++) {
+//        for (unsigned int k = 0; k < dim; k++) {
 //            coupling[1 + dim][2 + dim + k] = DoFTools::none;
 //            coupling[2 + dim + k][1 + dim] = DoFTools::none;
 //        }
-//        for (int k = 1; k < 5; k++) {
+//        for (unsigned int k = 1; k < 5; k++) {
 //            coupling[1 + dim][2 + 2 * dim + k] = DoFTools::none;
 //            coupling[2 + 2 * dim + k][1 + dim] = DoFTools::none;
 //        }
 //
-//        for (int i = 0; i < dim+5; i++) {
-//            for (int k = 0; k < dim + 5; k++) {
+//        for (unsigned int i = 0; i < dim+5; i++) {
+//            for (unsigned int k = 0; k < dim + 5; k++) {
 //                coupling[2 + dim + i][2 + dim + k] = DoFTools::none;
 //                coupling[2 + dim + k][2 + dim + i] = DoFTools::none;
 //            }
@@ -442,9 +443,9 @@ namespace SAND {
 
         constraints.clear();
 
-        ComponentMask density_mask = fe.component_mask(densities);
+        const ComponentMask density_mask = fe.component_mask(densities);
 
-        IndexSet density_dofs = DoFTools::extract_dofs(dof_handler,
+        const IndexSet density_dofs = DoFTools::extract_dofs(dof_handler,
                                                        density_mask);
 
 //      const unsigned int first_density_dof = *density_dofs.begin ();
@@ -545,7 +546,7 @@ namespace SAND {
         nonlinear_solution.reinit(9);
         system_rhs.reinit(9);
 
-        for (int j = 0; j < 9; j++) {
+        for (unsigned int j = 0; j < 9; j++) {
             linear_solution.block(j).reinit(block_sizes[j]);
             nonlinear_solution.block(j).reinit(block_sizes[j]);
             system_rhs.block(j).reinit(block_sizes[j]);
@@ -554,8 +555,6 @@ namespace SAND {
         linear_solution.collect_sizes();
         nonlinear_solution.collect_sizes();
         system_rhs.collect_sizes();
-
-        density_ratio = .5;
 
         for (unsigned int i = 0; i < n_u; i++) {
             nonlinear_solution.block(1)[i] = 0;
@@ -618,7 +617,7 @@ namespace SAND {
         std::vector<double> lambda_values(n_q_points);
         std::vector<double> mu_values(n_q_points);
 
-        Functions::ConstantFunction<dim> lambda(1.), mu(1.);
+        const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
         std::vector<Tensor<1, dim>> rhs_values(n_q_points);
 
         BlockVector<double> filtered_unfiltered_density_solution = nonlinear_solution;
@@ -629,6 +628,26 @@ namespace SAND {
         filter_matrix.vmult(filtered_unfiltered_density_solution.block(2), nonlinear_solution.block(2));
         filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(4),
                              nonlinear_solution.block(4));
+
+
+        std::vector<double> old_density_values(n_q_points);
+        std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
+        std::vector<double> old_displacement_divs(n_q_points);
+        std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
+          n_q_points);
+        std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
+          n_q_points);
+        std::vector<double> old_displacement_multiplier_divs(n_q_points);
+        std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
+          n_q_points);
+        std::vector<double> old_lower_slack_multiplier_values(n_q_points);
+        std::vector<double> old_upper_slack_multiplier_values(n_q_points);
+        std::vector<double> old_lower_slack_values(n_q_points);
+        std::vector<double> old_upper_slack_values(n_q_points);
+        std::vector<double> old_unfiltered_density_values(n_q_points);
+        std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
+        std::vector<double> filtered_unfiltered_density_values(n_q_points);
+        std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
 
 
         for (const auto &cell : dof_handler.active_cell_iterators()) {
@@ -643,26 +662,6 @@ namespace SAND {
 
             lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
             mu.value_list(fe_values.get_quadrature_points(), mu_values);
-
-            std::vector<double> old_density_values(n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
-            std::vector<double> old_displacement_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
-                    n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
-                    n_q_points);
-            std::vector<double> old_displacement_multiplier_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
-                    n_q_points);
-            std::vector<double> old_lower_slack_multiplier_values(n_q_points);
-            std::vector<double> old_upper_slack_multiplier_values(n_q_points);
-            std::vector<double> old_lower_slack_values(n_q_points);
-            std::vector<double> old_upper_slack_values(n_q_points);
-            std::vector<double> old_unfiltered_density_values(n_q_points);
-            std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
-            std::vector<double> filtered_unfiltered_density_values(n_q_points);
-            std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
-
 
             fe_values[densities].get_function_values(nonlinear_solution,
                                                      old_density_values);
@@ -1048,34 +1047,33 @@ namespace SAND {
     }
 
     template<int dim>
-    std::vector<double>
-    SANDTopOpt<dim>::calculate_max_step_size() {
+    std::pair<double,double>
+    SANDTopOpt<dim>::calculate_max_step_size() const {
 
-        double fraction_to_boundary = .995;
+        const double fraction_to_boundary = .995;
 
         double step_size_s_low = 0;
         double step_size_z_low = 0;
         double step_size_s_high = 1;
         double step_size_z_high = 1;
         double step_size_s, step_size_z;
-        bool accept_s, accept_z;
 
         for (unsigned int k = 0; k < 50; k++) {
             step_size_s = (step_size_s_low + step_size_s_high) / 2;
             step_size_z = (step_size_z_low + step_size_z_high) / 2;
 
-            BlockVector<double> nonlinear_solution_test_s =
+            const BlockVector<double> nonlinear_solution_test_s =
                     (fraction_to_boundary * nonlinear_solution) + (step_size_s
                                                                    * linear_solution);
 
-            BlockVector<double> nonlinear_solution_test_z =
+            const BlockVector<double> nonlinear_solution_test_z =
                     (fraction_to_boundary * nonlinear_solution) + (step_size_z
                                                                    * linear_solution);
 
-            accept_s = (nonlinear_solution_test_s.block(5).is_non_negative())
-                       && (nonlinear_solution_test_s.block(7).is_non_negative());
-            accept_z = (nonlinear_solution_test_z.block(6).is_non_negative())
-                       && (nonlinear_solution_test_z.block(8).is_non_negative());
+            const bool accept_s = (nonlinear_solution_test_s.block(5).is_non_negative())
+                                  && (nonlinear_solution_test_s.block(7).is_non_negative());
+            const bool accept_z = (nonlinear_solution_test_z.block(6).is_non_negative())
+                                  && (nonlinear_solution_test_z.block(8).is_non_negative());
 
             if (accept_s) {
                 step_size_s_low = step_size_s;
@@ -1089,16 +1087,15 @@ namespace SAND {
             }
         }
 //        std::cout << step_size_s_low << "    " << step_size_z_low << std::endl;
-        std::vector<double> max_step = {step_size_s_low, step_size_z_low};
-        return max_step;
+        return {step_size_s_low, step_size_z_low};
     }
 
     template<int dim>
     void
-    SANDTopOpt<dim>::update_step(std::vector<double> max_step, double barrier_size) {
+    SANDTopOpt<dim>::update_step(const std::pair<double,double> &max_step, const double barrier_size) {
 
-        double step_size_s_low = max_step[0];
-        double step_size_z_low = max_step[1];
+        double step_size_s_low = max_step.first;
+        double step_size_z_low = max_step.second;
         double current_merit = calculate_exact_merit(nonlinear_solution, barrier_size, 1);
 //        std::cout << "current merit:   " << current_merit << std::endl;
         BlockVector<double> test_solution = nonlinear_solution;
@@ -1173,7 +1170,7 @@ namespace SAND {
 
     template<int dim>
     BlockVector<double>
-    SANDTopOpt<dim>::calculate_test_rhs(BlockVector<double> test_solution, double barrier_size, double penalty_parameter) {
+    SANDTopOpt<dim>::calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/) const {
         const FEValuesExtractors::Scalar densities(0);
         const FEValuesExtractors::Vector displacements(1);
         const FEValuesExtractors::Scalar unfiltered_densities(1 + dim);
@@ -1188,13 +1185,11 @@ namespace SAND {
 
         /*Remove any values from old iterations*/
 
-        system_matrix.reinit(sparsity_pattern);
         BlockVector<double> test_rhs;
-        test_rhs = system_rhs;
-        test_rhs = 0;
+        test_rhs.reinit (system_rhs);
 
-        QGauss<dim> quadrature_formula(fe.degree + 1);
-        QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
+        const QGauss<dim> quadrature_formula(fe.degree + 1);
+        const QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
         FEValues<dim> fe_values(fe, quadrature_formula,
                                 update_values | update_gradients | update_quadrature_points
                                 | update_JxW_values);
@@ -1206,19 +1201,15 @@ namespace SAND {
         const unsigned int n_q_points = quadrature_formula.size();
         const unsigned int n_face_q_points = face_quadrature_formula.size();
 
-        FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
         Vector<double> cell_rhs(dofs_per_cell);
-        FullMatrix<double> full_density_cell_matrix(dofs_per_cell,
-                                                    dofs_per_cell);
-        FullMatrix<double> full_density_cell_matrix_for_Au(dofs_per_cell,
-                                                           dofs_per_cell);
+        FullMatrix<double> dummy_cell_matrix(dofs_per_cell,dofs_per_cell);
 
         std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
         std::vector<double> lambda_values(n_q_points);
         std::vector<double> mu_values(n_q_points);
 
-        Functions::ConstantFunction<dim> lambda(1.), mu(1.);
+        const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
         std::vector<Tensor<1, dim>> rhs_values(n_q_points);
 
         BlockVector<double> filtered_unfiltered_density_solution = nonlinear_solution;
@@ -1231,10 +1222,27 @@ namespace SAND {
                              nonlinear_solution.block(4));
 
 
+        std::vector<double> old_density_values(n_q_points);
+        std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
+        std::vector<double> old_displacement_divs(n_q_points);
+        std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
+          n_q_points);
+        std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
+          n_q_points);
+        std::vector<double> old_displacement_multiplier_divs(n_q_points);
+        std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
+          n_q_points);
+        std::vector<double> old_lower_slack_multiplier_values(n_q_points);
+        std::vector<double> old_upper_slack_multiplier_values(n_q_points);
+        std::vector<double> old_lower_slack_values(n_q_points);
+        std::vector<double> old_upper_slack_values(n_q_points);
+        std::vector<double> old_unfiltered_density_values(n_q_points);
+        std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
+        std::vector<double> filtered_unfiltered_density_values(n_q_points);
+        std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
+
+
         for (const auto &cell : dof_handler.active_cell_iterators()) {
-            cell_matrix = 0;
-            full_density_cell_matrix = 0;
-            full_density_cell_matrix_for_Au = 0;
             cell_rhs = 0;
 
             cell->get_dof_indices(local_dof_indices);
@@ -1243,26 +1251,6 @@ namespace SAND {
 
             lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
             mu.value_list(fe_values.get_quadrature_points(), mu_values);
-
-            std::vector<double> old_density_values(n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
-            std::vector<double> old_displacement_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
-                    n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
-                    n_q_points);
-            std::vector<double> old_displacement_multiplier_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
-                    n_q_points);
-            std::vector<double> old_lower_slack_multiplier_values(n_q_points);
-            std::vector<double> old_upper_slack_multiplier_values(n_q_points);
-            std::vector<double> old_lower_slack_values(n_q_points);
-            std::vector<double> old_upper_slack_values(n_q_points);
-            std::vector<double> old_unfiltered_density_values(n_q_points);
-            std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
-            std::vector<double> filtered_unfiltered_density_values(n_q_points);
-            std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
-
 
             fe_values[densities].get_function_values(test_solution,
                                                      old_density_values);
@@ -1445,10 +1433,10 @@ namespace SAND {
             }
 
             MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
-                                                     cell_matrix, cell_rhs, true);
+                                                     dummy_cell_matrix, cell_rhs, true);
 
             constraints.distribute_local_to_global(
-                    cell_matrix, cell_rhs, local_dof_indices, system_matrix, test_rhs);
+                    cell_rhs, local_dof_indices, test_rhs);
 
 
         }
@@ -1458,11 +1446,18 @@ namespace SAND {
 
     template<int dim>
     double
-    SANDTopOpt<dim>::calculate_rhs_error(BlockVector<double> rhs)
+    SANDTopOpt<dim>::calculate_rhs_error(const BlockVector<double> &rhs) const
     {
         double merit = 0;
-        merit = rhs.block(0).l1_norm() + 100*rhs.block(1).l1_norm() +100*rhs.block(2).l1_norm() + 100* rhs.block(3).l1_norm()
-                + 100*rhs.block(4).l1_norm() +100*rhs.block(5).l1_norm() +100*rhs.block(6).l1_norm() +100*rhs.block(7).l1_norm() +100*rhs.block(8).l1_norm();
+        merit = rhs.block(0).l1_norm()
+                + 100*rhs.block(1).l1_norm()
+                + 100*rhs.block(2).l1_norm()
+                + 100*rhs.block(3).l1_norm()
+                + 100*rhs.block(4).l1_norm()
+                + 100*rhs.block(5).l1_norm()
+                + 100*rhs.block(6).l1_norm()
+                + 100*rhs.block(7).l1_norm()
+                + 100*rhs.block(8).l1_norm();
 //        std::cout << rhs.block(0).l1_norm() <<"   "<< rhs.block(1).l1_norm() <<"   "<< rhs.block(2).l1_norm() <<"   "<< rhs.block(3).l1_norm()
 //                      <<"   "<<rhs.block(4).l1_norm() <<"   "<< rhs.block(5).l1_norm() <<"   "<< rhs.block(6).l1_norm() <<"   "<< rhs.block(7).l1_norm() <<"   "<< rhs.block(8).l1_norm() <<std::endl;
         return merit;
@@ -1471,9 +1466,9 @@ namespace SAND {
 
     template<int dim>
     double
-    SANDTopOpt<dim>::calculate_exact_merit(BlockVector<double> test_solution, double barrier_size, double penalty_parameter)
+    SANDTopOpt<dim>::calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/) const
     {
-       double fraction_to_boundary = .995;
+       const double fraction_to_boundary = .995;
 
        double objective_function_merit = 0;
        double elasticity_constraint_merit = 0;
@@ -1483,10 +1478,10 @@ namespace SAND {
 
        //Calculate objective function
        //Loop over cells, integrate along boundary because I only have external force
-        {
+       {
             const FEValuesExtractors::Vector displacements(1);
-            QGauss<dim> quadrature_formula(fe.degree + 1);
-            QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
+            const QGauss<dim> quadrature_formula(fe.degree + 1);
+            const QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
             FEValues<dim> fe_values(fe, quadrature_formula,
                                     update_values | update_gradients | update_quadrature_points
                                     | update_JxW_values);
@@ -1494,13 +1489,12 @@ namespace SAND {
                                              update_values | update_quadrature_points | update_normal_vectors
                                              | update_JxW_values);
 
-            const unsigned int n_q_points = quadrature_formula.size();
             const unsigned int n_face_q_points = face_quadrature_formula.size();
 
 
-            for (const auto &cell : dof_handler.active_cell_iterators()) {
+            std::vector<Tensor<1, dim>> old_displacement_face_values(n_face_q_points);
 
-                std::vector<Tensor<1, dim>> old_displacement_face_values(n_face_q_points);
+            for (const auto &cell : dof_handler.active_cell_iterators()) {
 
                 Tensor<1, dim> traction;
                 traction[1] = -1;
@@ -1526,7 +1520,7 @@ namespace SAND {
             }
         }
         //
-        BlockVector<double> test_rhs = calculate_test_rhs(test_solution, barrier_size, 1);
+        const BlockVector<double> test_rhs = calculate_test_rhs(test_solution, barrier_size, 1);
 
 
         //calculate elasticity constraint merit
@@ -1547,7 +1541,7 @@ namespace SAND {
         //calculate filter constraint merit
         {
             //First need to find biggest multiplier y - I then add 1 because it starts at 0 for no real good reason. I don't like this bit...
-            double multiplier = 2 * nonlinear_solution.block(4).linfty_norm() + 1;
+            const double multiplier = 2 * nonlinear_solution.block(4).linfty_norm() + 1;
             filter_constraint_merit = multiplier * test_rhs.block(4).l1_norm();
         }
 
@@ -1555,16 +1549,11 @@ namespace SAND {
         {
             //First need to find biggest multiplier y - This uses the fraction to boundary and actually should work pretty well.
             double minimum_slack = 1;
-            for (int k = 0; k < nonlinear_solution.block(5).size(); k++)
-            {
-                if (nonlinear_solution.block(5)[k] < minimum_slack)
-                {
-                    minimum_slack = nonlinear_solution.block(5)[k];
-                }
-            }
+            for (unsigned int k = 0; k < nonlinear_solution.block(5).size(); k++)
+                minimum_slack = std::min(minimum_slack, nonlinear_solution.block(5)[k]);
             double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
             double inequality_violation = 0;
-            for (int k = 0; k < test_solution.block(2).size(); k++)
+            for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
             {
                 if (test_solution.block(2)[k] < 0)
                 {
@@ -1577,16 +1566,11 @@ namespace SAND {
         //calculate upper slack merit
         {
             double minimum_slack = 1;
-            for (int k = 0; k < nonlinear_solution.block(7).size(); k++)
-            {
-                if (nonlinear_solution.block(7)[k] < minimum_slack)
-                {
-                    minimum_slack = nonlinear_solution.block(7)[k];
-                }
-            }
+            for (unsigned int k = 0; k < nonlinear_solution.block(7).size(); k++)
+                minimum_slack = std::min(minimum_slack, nonlinear_solution.block(7)[k]);
             double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
             double inequality_violation = 0;
-            for (int k = 0; k < test_solution.block(2).size(); k++)
+            for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
             {
                 if (test_solution.block(2)[k] > 1)
                 {
@@ -1610,7 +1594,7 @@ namespace SAND {
 
     template<int dim>
     void
-    SANDTopOpt<dim>::output(int j) {
+    SANDTopOpt<dim>::output(const unsigned int j) const {
         std::vector<std::string> solution_names(1, "density");
         std::vector<DataComponentInterpretation::DataComponentInterpretation> data_component_interpretation(
                 1, DataComponentInterpretation::component_is_scalar);
@@ -1657,20 +1641,22 @@ namespace SAND {
     void
     SANDTopOpt<dim>::run() {
         double barrier_size = 25;
-        density_penalty_exponent = 3;
-        filter_r = .25;
+
         create_triangulation();
         setup_block_system();
-        set_bcids();
+        setup_boundary_values();
         setup_filter_matrix();
+        
         for (unsigned int loop = 0; loop < 100; loop++) {
             assemble_block_system(barrier_size);
             solve();
             std::cout << "actual error:   "  << calculate_rhs_error(system_rhs) << std::endl;
             update_step(calculate_max_step_size(),barrier_size);
-            if (loop % 1 == 0)
+
+            const unsigned int output_every_n_steps = 1;
+            if (loop % output_every_n_steps == 0)
             {
-                output(loop / 1);
+                output(loop / output_every_n_steps);
                 std::cout << loop << std::endl;
             }
             if (calculate_rhs_error(system_rhs) < 1e-8)
