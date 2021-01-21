@@ -1188,8 +1188,8 @@ namespace SAND {
         BlockVector<double> test_rhs;
         test_rhs.reinit (system_rhs);
 
-        QGauss<dim> quadrature_formula(fe.degree + 1);
-        QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
+        const QGauss<dim> quadrature_formula(fe.degree + 1);
+        const QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
         FEValues<dim> fe_values(fe, quadrature_formula,
                                 update_values | update_gradients | update_quadrature_points
                                 | update_JxW_values);
@@ -1209,7 +1209,7 @@ namespace SAND {
         std::vector<double> lambda_values(n_q_points);
         std::vector<double> mu_values(n_q_points);
 
-        Functions::ConstantFunction<dim> lambda(1.), mu(1.);
+        const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
         std::vector<Tensor<1, dim>> rhs_values(n_q_points);
 
         BlockVector<double> filtered_unfiltered_density_solution = nonlinear_solution;
@@ -1480,8 +1480,8 @@ namespace SAND {
        //Loop over cells, integrate along boundary because I only have external force
        {
             const FEValuesExtractors::Vector displacements(1);
-            QGauss<dim> quadrature_formula(fe.degree + 1);
-            QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
+            const QGauss<dim> quadrature_formula(fe.degree + 1);
+            const QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
             FEValues<dim> fe_values(fe, quadrature_formula,
                                     update_values | update_gradients | update_quadrature_points
                                     | update_JxW_values);
