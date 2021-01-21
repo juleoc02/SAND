@@ -50,10 +50,10 @@ namespace SAND {
         create_triangulation();
 
         void
-        set_bcids();
+        setup_block_system();
 
         void
-        setup_block_system();
+        setup_boundary_values();
 
         void
         assemble_block_system(const double barrier_size);
@@ -293,7 +293,7 @@ namespace SAND {
 
     template<int dim>
     void
-    SANDTopOpt<dim>::set_bcids() {
+    SANDTopOpt<dim>::setup_boundary_values() {
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             for (unsigned int face_number = 0;
                  face_number < GeometryInfo<dim>::faces_per_cell;
@@ -1647,7 +1647,7 @@ namespace SAND {
 
         create_triangulation();
         setup_block_system();
-        set_bcids();
+        setup_boundary_values();
         setup_filter_matrix();
         
         for (unsigned int loop = 0; loop < 100; loop++) {
