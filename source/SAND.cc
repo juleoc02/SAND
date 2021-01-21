@@ -1187,7 +1187,6 @@ namespace SAND {
 
         BlockVector<double> test_rhs;
         test_rhs.reinit (system_rhs);
-        test_rhs = 0;
 
         QGauss<dim> quadrature_formula(fe.degree + 1);
         QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
