@@ -1382,8 +1382,7 @@ namespace SAND {
                     //rhs eqn 5
                     cell_rhs(i) +=
                             fe_values.JxW(q_point) * (
-                                    upper_slack_multiplier_phi_i
-                                    * (1 - old_unfiltered_density_values[q_point]
+                                    upper_slack_multiplier_phi_i * (1 - old_unfiltered_density_values[q_point]
                                        - old_upper_slack_values[q_point]));
 
                     //rhs eqn 6
@@ -1615,7 +1614,7 @@ namespace SAND {
 
         for(unsigned int i = 0; i<4; i++)
         {
-            constraint_norm =   constraint_norm + system_rhs.block(decision_variable_locations[i]).l1_norm();
+            constraint_norm =   constraint_norm + system_rhs.block(decision_variable_locations[i]).linfty_norm();
         }
 
         if (hess_part > 0)
@@ -1638,15 +1637,15 @@ namespace SAND {
         const double step_size_z = max_step_sizes.second;
         BlockVector<double> max_step(9);
 
-        max_step.block(0) = step_size_s * linear_solution.block(0);
-        max_step.block(1) = step_size_s * linear_solution.block(1);
-        max_step.block(2) = step_size_s * linear_solution.block(2);
-        max_step.block(3) = step_size_z * linear_solution.block(3);
-        max_step.block(4) = step_size_z * linear_solution.block(4);
-        max_step.block(5) = step_size_s * linear_solution.block(5);
-        max_step.block(6) = step_size_z * linear_solution.block(6);
-        max_step.block(7) = step_size_s * linear_solution.block(7);
-        max_step.block(8) = step_size_z * linear_solution.block(8);
+        max_step.block(0) = step_size_s * step.block(0);
+        max_step.block(1) = step_size_s * step.block(1);
+        max_step.block(2) = step_size_s * step.block(2);
+        max_step.block(3) = step_size_z * step.block(3);
+        max_step.block(4) = step_size_z * step.block(4);
+        max_step.block(5) = step_size_s * step.block(5);
+        max_step.block(6) = step_size_z * step.block(6);
+        max_step.block(7) = step_size_s * step.block(7);
+        max_step.block(8) = step_size_z * step.block(8);
 
         return max_step;
     }
@@ -1680,7 +1679,7 @@ namespace SAND {
     {
                const double convergence_condition = 1e-9;
                const BlockVector<double> test_rhs = calculate_test_rhs(state,barrier_size,1);
-               std::cout << test_rhs.l1_norm();
+               std::cout << "current rhs norm is " << test_rhs.l1_norm() << std::endl;
                if (test_rhs.l1_norm()<convergence_condition)
                {
                    return true;
@@ -1773,11 +1772,11 @@ namespace SAND {
         //while barrier value above minimal value and total iterations under some value
         BlockVector<double> current_state = nonlinear_solution;
         BlockVector<double> current_step;
-        while(barrier_size > .005 && iteration_number < 100)
+        while(barrier_size > .0005 && iteration_number < 10000)
         {
             bool converged = false;
             //while not converged
-            while(!converged)
+            while(!converged && iteration_number < 10000)
             {
                 bool found_step = false;
                 //save current state as watchdog state
@@ -1794,14 +1793,14 @@ namespace SAND {
                     if(k==0)
                     {
                         watchdog_step = current_step;
-                        //goal merit is (merit of watchdog state) + descent requirement * linear derivative of merit of watchdog state in direction of watchdog step)
                     }
                     //apply full step to current state
                     current_state=current_state+current_step;
                     //if merit of current state is less than goal
                     double current_merit = calculate_exact_merit(current_state, barrier_size, 1);
                     std::cout << "current merit is: " <<current_merit << "  and  ";
-                    goal_merit = calculate_exact_merit(watchdog_state,barrier_size,1) + descent_requirement * (calculate_exact_merit(watchdog_state+.0001*watchdog_step,barrier_size,1) - calculate_exact_merit(watchdog_state,barrier_size,1 ))/.0001;
+                    double merit_derivative = ((calculate_exact_merit(watchdog_state+.0001*watchdog_step,barrier_size,1) - calculate_exact_merit(watchdog_state,barrier_size,1 ))/.0001);
+                    goal_merit = calculate_exact_merit(watchdog_state,barrier_size,1) + descent_requirement * merit_derivative;
                     std::cout << "goal merit is "<<goal_merit <<std::endl;
                     if(current_merit < goal_merit)
                     {
@@ -1860,8 +1859,9 @@ namespace SAND {
                 converged = check_convergence(current_state, barrier_size);
                 //end while
             }
-            barrier_size = barrier_size * .2;
-            std::cout << "barrier size reduced to " << barrier_size << std::endl;
+            barrier_size = barrier_size * .8;
+            std::cout << "barrier size reduced to " << barrier_size << " on iteration number " << iteration_number << std::endl;
+
             penalty_multiplier = 1;
             //end while
         }
