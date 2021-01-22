@@ -259,7 +259,7 @@ namespace SAND {
             GridGenerator::merge_triangulations(triangulation_temp,
                                                 triangulation, triangulation);
         }
-        triangulation.refine_global(3);
+        triangulation.refine_global(4);
 
         /*Set BCIDs   */
         for (const auto &cell : triangulation.active_cell_iterators()) {
@@ -1625,7 +1625,6 @@ namespace SAND {
         {
             test_penalty_multiplier = (grad_part)/(.05 * constraint_norm);
         }
-        std::cout << "test_penalty_multiplier: " << test_penalty_multiplier << std::endl;
         if (test_penalty_multiplier > penalty_multiplier)
         {
             penalty_multiplier = test_penalty_multiplier;
@@ -1809,7 +1808,7 @@ namespace SAND {
                         iteration_number = iteration_number + k + 1;
                         //found step = true
                         found_step = true;
-                        std::cout << "found workable step after " << k << " iterations"<<std::endl;
+                        std::cout << "found workable step after " << k+1 << " iterations"<<std::endl;
                         //break for loop
                         break;
                         //end if
