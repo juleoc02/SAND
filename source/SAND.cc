@@ -108,6 +108,7 @@ namespace SAND {
         const double density_penalty_exponent;
         const double filter_r;
         double penalty_multiplier;
+        double barrier_size;
 
 
         std::map<types::global_dof_index, double> boundary_values;
@@ -1057,7 +1058,18 @@ namespace SAND {
     std::pair<double,double>
     SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
 
-        const double fraction_to_boundary = .995;
+        double fraction_to_boundary;
+
+        if (.995 < 1 - barrier_size)
+        {
+            fraction_to_boundary = 1-barrier_size;
+        }
+        else
+        {
+            fraction_to_boundary = .995;
+        }
+
+
 
         double step_size_s_low = 0;
         double step_size_z_low = 0;
@@ -1858,7 +1870,10 @@ namespace SAND {
                 converged = check_convergence(current_state, barrier_size);
                 //end while
             }
-            barrier_size = barrier_size * .8;
+            const double barrier_size_multiplier = .8;
+            const double barrier_size_exponent = .8;
+
+            barrier_size = barrier_size * barrier_size_multiplier;
             std::cout << "barrier size reduced to " << barrier_size << " on iteration number " << iteration_number << std::endl;
 
             penalty_multiplier = 1;
