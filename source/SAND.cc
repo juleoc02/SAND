@@ -1059,14 +1059,24 @@ namespace SAND {
     SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
 
         double fraction_to_boundary;
+        const double min_fraction_to_boundary = .8;
+        const double max_fraction_to_boundary = .99999;
 
-        if (.995 < 1 - barrier_size)
+        if (min_fraction_to_boundary < 1 - barrier_size)
         {
-            fraction_to_boundary = 1-barrier_size;
+            if (1 - barrier_size < max_fraction_to_boundary)
+            {
+                fraction_to_boundary = 1-barrier_size;
+            }
+            else
+            {
+                fraction_to_boundary = max_fraction_to_boundary;
+            }
+
         }
         else
         {
-            fraction_to_boundary = .995;
+            fraction_to_boundary = min_fraction_to_boundary;
         }
 
 
@@ -1688,10 +1698,10 @@ namespace SAND {
     bool
     SANDTopOpt<dim>::check_convergence(const BlockVector<double> &state,  const double barrier_size)
     {
-               const double convergence_condition = 1e-9;
+               const double convergence_condition = 1e-5;
                const BlockVector<double> test_rhs = calculate_test_rhs(state,barrier_size,1);
-               std::cout << "current rhs norm is " << test_rhs.l1_norm() << std::endl;
-               if (test_rhs.l1_norm()<convergence_condition)
+               std::cout << "current rhs norm is " << test_rhs.linfty_norm() << std::endl;
+               if (test_rhs.l1_norm()<convergence_condition * barrier_size)
                {
                    return true;
                }
@@ -1753,7 +1763,7 @@ namespace SAND {
     void
     SANDTopOpt<dim>::run() {
         double barrier_size = 25;
-
+        const double min_barrier_size = .0005;
         create_triangulation();
         setup_block_system();
         setup_boundary_values();
@@ -1783,7 +1793,7 @@ namespace SAND {
         //while barrier value above minimal value and total iterations under some value
         BlockVector<double> current_state = nonlinear_solution;
         BlockVector<double> current_step;
-        while(barrier_size > .0005 && iteration_number < 10000)
+        while((barrier_size > .0005 || !check_convergence(current_state, barrier_size)) && iteration_number < 10000)
         {
             bool converged = false;
             //while not converged
@@ -1801,7 +1811,7 @@ namespace SAND {
                     //compute step from current state  - function from kktSystem
                     current_step = find_max_step(current_state, barrier_size);
                     // save the first of these as the watchdog step
-                    if(k==0)
+                    if(k==0 || calculate_exact_merit(watchdog_state,barrier_size,1) > calculate_exact_merit(current_state,barrier_size,1))
                     {
                         watchdog_step = current_step;
                     }
@@ -1870,13 +1880,38 @@ namespace SAND {
                 converged = check_convergence(current_state, barrier_size);
                 //end while
             }
-            const double barrier_size_multiplier = .8;
-            const double barrier_size_exponent = .8;
+            const double barrier_size_multiplier = .7;
+            const double barrier_size_exponent = 1.1;
 
-            barrier_size = barrier_size * barrier_size_multiplier;
+            if (barrier_size * barrier_size_multiplier < std::pow(barrier_size, barrier_size_exponent))
+            {
+                if (barrier_size * barrier_size_multiplier < min_barrier_size)
+                {
+                    barrier_size = min_barrier_size;
+                }
+                else
+                {
+                    barrier_size = barrier_size * barrier_size_multiplier;
+                }
+            }
+            else
+            {
+                if (std::pow(barrier_size, barrier_size_exponent) < min_barrier_size)
+                {
+                    barrier_size = min_barrier_size;
+                }
+                else
+                {
+                    barrier_size = std::pow(barrier_size, barrier_size_exponent);
+                }
+            }
+
+
+
+//            barrier_size = barrier_size * barrier_size_multiplier;
             std::cout << "barrier size reduced to " << barrier_size << " on iteration number " << iteration_number << std::endl;
-
-            penalty_multiplier = 1;
+//
+//            penalty_multiplier = 1;
             //end while
         }
 
