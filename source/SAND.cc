@@ -1481,8 +1481,7 @@ namespace SAND {
 
 
         double total_merit;
-//        std::cout << "merit parts:  " << objective_function_merit << "  " << elasticity_constraint_merit << "  " <<
-//            filter_constraint_merit << "  " <<  lower_slack_merit << "  " <<  upper_slack_merit << std::endl;
+
         total_merit = objective_function_merit + elasticity_constraint_merit + filter_constraint_merit + lower_slack_merit + upper_slack_merit;
         return total_merit;
     }
