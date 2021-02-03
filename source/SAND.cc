@@ -1117,82 +1117,6 @@ namespace SAND {
         return {step_size_s_low, step_size_z_low};
     }
 
-//    template<int dim>
-//    void
-//    SANDTopOpt<dim>::update_step(const std::pair<double,double> &max_step, const double barrier_size) {
-//
-//        double step_size_s_low = max_step.first;
-//        double step_size_z_low = max_step.second;
-//        double current_merit = calculate_exact_merit(nonlinear_solution, barrier_size, 1);
-////        std::cout << "current merit:   " << current_merit << std::endl;
-//        BlockVector<double> test_solution = nonlinear_solution;
-//        test_solution = 0;
-//
-//        //TO USE THE MERIT FUNCTION, CHANGE THIS TO FALSE
-//        bool step_found = true;
-//
-//        for(int k=0; k<5 && step_found == false; k++)
-//        {
-//            test_solution.block(0) = nonlinear_solution.block(0)
-//                                     + step_size_s_low * linear_solution.block(0);
-//            test_solution.block(1) = nonlinear_solution.block(1)
-//                                     + step_size_s_low * linear_solution.block(1);
-//            test_solution.block(2) = nonlinear_solution.block(2)
-//                                     + step_size_s_low * linear_solution.block(2);
-//            test_solution.block(3) = nonlinear_solution.block(3)
-//                                     + step_size_z_low * linear_solution.block(3);
-//            test_solution.block(4) = nonlinear_solution.block(4)
-//                                     + step_size_z_low * linear_solution.block(4);
-//            test_solution.block(5) = nonlinear_solution.block(5)
-//                                     + step_size_s_low * linear_solution.block(5);
-//            test_solution.block(6) = nonlinear_solution.block(6)
-//                                     + step_size_z_low * linear_solution.block(6);
-//            test_solution.block(7) = nonlinear_solution.block(7)
-//                                     + step_size_s_low * linear_solution.block(7);
-//            test_solution.block(8) = nonlinear_solution.block(8)
-//                                     + step_size_z_low * linear_solution.block(8);
-//
-//            double test_merit = calculate_exact_merit(test_solution, barrier_size, 1);
-//            std::cout << "test merit:   " << test_merit << std::endl;
-//
-//            if(test_merit < current_merit)
-//            {
-//                step_found = true;
-//            }
-//            else
-//            {
-//                step_size_s_low = step_size_s_low/2;
-//                step_size_z_low = step_size_z_low/2;
-//            }
-//
-//        }
-//
-//        //ALL OF THIS ISN'T NEEDED WHEN USING MERIT FUNCTION...
-//        test_solution.block(0) = nonlinear_solution.block(0)
-//                                 + step_size_s_low * linear_solution.block(0);
-//        test_solution.block(1) = nonlinear_solution.block(1)
-//                                 + step_size_s_low * linear_solution.block(1);
-//        test_solution.block(2) = nonlinear_solution.block(2)
-//                                 + step_size_s_low * linear_solution.block(2);
-//        test_solution.block(3) = nonlinear_solution.block(3)
-//                                 + step_size_z_low * linear_solution.block(3);
-//        test_solution.block(4) = nonlinear_solution.block(4)
-//                                 + step_size_z_low * linear_solution.block(4);
-//        test_solution.block(5) = nonlinear_solution.block(5)
-//                                 + step_size_s_low * linear_solution.block(5);
-//        test_solution.block(6) = nonlinear_solution.block(6)
-//                                 + step_size_z_low * linear_solution.block(6);
-//        test_solution.block(7) = nonlinear_solution.block(7)
-//                                 + step_size_s_low * linear_solution.block(7);
-//        test_solution.block(8) = nonlinear_solution.block(8)
-//                                 + step_size_z_low * linear_solution.block(8);
-//        //...DOWN TO HERE
-//
-////        std::cout << step_size_s_low << "   " << step_size_z_low << std::endl;
-//        nonlinear_solution = test_solution;
-//    }
-//
-
 
 
     template<int dim>
@@ -1470,25 +1394,7 @@ namespace SAND {
 
     }
 
-//    template<int dim>
-//    double
-//    SANDTopOpt<dim>::calculate_rhs_error(const BlockVector<double> &rhs) const
-//    {
-//        double merit = 0;
-//        merit = rhs.block(0).l1_norm()
-//                + 100*rhs.block(1).l1_norm()
-//                + 100*rhs.block(2).l1_norm()
-//                + 100*rhs.block(3).l1_norm()
-//                + 100*rhs.block(4).l1_norm()
-//                + 100*rhs.block(5).l1_norm()
-//                + 100*rhs.block(6).l1_norm()
-//                + 100*rhs.block(7).l1_norm()
-//                + 100*rhs.block(8).l1_norm();
-////        std::cout << rhs.block(0).l1_norm() <<"   "<< rhs.block(1).l1_norm() <<"   "<< rhs.block(2).l1_norm() <<"   "<< rhs.block(3).l1_norm()
-////                      <<"   "<<rhs.block(4).l1_norm() <<"   "<< rhs.block(5).l1_norm() <<"   "<< rhs.block(6).l1_norm() <<"   "<< rhs.block(7).l1_norm() <<"   "<< rhs.block(8).l1_norm() <<std::endl;
-//        return merit;
-//
-//    }
+
 
     template<int dim>
     double
@@ -1562,38 +1468,14 @@ namespace SAND {
 
         //calculate lower slack merit
         {
-//            //First need to find biggest multiplier y - This uses the fraction to boundary and actually should work pretty well.
-//            double minimum_slack = 1;
-//            for (unsigned int k = 0; k < nonlinear_solution.block(5).size(); k++)
-//                minimum_slack = std::min(minimum_slack, nonlinear_solution.block(5)[k]);
-//            double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
-//            double inequality_violation = 0;
-//            for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
-//            {
-//                if (test_solution.block(2)[k] < 0)
-//                {
-//                    inequality_violation += -1 * test_solution.block(2)[k];
-//                }
-//            }
-            lower_slack_merit = filter_constraint_merit = penalty_multiplier * test_rhs.block(6).l1_norm();
+
+            lower_slack_merit = penalty_multiplier * test_rhs.block(6).l1_norm();
         }
 
         //calculate upper slack merit
         {
-//            double minimum_slack = 1;
-//            for (unsigned int k = 0; k < nonlinear_solution.block(7).size(); k++)
-//                minimum_slack = std::min(minimum_slack, nonlinear_solution.block(7)[k]);
-//            double multiplier = barrier_size / ((1-fraction_to_boundary)* minimum_slack);
-//            double inequality_violation = 0;
-//            for (unsigned int k = 0; k < test_solution.block(2).size(); k++)
-//            {
-//                if (test_solution.block(2)[k] > 1)
-//                {
-//                    inequality_violation += test_solution.block(2)[k] - 1;
-//                }
-//            }
-//            upper_slack_merit = multiplier *  inequality_violation;
-            filter_constraint_merit = penalty_multiplier * test_rhs.block(8).l1_norm();
+
+            upper_slack_merit = penalty_multiplier * test_rhs.block(8).l1_norm();
         }
 
 
