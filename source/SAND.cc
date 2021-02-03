@@ -1579,7 +1579,7 @@ namespace SAND {
     bool
     SANDTopOpt<dim>::check_convergence(const BlockVector<double> &state,  const double barrier_size)
     {
-               const double convergence_condition = 1e-5;
+               const double convergence_condition = 1e-2;
                const BlockVector<double> test_rhs = calculate_test_rhs(state,barrier_size,1);
                std::cout << "current rhs norm is " << test_rhs.linfty_norm() << std::endl;
                if (test_rhs.l1_norm()<convergence_condition * barrier_size)
@@ -1729,7 +1729,7 @@ namespace SAND {
                     //if current merit is less than watchdog merit, or if stretch merit is less than earlier goal merit
                     if(calculate_exact_merit(current_state,barrier_size,1) < calculate_exact_merit(watchdog_state,barrier_size,1) || calculate_exact_merit(stretch_state,barrier_size,1) < goal_merit)
                     {
-                        std::cout << "in if" << std::endl;
+                        std::cout << "in then" << std::endl;
                         current_state = stretch_state;
                         iteration_number = iteration_number + max_uphill_steps + 1;
                     }
@@ -1761,8 +1761,8 @@ namespace SAND {
                 converged = check_convergence(current_state, barrier_size);
                 //end while
             }
-            const double barrier_size_multiplier = .8;
-            const double barrier_size_exponent = 1.1;
+            const double barrier_size_multiplier = .5;
+            const double barrier_size_exponent = 1.2;
 
             if (barrier_size * barrier_size_multiplier < std::pow(barrier_size, barrier_size_exponent))
             {
