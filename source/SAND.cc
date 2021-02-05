@@ -260,7 +260,7 @@ namespace SAND {
             GridGenerator::merge_triangulations(triangulation_temp,
                                                 triangulation, triangulation);
         }
-        triangulation.refine_global(6);
+        triangulation.refine_global(5);
 
         /*Set BCIDs   */
         for (const auto &cell : triangulation.active_cell_iterators()) {
@@ -1502,7 +1502,10 @@ namespace SAND {
         double grad_part = 0;
         double constraint_norm = 0;
         const std::vector<unsigned int> decision_variable_locations = {0, 1, 2};
+        std::cout << "decision variable locations:   " << decision_variable_locations << std::endl;
         const std::vector<unsigned int> equality_constraint_locations = {3, 4, 6, 8};
+
+        std::cout << "equality constraint locations:   " << equality_constraint_locations << std::endl;
         for(unsigned int i = 0; i<3; i++)
         {
             for(unsigned int j = 0; j<3; j++)
@@ -1532,6 +1535,10 @@ namespace SAND {
         {
             penalty_multiplier = test_penalty_multiplier;
             std::cout << "penalty multiplier updated to " << penalty_multiplier << std::endl;
+        }
+        else
+        {
+            std::cout << "penalty multiplier kept at " << penalty_multiplier << std::endl;
         }
 
         const auto max_step_sizes= calculate_max_step_size(state,step);
