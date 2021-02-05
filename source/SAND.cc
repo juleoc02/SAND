@@ -260,7 +260,7 @@ namespace SAND {
             GridGenerator::merge_triangulations(triangulation_temp,
                                                 triangulation, triangulation);
         }
-        triangulation.refine_global(5);
+        triangulation.refine_global(4);
 
         /*Set BCIDs   */
         for (const auto &cell : triangulation.active_cell_iterators()) {
@@ -1513,6 +1513,7 @@ namespace SAND {
             std::cout << "equality constraint locations:   " << equality_constraint_locations[i] << std::endl;
         }
 
+        std::cout << "test 0" << std::endl;
 
         for(unsigned int i = 0; i<3; i++)
         {
@@ -1526,10 +1527,13 @@ namespace SAND {
             grad_part = grad_part - system_rhs.block(decision_variable_locations[i])*step.block(decision_variable_locations[i]);
         }
 
+        std::cout << "test 1" << std::endl;
         for(unsigned int i = 0; i<4; i++)
         {
             constraint_norm =   constraint_norm + system_rhs.block(decision_variable_locations[i]).linfty_norm();
         }
+
+        std::cout << "test 2" << std::endl;
 
         if (hess_part > 0)
         {
@@ -1539,6 +1543,7 @@ namespace SAND {
         {
             test_penalty_multiplier = (grad_part)/(.05 * constraint_norm);
         }
+        std::cout << "test 3" << std::endl;
         if (test_penalty_multiplier > penalty_multiplier)
         {
             penalty_multiplier = test_penalty_multiplier;
