@@ -1502,10 +1502,18 @@ namespace SAND {
         double grad_part = 0;
         double constraint_norm = 0;
         const std::vector<unsigned int> decision_variable_locations = {0, 1, 2};
-        std::cout << "decision variable locations:   " << decision_variable_locations << std::endl;
-        const std::vector<unsigned int> equality_constraint_locations = {3, 4, 6, 8};
 
-        std::cout << "equality constraint locations:   " << equality_constraint_locations << std::endl;
+        const std::vector<unsigned int> equality_constraint_locations = {3, 4, 6, 8};
+        for(unsigned int i = 0; i<3; i++)
+        {
+            std::cout << "decision variable locations:   " << decision_variable_locations[i] << std::endl;
+        }
+        for(unsigned int i = 0; i<4; i++)
+        {
+            std::cout << "equality constraint locations:   " << equality_constraint_locations[i] << std::endl;
+        }
+
+
         for(unsigned int i = 0; i<3; i++)
         {
             for(unsigned int j = 0; j<3; j++)
