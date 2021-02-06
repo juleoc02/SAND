@@ -34,6 +34,10 @@
 #include <fstream>
 #include <algorithm>
 
+///Above are fairly normal files to include.  I also use the sparse direct package, which requiresBLAS/LAPACK
+/// to  perform  a  direct  solve  while  I  work  on  a  fast  iterative  solver  for  this problem.
+/// Below is the main class for this problem.
+
 namespace SAND {
     using namespace dealii;
 
@@ -62,10 +66,7 @@ namespace SAND {
         solve();
 
         std::pair<double,double>
-        calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const;
-
-//        void
-//        update_step(const std::pair<double,double> &max_step, const double barrier_size);
+        calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step, const double barrier_size) const;
 
         void
         output(const unsigned int j) const;
@@ -78,9 +79,6 @@ namespace SAND {
 
         BlockVector<double>
         calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter) const;
-
-//        double
-//        calculate_rhs_error(const BlockVector<double> &rhs_vector) const;
 
         BlockVector<double>
         find_max_step(const BlockVector<double> &state, const double barrier_size);
@@ -108,18 +106,22 @@ namespace SAND {
         const double density_penalty_exponent;
         const double filter_r;
         double penalty_multiplier;
-        double barrier_size;
 
 
         std::map<types::global_dof_index, double> boundary_values;
 
     };
 
+    ///This problem initializes with a FESystem composed of 2×dim FE_Q(1) elements, and 7 FE_DGQ(0)  elements.
+    /// The  piecewise  constant  functions  are  for  density-related  variables,and displacement-related variables are assigned to the FE_Q(1) elements.
+
     template<int dim>
     SANDTopOpt<dim>::SANDTopOpt()
             :
             dof_handler(triangulation),
-            /*fe should have 1 FE_DGQ<dim>(0) element for density, dim FE_Q finite elements for displacement, another dim FE_Q elements for the lagrange multiplier on the FE constraint, and 2 more FE_DGQ<dim>(0) elements for the upper and lower bound constraints */
+            /*fe should have 1 FE_DGQ<dim>(0) element for density, dim FE_Q finite elements for displacement,
+             * another dim FE_Q elements for the lagrange multiplier on the FE constraint, and 2 more FE_DGQ<dim>(0)
+             * elements for the upper and lower bound constraints */
             fe(FE_DGQ<dim>(0) ^ 1,
                (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 1,
                FE_DGQ<dim>(0) ^ 1,
@@ -131,6 +133,7 @@ namespace SAND {
             penalty_multiplier (1)
     {
     }
+    ///A  function  used  once  at  the  beginning  of  the  program,  this  creates  a  matrix  H  so  that H* unfiltered density = filtered density
 
     template<int dim>
     void
@@ -238,6 +241,8 @@ namespace SAND {
         std::cout << "filled in filter matrix" << std::endl;
     }
 
+    ///This triangulation matches the problem description in the introduction
+
     template<int dim>
     void
     SANDTopOpt<dim>::create_triangulation() {
@@ -298,7 +303,9 @@ namespace SAND {
 
     }
 
-
+///The  bottom  corners  are  kept  in  place  in  the  y  direction  -  the  bottom  left  also  in  the  x direction.
+/// Because deal.ii is formulated to enforce boundary conditions along regions of the boundary,
+/// we do this to ensure these BCs are only enforced at points.
     template<int dim>
     void
     SANDTopOpt<dim>::setup_boundary_values() {
@@ -357,6 +364,9 @@ namespace SAND {
         }
     }
 
+
+    ///This makes a giant 9-by-9 block matrix, and also sets up the necessary block vectors.  The
+    /// sparsity pattern for this matrix includes the sparsity pattern for the filter matrix.
     template<int dim>
     void
     SANDTopOpt<dim>::setup_block_system() {
@@ -597,6 +607,9 @@ namespace SAND {
         }
 
     }
+
+    ///This  is  where  the  magic  happens.   The  equations  describing  the newtons method for finding 0s in the KKT conditions are implemented here.
+
 
     template<int dim>
     void
@@ -1058,6 +1071,7 @@ namespace SAND {
         }
     }
 
+    ///A direct solver, for now.
     template<int dim>
     void
     SANDTopOpt<dim>::solve() {
@@ -1073,9 +1087,11 @@ namespace SAND {
 
     }
 
+    ///This figures out the maximum step that meets the dual feasibility - that s>0 and z>0.
+
     template<int dim>
     std::pair<double,double>
-    SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
+    SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step, const double barrier_size) const {
 
         double fraction_to_boundary;
         const double min_fraction_to_boundary = .8;
@@ -1097,8 +1113,6 @@ namespace SAND {
         {
             fraction_to_boundary = min_fraction_to_boundary;
         }
-
-
 
         double step_size_s_low = 0;
         double step_size_z_low = 0;
@@ -1136,7 +1150,7 @@ namespace SAND {
         return {step_size_s_low, step_size_z_low};
     }
 
-
+///Creates a rhs vector that we can use to look at the magnitude of the KKT conditions.  This is then used for testing the convergence before shrinking barrier size.
 
     template<int dim>
     BlockVector<double>
@@ -1414,7 +1428,7 @@ namespace SAND {
     }
 
 
-
+/// I use an exact l1 merit function in my watchdog algorithm to determine steps.
     template<int dim>
     double
     SANDTopOpt<dim>::calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/) const
@@ -1505,6 +1519,8 @@ namespace SAND {
         return total_merit;
     }
 
+    ///This updates the penalty multiplier in the merit function, and then returns the largest scaled feasible step
+
     template<int dim>
     BlockVector<double>
     SANDTopOpt<dim>::find_max_step(const BlockVector<double> &state,const double barrier_size)
@@ -1559,7 +1575,7 @@ namespace SAND {
             std::cout << "penalty multiplier kept at " << penalty_multiplier << std::endl;
         }
 
-        const auto max_step_sizes= calculate_max_step_size(state,step);
+        const auto max_step_sizes= calculate_max_step_size(state,step,barrier_size);
         const double step_size_s = max_step_sizes.first;
         const double step_size_z = max_step_sizes.second;
         BlockVector<double> max_step(9);
@@ -1577,7 +1593,7 @@ namespace SAND {
         return max_step;
     }
 
-
+    ///Back-stepping algorithm - keeps shrinking step size until it finds a step where the merit is decreased.
 
     template<int dim>
     BlockVector<double>
@@ -1600,6 +1616,9 @@ namespace SAND {
 
     }
 
+
+
+    ///Checks to see if the KKT conditions are sufficiently met to lower barrier size.
     template<int dim>
     bool
     SANDTopOpt<dim>::check_convergence(const BlockVector<double> &state,  const double barrier_size)
@@ -1618,8 +1637,7 @@ namespace SAND {
     }
 
 
-
-
+    ///Outputs information in a VTK file
     template<int dim>
     void
     SANDTopOpt<dim>::output(const unsigned int j) const {
@@ -1665,6 +1683,7 @@ namespace SAND {
         data_out.write_vtk(output);
     }
 
+    ///Contains watchdog algorithm
     template<int dim>
     void
     SANDTopOpt<dim>::run() {
@@ -1674,25 +1693,7 @@ namespace SAND {
         setup_block_system();
         setup_boundary_values();
         setup_filter_matrix();
-        
-//        for (unsigned int loop = 0; loop < 100; loop++) {
-//            assemble_block_system(barrier_size);
-//            solve();
-//            std::cout << "actual error:   "  << calculate_rhs_error(system_rhs) << std::endl;
-//            update_step(calculate_max_step_size(),barrier_size);
-//
-//            const unsigned int output_every_n_steps = 1;
-//            if (loop % output_every_n_steps == 0)
-//            {
-//                output(loop / output_every_n_steps);
-//                std::cout << loop << std::endl;
-//            }
-//            if (calculate_rhs_error(system_rhs) < 1e-8)
-//            {
-//                barrier_size = barrier_size * .2;
-//                std::cout << "barrier size is   " << barrier_size << std::endl;
-//            }
-//        }
+
         const unsigned int max_uphill_steps = 8;
         unsigned int iteration_number = 0;
         const double descent_requirement = .0001;
@@ -1717,7 +1718,7 @@ namespace SAND {
                     //compute step from current state  - function from kktSystem
                     current_step = find_max_step(current_state, barrier_size);
                     // save the first of these as the watchdog step
-                    if(k==0 || calculate_exact_merit(watchdog_state,barrier_size,1) > calculate_exact_merit(current_state,barrier_size,1))
+                    if(k==0)
                     {
                         watchdog_step = current_step;
                     }
