@@ -260,7 +260,7 @@ namespace SAND {
             GridGenerator::merge_triangulations(triangulation_temp,
                                                 triangulation, triangulation);
         }
-        triangulation.refine_global(6);
+        triangulation.refine_global(4);
 
         /*Set BCIDs   */
         for (const auto &cell : triangulation.active_cell_iterators()) {
@@ -387,67 +387,103 @@ namespace SAND {
 
         dsp.collect_sizes();
 
-//        Table<2, DoFTools::Coupling> coupling(2 * dim + 7, 2 * dim + 7);
+        Table<2, DoFTools::Coupling> coupling(2 * dim + 7, 2 * dim + 7);
+
+        coupling[0][0] = DoFTools::always;
+
+        for (unsigned int i = 0; i < dim; i++) {
+            coupling[0][1 + i] = DoFTools::always;
+            coupling[1 + i][0] = DoFTools::always;
+        }
+
+        coupling[0][1 + dim] = DoFTools::none;
+        coupling[1 + dim][0] = DoFTools::none;
+
+        for (unsigned int i = 0; i < dim; i++) {
+            coupling[0][2 + dim + i] = DoFTools::always;
+            coupling[2 + dim + i][0] = DoFTools::always;
+        }
+
+        coupling[0][2 + 2 * dim] = DoFTools::always;
+        coupling[2 + 2 * dim][0] = DoFTools::always;
+
+
+        coupling[0][2 + 2 * dim + 1] = DoFTools::none;
+        coupling[0][2 + 2 * dim + 2] = DoFTools::none;
+        coupling[0][2 + 2 * dim + 3] = DoFTools::none;
+        coupling[0][2 + 2 * dim + 4] = DoFTools::none;
+        coupling[2 + 2 * dim + 1][0] = DoFTools::none;
+        coupling[2 + 2 * dim + 2][0] = DoFTools::none;
+        coupling[2 + 2 * dim + 3][0] = DoFTools::none;
+        coupling[2 + 2 * dim + 4][0] = DoFTools::none;
+
+
+
+
+//Coupling for displacement
+
+        for (unsigned int i = 0; i < dim; i++) {
+            for (unsigned int k = 0; k < dim; k++) {
+                coupling[1 + i][1 + k] = DoFTools::none;
+            }
+            coupling[1 + i][1 + dim ] = DoFTools::none;
+            coupling[1 + dim ][1 + i] = DoFTools::none;
+
+            for (unsigned int k = 0; k < dim; k++) {
+                coupling[1 + i][2 + dim + k] = DoFTools::always;
+                coupling[2 + dim + k][1 + i] = DoFTools::always;
+            }
+            for (unsigned int k = 0; k < 5; k++) {
+                coupling[1 + i][2 + 2 * dim + k] = DoFTools::none;
+                coupling[2 + 2 * dim + k][1 + i] = DoFTools::none;
+            }
+        }
+
+// coupling for unfiltered density
+        coupling[1+dim][1+dim]= DoFTools::none;
+        for (unsigned int i = 0; i < dim; i++) {
+            coupling[1 + dim][2 + dim + i] = DoFTools::none;
+            coupling[2 + dim + i][1 + dim] = DoFTools::none;
+        }
+
+        coupling[1 + dim][3 + 2 * dim] = DoFTools::none;
+        coupling[3 + 2 * dim][1 + dim] = DoFTools::none;
+        coupling[1 + dim][4 + 2 * dim] = DoFTools::none;
+        coupling[4 + 2 * dim][1 + dim] = DoFTools::none;
+        coupling[1 + dim][5 + 2 * dim] = DoFTools::always;
+        coupling[5 + 2 * dim][1 + dim] = DoFTools::always;
+        coupling[1 + dim][6 + 2 * dim] = DoFTools::always;
+        coupling[6 + 2 * dim][1 + dim] = DoFTools::always;
+
+//Coupling for equality multipliers
+        for (unsigned int i = 0; i < dim + 1; i++) {
+            for (unsigned int k = 0; k < dim + 5; k++) {
+                coupling[2 + dim + i][2 + dim + k] = DoFTools::none;
+                coupling[2 + dim + k][2 + dim + i] = DoFTools::none;
+            }
+        }
+
+//        Coupling for lower slack
+        coupling[3 + 2 * dim][3 + 2 * dim] = DoFTools::always;
+        coupling[3 + 2 * dim][4 + 2 * dim] = DoFTools::none;
+        coupling[4 + 2 * dim][3 + 2 * dim] = DoFTools::none;
+        coupling[3 + 2 * dim][5 + 2 * dim] = DoFTools::always;
+        coupling[5 + 2 * dim][3 + 2 * dim] = DoFTools::always;
+        coupling[3 + 2 * dim][6 + 2 * dim] = DoFTools::none;
+        coupling[6 + 2 * dim][3 + 2 * dim] = DoFTools::none;
+
 //
-//        coupling[0][0] = DoFTools::always;
+        coupling[4 + 2 * dim][4 + 2 * dim] = DoFTools::always;
+        coupling[4 + 2 * dim][5 + 2 * dim] = DoFTools::none;
+        coupling[5 + 2 * dim][4 + 2 * dim] = DoFTools::none;
+        coupling[4 + 2 * dim][6 + 2 * dim] = DoFTools::always;
+        coupling[6 + 2 * dim][4 + 2 * dim] = DoFTools::always;
+
 //
-//        for (unsigned int i = 0; i < dim; i++) {
-//            coupling[0][1 + i] = DoFTools::always;
-//            coupling[1 + i][0] = DoFTools::always;
-//        }
-//
-//        coupling[0][1 + dim] = DoFTools::none;
-//        coupling[1 + dim][0] = DoFTools::none;
-//
-//        for (unsigned int i = 0; i < dim; i++) {
-//            coupling[0][2 + dim + i] = DoFTools::always;
-//            coupling[2 + dim + i][0] = DoFTools::always;
-//        }
-//
-//        coupling[0][2 + 2 * dim] = DoFTools::none;
-//        coupling[0][2 + 2 * dim + 1] = DoFTools::none;
-//        coupling[0][2 + 2 * dim + 2] = DoFTools::none;
-//        coupling[0][2 + 2 * dim + 3] = DoFTools::none;
-//        coupling[0][2 + 2 * dim + 4] = DoFTools::none;
-//        coupling[2 + 2 * dim][0] = DoFTools::none;
-//        coupling[2 + 2 * dim + 1][0] = DoFTools::none;
-//        coupling[2 + 2 * dim + 2][0] = DoFTools::none;
-//        coupling[2 + 2 * dim + 3][0] = DoFTools::none;
-//        coupling[2 + 2 * dim + 4][0] = DoFTools::none;
-//
-//        for (unsigned int i = 0; i < dim; i++) {
-//            for (unsigned int k = 0; k < dim; k++) {
-//                coupling[1 + i][1 + k] = DoFTools::none;
-//            }
-//            coupling[1 + i][1 + dim ] = DoFTools::none;
-//            coupling[1 + dim ][1 + i] = DoFTools::none;
-//
-//            for (unsigned int k = 0; k < dim; k++) {
-//                coupling[1 + i][2 + dim + k] = DoFTools::always;
-//                coupling[2 + dim + k][1 + i] = DoFTools::always;
-//            }
-//            for (unsigned int k = 0; k < 5; k++) {
-//                coupling[1 + i][2 + 2 * dim + k] = DoFTools::none;
-//                coupling[2 + 2 * dim + k][1 + i] = DoFTools::none;
-//            }
-//        }
-//
-//        coupling[1+dim][1+dim]= DoFTools::none;
-//        for (unsigned int k = 0; k < dim; k++) {
-//            coupling[1 + dim][2 + dim + k] = DoFTools::none;
-//            coupling[2 + dim + k][1 + dim] = DoFTools::none;
-//        }
-//        for (unsigned int k = 1; k < 5; k++) {
-//            coupling[1 + dim][2 + 2 * dim + k] = DoFTools::none;
-//            coupling[2 + 2 * dim + k][1 + dim] = DoFTools::none;
-//        }
-//
-//        for (unsigned int i = 0; i < dim+5; i++) {
-//            for (unsigned int k = 0; k < dim + 5; k++) {
-//                coupling[2 + dim + i][2 + dim + k] = DoFTools::none;
-//                coupling[2 + dim + k][2 + dim + i] = DoFTools::none;
-//            }
-//        }
+        coupling[5 + 2 * dim][5 + 2 * dim] = DoFTools::none;
+        coupling[5 + 2 * dim][6 + 2 * dim] = DoFTools::none;
+        coupling[6 + 2 * dim][5 + 2 * dim] = DoFTools::none;
+        coupling[6 + 2 * dim][6 + 2 * dim] = DoFTools::none;
 
         constraints.clear();
 
@@ -455,15 +491,6 @@ namespace SAND {
 
         const IndexSet density_dofs = DoFTools::extract_dofs(dof_handler,
                                                        density_mask);
-
-//      const unsigned int first_density_dof = *density_dofs.begin ();
-//      constraints.add_line (first_density_dof);
-//      for (unsigned int i = 1;
-//          i < density_dofs.n_elements (); ++i)
-//        {
-//          constraints.add_entry (first_density_dof,
-//              density_dofs.nth_index_in_set (i), -1);
-//        }
 
 
         const unsigned int last_density_dof = density_dofs.nth_index_in_set(density_dofs.n_elements() - 1);
@@ -475,31 +502,22 @@ namespace SAND {
         }
 
 
-//      constraints.set_inhomogeneity (first_density_dof, 0);
-//
-//        VectorTools::interpolate_boundary_values(dof_handler,
-//                                                 0,
-//                                                 ZeroFunction<dim>(2*dim+5),
-//                                                 constraints,
-//                                                 fe.component_mask(displacements));
-//        VectorTools::interpolate_boundary_values(dof_handler,
-//                                                 0,
-//                                                 ZeroFunction<dim>(2*dim+5),
-//                                                 constraints,
-//                                                 fe.component_mask(displacement_multipliers));
+      constraints.set_inhomogeneity (last_density_dof, 0);
+
         constraints.close();
 
 //      DoFTools::make_sparsity_pattern (dof_handler, coupling, dsp, constraints,
 //          false);
 //changed it to below - works now?
 
+        DoFTools::make_sparsity_pattern(dof_handler, coupling,dsp);
 
         std::set<unsigned int> neighbor_ids;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check_temp;
         unsigned int n_neighbors, i;
         double distance;
-        DoFTools::make_sparsity_pattern(dof_handler, dsp);
+
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             i = cell->active_cell_index();
             neighbor_ids.clear();
@@ -893,6 +911,7 @@ namespace SAND {
                         //Equation 7 - complementary slackness
                         cell_matrix(i, j) += fe_values.JxW(q_point)
                                              * (lower_slack_phi_i * lower_slack_multiplier_phi_j
+
                                                 + lower_slack_phi_i * lower_slack_phi_j *
                                                   old_lower_slack_multiplier_values[q_point] /
                                                   old_lower_slack_values[q_point]);
