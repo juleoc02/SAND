@@ -510,7 +510,7 @@ namespace SAND {
 //          false);
 //changed it to below - works now?
 
-        DoFTools::make_sparsity_pattern(dof_handler, coupling,dsp);
+        DoFTools::make_sparsity_pattern(dof_handler, coupling,dsp, constraints);
 
         std::set<unsigned int> neighbor_ids;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
@@ -555,7 +555,7 @@ namespace SAND {
                 dsp.block(4, 2).add(i, j);
             }
         }
-        constraints.condense(dsp);
+//        constraints.condense(dsp);
         sparsity_pattern.copy_from(dsp);
 
 //        This also breaks everything
@@ -1523,16 +1523,6 @@ namespace SAND {
         const std::vector<unsigned int> decision_variable_locations = {0, 1, 2};
 
         const std::vector<unsigned int> equality_constraint_locations = {3, 4, 6, 8};
-        for(unsigned int i = 0; i<3; i++)
-        {
-            std::cout << "decision variable locations:   " << decision_variable_locations[i] << std::endl;
-        }
-        for(unsigned int i = 0; i<4; i++)
-        {
-            std::cout << "equality constraint locations:   " << equality_constraint_locations[i] << std::endl;
-        }
-
-        std::cout << "test 0" << std::endl;
 
         for(unsigned int i = 0; i<3; i++)
         {
@@ -1546,14 +1536,10 @@ namespace SAND {
             grad_part = grad_part - system_rhs.block(decision_variable_locations[i])*step.block(decision_variable_locations[i]);
         }
 
-        std::cout << "test 1" << std::endl;
         for(unsigned int i = 0; i<4; i++)
         {
-            std::cout << "value " << i << " = " << decision_variable_locations[i] << std::endl;
             constraint_norm =   constraint_norm + system_rhs.block(equality_constraint_locations[i]).linfty_norm();
         }
-
-        std::cout << "test 2" << std::endl;
 
         if (hess_part > 0)
         {
@@ -1563,7 +1549,6 @@ namespace SAND {
         {
             test_penalty_multiplier = (grad_part)/(.05 * constraint_norm);
         }
-        std::cout << "test 3" << std::endl;
         if (test_penalty_multiplier > penalty_multiplier)
         {
             penalty_multiplier = test_penalty_multiplier;
