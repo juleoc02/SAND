@@ -1530,7 +1530,7 @@ namespace SAND {
         std::cout << "test 1" << std::endl;
         for(unsigned int i = 0; i<4; i++)
         {
-            std::cout << "value " << i << " = " << decision_variable_locations[i] << end;
+            std::cout << "value " << i << " = " << decision_variable_locations[i] << std::endl;
             constraint_norm =   constraint_norm + system_rhs.block(decision_variable_locations[i]).linfty_norm();
         }
 
