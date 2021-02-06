@@ -1531,7 +1531,7 @@ namespace SAND {
         for(unsigned int i = 0; i<4; i++)
         {
             std::cout << "value " << i << " = " << decision_variable_locations[i] << std::endl;
-            constraint_norm =   constraint_norm + system_rhs.block(decision_variable_locations[i]).linfty_norm();
+            constraint_norm =   constraint_norm + system_rhs.block(equality_constraint_locations[i]).linfty_norm();
         }
 
         std::cout << "test 2" << std::endl;
