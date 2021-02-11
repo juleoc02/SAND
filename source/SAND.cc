@@ -1,6 +1,7 @@
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/tensor.h>
+#include <deal.II/base/timer.h>
 
 #include <deal.II/lac/block_vector.h>
 #include <deal.II/lac/full_matrix.h>
@@ -75,7 +76,7 @@ namespace SAND {
         setup_filter_matrix();
 
         double
-        calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter) const;
+        calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter);
 
         BlockVector<double>
         calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size, const double penalty_parameter) const;
@@ -88,6 +89,9 @@ namespace SAND {
 
         bool
         check_convergence(const BlockVector<double> &state,const double barrier_size);
+
+        void
+        save_as_stl();
 
 
         BlockSparsityPattern sparsity_pattern;
@@ -109,6 +113,12 @@ namespace SAND {
 
 
         std::map<types::global_dof_index, double> boundary_values;
+
+        Timer solve_timer;
+        Timer merit_function_timer;
+        Timer assemble_timer;
+        Timer setup_timer;
+        Timer big_timer;
 
     };
 
@@ -241,7 +251,8 @@ namespace SAND {
         std::cout << "filled in filter matrix" << std::endl;
     }
 
-    ///This triangulation matches the problem description in the introduction
+    ///This triangulation matches the problem description in the introduction -
+    /// a 6-by-1 rectangle where a force will be applied in the top center.
 
     template<int dim>
     void
@@ -265,7 +276,7 @@ namespace SAND {
             GridGenerator::merge_triangulations(triangulation_temp,
                                                 triangulation, triangulation);
         }
-        triangulation.refine_global(4);
+        triangulation.refine_global(5);
 
         /*Set BCIDs   */
         for (const auto &cell : triangulation.active_cell_iterators()) {
@@ -366,7 +377,8 @@ namespace SAND {
 
 
     ///This makes a giant 9-by-9 block matrix, and also sets up the necessary block vectors.  The
-    /// sparsity pattern for this matrix includes the sparsity pattern for the filter matrix.
+    /// sparsity pattern for this matrix includes the sparsity pattern for the filter matrix. It also initializes
+    /// any block vectors we will use.
     template<int dim>
     void
     SANDTopOpt<dim>::setup_block_system() {
@@ -614,6 +626,7 @@ namespace SAND {
     template<int dim>
     void
     SANDTopOpt<dim>::assemble_block_system(double barrier_size) {
+        assemble_timer.start();
         const FEValuesExtractors::Scalar densities(0);
         const FEValuesExtractors::Vector displacements(1);
         const FEValuesExtractors::Scalar unfiltered_densities(1 + dim);
@@ -1069,25 +1082,26 @@ namespace SAND {
                 system_matrix.block(2, 4).add(j, i, value);
             }
         }
+        assemble_timer.stop();
     }
 
-    ///A direct solver, for now.
+    ///A direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
     template<int dim>
     void
     SANDTopOpt<dim>::solve() {
         //This broke everything. Unsure why.
 //      constraints.condense(system_matrix);
 //      constraints.condense(system_rhs);
-
+        solve_timer.start();
         SparseDirectUMFPACK A_direct;
         A_direct.initialize(system_matrix);
         A_direct.vmult(linear_solution, system_rhs);
 
         constraints.distribute(linear_solution);
-
+        solve_timer.stop();
     }
 
-    ///This figures out the maximum step that meets the dual feasibility - that s>0 and z>0.
+    ///A binary search figures out the maximum step that meets the dual feasibility - that s>0 and z>0. The fraction to boundary increases as the barrier size decreases.
 
     template<int dim>
     std::pair<double,double>
@@ -1150,7 +1164,7 @@ namespace SAND {
         return {step_size_s_low, step_size_z_low};
     }
 
-///Creates a rhs vector that we can use to look at the magnitude of the KKT conditions.  This is then used for testing the convergence before shrinking barrier size.
+///Creates a rhs vector that we can use to look at the magnitude of the KKT conditions.  This is then used for testing the convergence before shrinking barrier size, as well as in the calculation of the l1 merit.
 
     template<int dim>
     BlockVector<double>
@@ -1428,11 +1442,12 @@ namespace SAND {
     }
 
 
-/// I use an exact l1 merit function in my watchdog algorithm to determine steps.
+/// I use an exact l1 merit function in my watchdog algorithm to determine steps. This calculates the exact l1 merit
     template<int dim>
     double
-    SANDTopOpt<dim>::calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/) const
+    SANDTopOpt<dim>::calculate_exact_merit(const BlockVector<double> &test_solution, const double barrier_size, const double /*penalty_parameter*/)
     {
+        merit_function_timer.start();
        //const double fraction_to_boundary = .995;
 
        double objective_function_merit = 0;
@@ -1516,6 +1531,9 @@ namespace SAND {
         double total_merit;
 
         total_merit = objective_function_merit + elasticity_constraint_merit + filter_constraint_merit + lower_slack_merit + upper_slack_merit;
+
+        merit_function_timer.stop();
+
         return total_merit;
     }
 
@@ -1593,7 +1611,7 @@ namespace SAND {
         return max_step;
     }
 
-    ///Back-stepping algorithm - keeps shrinking step size until it finds a step where the merit is decreased.
+    ///This is my back-stepping algorithm for a line search - keeps shrinking step size until it finds a step where the merit is decreased.
 
     template<int dim>
     BlockVector<double>
@@ -1683,10 +1701,179 @@ namespace SAND {
         data_out.write_vtk(output);
     }
 
+
+    ///This outputs an .stl file for 3d printing the result! .stl files  made up of normal vectors and triangles.
+    /// The triangle nodes must go counter-clockwise when looking from the outside, which requires a few checks.
+    template<int dim>
+    void
+    SANDTopOpt<dim>::save_as_stl()
+    {
+    std::ofstream stlfile;
+    stlfile.open ("bridge.stl");
+    stlfile << "solid bridge\n" << std::scientific;
+    double height = .25;
+         for (const auto cell : dof_handler.active_cell_iterators())
+         {
+
+             if (nonlinear_solution.block(0)[cell->active_cell_index()]>0.5)
+             {
+                 if ((cell->vertex(1)[0]-cell->vertex(0)[0])*(cell->vertex(2)[1]-cell->vertex(0)[1]) - (cell->vertex(2)[0]-cell->vertex(0)[0])*(cell->vertex(1)[1]-cell->vertex(0)[1]) >0)
+                 {
+                     //Write one side at z = 0
+
+                     stlfile << "   facet normal " <<0.000000e+00 <<" " << 0.000000e+00 << " " << -1.000000e+00 << "\n";
+                     stlfile << "      outer loop\n";
+                     stlfile << "         vertex " << cell->vertex(0)[0] << " " << cell->vertex(0)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "         vertex " << cell->vertex(2)[0] << " " << cell->vertex(2)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "         vertex " << cell->vertex(1)[0] << " " << cell->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "      endloop\n";
+                     stlfile << "   endfacet\n";
+                     stlfile << "   facet normal " <<0.000000e+00 <<" " << 0.000000e+00 << " " << -1.000000e+00 << "\n";
+                     stlfile << "      outer loop\n";
+                     stlfile << "         vertex " << cell->vertex(1)[0] << " " << cell->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "         vertex " << cell->vertex(2)[0] << " " << cell->vertex(2)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "         vertex " << cell->vertex(3)[0] << " " << cell->vertex(3)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "      endloop\n";
+                     stlfile << "   endfacet\n";
+
+
+
+                     //Write one side at z = height
+
+                     stlfile << "   facet normal " <<0.000000e+00 <<" " << 0.000000e+00 << " " << 1.000000e+00 << "\n";
+                     stlfile << "      outer loop\n";
+                     stlfile << "         vertex " << cell->vertex(0)[0] << " " << cell->vertex(0)[1] << " " << height << "\n";
+                     stlfile << "         vertex " << cell->vertex(1)[0] << " " << cell->vertex(1)[1] << " " << height << "\n";
+                     stlfile << "         vertex " << cell->vertex(2)[0] << " " << cell->vertex(2)[1] << " " << height << "\n";
+                     stlfile << "      endloop\n";
+                     stlfile << "   endfacet\n";
+                     stlfile << "   facet normal " <<0.000000e+00 <<" " << 0.000000e+00 << " " << 1.000000e+00 << "\n";
+                     stlfile << "      outer loop\n";
+                     stlfile << "         vertex " << cell->vertex(1)[0] << " " << cell->vertex(1)[1] << " " << height << "\n";
+                     stlfile << "         vertex " << cell->vertex(3)[0] << " " << cell->vertex(3)[1] << " " << height << "\n";
+                     stlfile << "         vertex " << cell->vertex(2)[0] << " " << cell->vertex(2)[1] << " " << height << "\n";
+                     stlfile << "      endloop\n";
+                     stlfile << "   endfacet\n";
+                 }
+                 else
+                 {
+                     //Write one side at z = 0
+
+                     stlfile << "   facet normal " <<0.000000e+00 <<" " << 0.000000e+00 << " " << -1.000000e+00 << "\n";
+                     stlfile << "      outer loop\n";
+                     stlfile << "         vertex " << cell->vertex(0)[0] << " " << cell->vertex(0)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "         vertex " << cell->vertex(1)[0] << " " << cell->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "         vertex " << cell->vertex(2)[0] << " " << cell->vertex(2)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "      endloop\n";
+                     stlfile << "   endfacet\n";
+                     stlfile << "   facet normal " <<0.000000e+00 <<" " << 0.000000e+00 << " " << -1.000000e+00 << "\n";
+                     stlfile << "      outer loop\n";
+                     stlfile << "         vertex " << cell->vertex(1)[0] << " " << cell->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "         vertex " << cell->vertex(3)[0] << " " << cell->vertex(3)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "         vertex " << cell->vertex(2)[0] << " " << cell->vertex(2)[1] << " " << 0.000000e+00 << "\n";
+                     stlfile << "      endloop\n";
+                     stlfile << "   endfacet\n";
+
+
+
+                     //Write one side at z = height
+
+                     stlfile << "   facet normal " <<0.000000e+00 <<" " << 0.000000e+00 << " " << 1.000000e+00 << "\n";
+                     stlfile << "      outer loop\n";
+                     stlfile << "         vertex " << cell->vertex(0)[0] << " " << cell->vertex(0)[1] << " " << height << "\n";
+                     stlfile << "         vertex " << cell->vertex(2)[0] << " " << cell->vertex(2)[1] << " " << height << "\n";
+                     stlfile << "         vertex " << cell->vertex(1)[0] << " " << cell->vertex(1)[1] << " " << height << "\n";
+                     stlfile << "      endloop\n";
+                     stlfile << "   endfacet\n";
+                     stlfile << "   facet normal " <<0.000000e+00 <<" " << 0.000000e+00 << " " << 1.000000e+00 << "\n";
+                     stlfile << "      outer loop\n";
+                     stlfile << "         vertex " << cell->vertex(1)[0] << " " << cell->vertex(1)[1] << " " << height << "\n";
+                     stlfile << "         vertex " << cell->vertex(2)[0] << " " << cell->vertex(2)[1] << " " << height << "\n";
+                     stlfile << "         vertex " << cell->vertex(3)[0] << " " << cell->vertex(3)[1] << " " << height << "\n";
+                     stlfile << "      endloop\n";
+                     stlfile << "   endfacet\n";
+                 }
+
+
+
+                     for (unsigned int face_number = 0;
+                          face_number < GeometryInfo<dim>::faces_per_cell;
+                          ++face_number)
+                     {
+                         if ((cell->face(face_number)->at_boundary())
+                             ||
+                             (!cell->face(face_number)->at_boundary()
+                              &&
+                              (nonlinear_solution.block(0)[cell->neighbor(face_number)->active_cell_index()]<0.5)))
+                         {
+                             const Tensor<1,dim> normal_vector
+                                     = (cell->face(face_number)->center() - cell->center()); // maybe something better
+                             double normal_norm = std::pow(normal_vector[0]*normal_vector[0] + normal_vector[1]*normal_vector[1],.5);
+
+                             // also need to normalize
+
+                             //                 write face into STL as two triangles, using normal_vector;
+                             if ((cell->face(face_number)->vertex(0)[0] - cell->face(face_number)->vertex(0)[0])  *  (cell->face(face_number)->vertex(1)[1] - cell->face(face_number)->vertex(0)[1])  *  0.000000e+00
+                                +(cell->face(face_number)->vertex(0)[1] - cell->face(face_number)->vertex(0)[1])  *  (0 - 0)                                                                                *  normal_vector[0]
+                                +(height - 0)                                                                          *  (cell->face(face_number)->vertex(1)[0] - cell->face(face_number)->vertex(0)[0])        *  normal_vector[1]
+                                -(cell->face(face_number)->vertex(0)[0] - cell->face(face_number)->vertex(0)[0])  *  (0 - 0)                                                                                *  normal_vector[1]
+                                -(cell->face(face_number)->vertex(0)[1] - cell->face(face_number)->vertex(0)[1])  *  (cell->face(face_number)->vertex(1)[0] - cell->face(face_number)->vertex(0)[0]) *  normal_vector[0]
+                                -(height - 0)                                                                     *  (cell->face(face_number)->vertex(1)[1] - cell->face(face_number)->vertex(0)[1])        *  0 >0)
+                             {
+                                 stlfile << "   facet normal " <<normal_vector[0]/normal_norm <<" " << normal_vector[1]/normal_norm << " " << 0.000000e+00 << "\n";
+                                 stlfile << "      outer loop\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(0)[0] << " " << cell->face(face_number)->vertex(0)[1] << " " << 0.000000e+00 << "\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(0)[0] << " " << cell->face(face_number)->vertex(0)[1] << " " << height << "\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(1)[0] << " " << cell->face(face_number)->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                                 stlfile << "      endloop\n";
+                                 stlfile << "   endfacet\n";
+                                 stlfile << "   facet normal " <<normal_vector[0]/normal_norm <<" " << normal_vector[1]/normal_norm << " " << 0.000000e+00 << "\n";
+                                 stlfile << "      outer loop\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(0)[0] << " " << cell->face(face_number)->vertex(0)[1] << " " << height << "\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(1)[0] << " " << cell->face(face_number)->vertex(1)[1] << " " << height << "\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(1)[0] << " " << cell->face(face_number)->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                                 stlfile << "      endloop\n";
+                                 stlfile << "   endfacet\n";
+                             }
+                             else
+                             {
+                                 stlfile << "   facet normal " <<normal_vector[0]/normal_norm <<" " << normal_vector[1]/normal_norm << " " << 0.000000e+00 << "\n";
+                                 stlfile << "      outer loop\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(0)[0] << " " << cell->face(face_number)->vertex(0)[1] << " " << 0.000000e+00 << "\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(1)[0] << " " << cell->face(face_number)->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(0)[0] << " " << cell->face(face_number)->vertex(0)[1] << " " << height << "\n";
+                                 stlfile << "      endloop\n";
+                                 stlfile << "   endfacet\n";
+                                 stlfile << "   facet normal " <<normal_vector[0]/normal_norm <<" " << normal_vector[1]/normal_norm << " " << 0.000000e+00 << "\n";
+                                 stlfile << "      outer loop\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(0)[0] << " " << cell->face(face_number)->vertex(0)[1] << " " << height << "\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(1)[0] << " " << cell->face(face_number)->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                                 stlfile << "         vertex " << cell->face(face_number)->vertex(1)[0] << " " << cell->face(face_number)->vertex(1)[1] << " " << height << "\n";
+                                 stlfile << "      endloop\n";
+                                 stlfile << "   endfacet\n";
+
+                             }
+
+
+
+
+
+                     }
+                 }
+             }
+         }
+        stlfile << "endsolid bridge";
+        stlfile.close();
+    }
+
+
     ///Contains watchdog algorithm
     template<int dim>
     void
     SANDTopOpt<dim>::run() {
+
+        big_timer.start();
+        setup_timer.start();
         double barrier_size = 25;
         const double min_barrier_size = .0005;
         create_triangulation();
@@ -1700,6 +1887,8 @@ namespace SAND {
         //while barrier value above minimal value and total iterations under some value
         BlockVector<double> current_state = nonlinear_solution;
         BlockVector<double> current_step;
+        setup_timer.stop();
+
         while((barrier_size > .0005 || !check_convergence(current_state, barrier_size)) && iteration_number < 10000)
         {
             bool converged = false;
@@ -1821,6 +2010,17 @@ namespace SAND {
 //            penalty_multiplier = 1;
             //end while
         }
+
+        save_as_stl();
+        big_timer.stop();
+        std::cout << "overall time:  " << big_timer.cpu_time() << std::endl;
+        std::cout << "setup time:  " << setup_timer.cpu_time() << std::endl;
+        std::cout << "solve time:  " << solve_timer.cpu_time() << std::endl;
+        std::cout << "assemble time:  " << assemble_timer.cpu_time() << std::endl;
+        std::cout << "merit finding time:  " << merit_function_timer.cpu_time() << std::endl;
+
+
+
 
     }
 
