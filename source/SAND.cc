@@ -19,6 +19,8 @@ namespace SAND {
     template<int dim>
     class SANDTopOpt {
     public:
+        SANDTopOpt<dim>();
+
         void
         run();
 
@@ -46,11 +48,17 @@ namespace SAND {
         MarkovFilter markov_filter;
 
         double barrier_size;
+        const double min_barrier_size;
 
     };
 
 
+template <int dim>
+SANDTopOpt<dim>::SANDTopOpt():
+        min_barrier_size (.0005)
+{
 
+}
 
     ///A binary search figures out the maximum step that meets the dual feasibility - that s>0 and z>0. The fraction to boundary increases as the barrier size decreases.
 
@@ -60,7 +68,7 @@ namespace SAND {
 
         double fraction_to_boundary;
         const double min_fraction_to_boundary = .8;
-        const double max_fraction_to_boundary = .99999;
+        const double max_fraction_to_boundary = .995;
 
         if (min_fraction_to_boundary < 1 - barrier_size)
         {
@@ -78,7 +86,6 @@ namespace SAND {
         {
             fraction_to_boundary = min_fraction_to_boundary;
         }
-
         fraction_to_boundary = min_fraction_to_boundary;
 
         double step_size_s_low = 0;
@@ -150,7 +157,7 @@ namespace SAND {
         double step_size = 1;
             for(unsigned int k = 0; k<10; k++)
             {
-                if(markov_filter.check_filter(kkt_system.calculate_objective_value(state), kkt_system.calculate_barrier_distance(state), kkt_system.calculate_feasibility(state,barrier_size)))
+                if(markov_filter.check_filter(kkt_system.calculate_objective_value(state, barrier_size), kkt_system.calculate_barrier_distance(state), kkt_system.calculate_feasibility(state,barrier_size)))
                 {
                     break;
                 }
@@ -170,7 +177,7 @@ namespace SAND {
     bool
     SANDTopOpt<dim>::check_convergence(const BlockVector<double> &state) const
     {
-              if (kkt_system.calculate_rhs_norm(state,barrier_size) < 1e-2 * barrier_size)
+              if (kkt_system.calculate_convergence(state,barrier_size) < 1e-2 * min_barrier_size)
               {
                   return true;
               }
@@ -190,7 +197,6 @@ namespace SAND {
     SANDTopOpt<dim>::run() {
 
         barrier_size = 25;
-        const double min_barrier_size = .0005;
         kkt_system.create_triangulation();
 
         kkt_system.setup_boundary_values();
@@ -203,7 +209,7 @@ namespace SAND {
         //while barrier value above minimal value and total iterations under some value
         BlockVector<double> current_state = kkt_system.get_initial_state();
         BlockVector<double> current_step;
-        markov_filter.setup(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
+        markov_filter.setup(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
 
         while((barrier_size > min_barrier_size || !check_convergence(current_state)) && iteration_number < 10000)
         {
@@ -231,7 +237,7 @@ namespace SAND {
 
 
                     //if new state passes filter
-                    if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
+                    if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
                     {
                         //Accept current state
                         // iterate number of steps by number of steps taken in this process
@@ -240,7 +246,7 @@ namespace SAND {
                         found_step = true;
                         std::cout << "found workable step after " << k+1 << " iterations"<<std::endl;
                         //break for loop
-                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
                         break;
                         //end if
                     }
@@ -255,24 +261,24 @@ namespace SAND {
                     //update stretch state with found step length
                     const BlockVector<double> stretch_state = take_scaled_step(current_state, current_step);
                     //if current merit is less than watchdog merit, or if stretch merit is less than earlier goal merit
-                    if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
+                    if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
                     {
                         std::cout << "in then" << std::endl;
                         current_state = stretch_state;
                         iteration_number = iteration_number + max_uphill_steps + 1;
-                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
                     }
                     else
                     {
                         std::cout << "in else" << std::endl;
                         //if merit of stretch state is bigger than watchdog merit
-                        if (markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
+                        if (markov_filter.check_filter(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
                         {
                             //find step length from watchdog state that meets descent requirement
                             current_state = take_scaled_step(watchdog_state, watchdog_step);
                             //update iteration count
                             iteration_number = iteration_number +  max_uphill_steps + 1;
-                            markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                            markov_filter.add_point(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
 
                         }
                         else
@@ -283,12 +289,14 @@ namespace SAND {
                             current_state = take_scaled_step(stretch_state, stretch_step);
                             //update iteration count
                             iteration_number = iteration_number + max_uphill_steps + 2;
-                            markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                            markov_filter.add_point(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
                         }
                     }
                 }
                 //output current state
                 kkt_system.output(current_state,iteration_number);
+
+                converged = check_convergence(current_state);
 
                 double loqo_min = 1000;
                 double loqo_average;
@@ -323,12 +331,16 @@ namespace SAND {
                 std::cout << "loqo_min" << loqo_min << std::endl;
                 std::cout << "loqo_complimentarity_deviation" << loqo_complimentarity_deviation << std::endl;
                 barrier_size = loqo_multiplier * loqo_average;
+                if (loqo_average < min_barrier_size)
+                {
+                    barrier_size = min_barrier_size;
+                }
                 markov_filter.update_barrier_value(barrier_size);
                 std::cout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
 
 
                 //check convergence
-                converged = check_convergence(current_state);
+
                 //end while
             }
 //            const double barrier_size_multiplier = .5;

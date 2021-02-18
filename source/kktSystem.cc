@@ -981,9 +981,9 @@ KktSystem<dim>::KktSystem()
 
     template<int dim>
     double
-    KktSystem<dim>::calculate_objective_value(const BlockVector<double> &state) const
+    KktSystem<dim>::calculate_objective_value(const BlockVector<double> &state, const double barrier_size) const
     {
-
+        const unsigned int dofs_per_cell = fe.dofs_per_cell;
         double objective_value;
         objective_value = 0;
         QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
@@ -991,12 +991,11 @@ KktSystem<dim>::KktSystem()
              update_values | update_quadrature_points | update_normal_vectors
              | update_JxW_values);
         const FEValuesExtractors::Vector displacements(1);
-        const unsigned int dofs_per_cell = fe.dofs_per_cell;
+        const unsigned int n_face_q_points = face_quadrature_formula.size();
+        std::vector<Tensor<1, dim>> old_displacement_values(n_face_q_points);
         Tensor<1, dim> traction;
         traction[1] = -1;
 
-        const unsigned int n_face_q_points = face_quadrature_formula.size();
-        std::vector<Tensor<1, dim>> old_displacement_values(n_face_q_points);
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             for (unsigned int face_number = 0;
                  face_number < GeometryInfo<dim>::faces_per_cell;
@@ -1011,7 +1010,7 @@ KktSystem<dim>::KktSystem()
                     for (unsigned int face_q_point = 0;
                          face_q_point < n_face_q_points; ++face_q_point) {
                         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                            objective_value += (old_displacement_values[face_q_point] * traction)
+                            objective_value += old_displacement_values[face_q_point] * traction
                                            * fe_face_values.JxW(face_q_point);
                         }
                     }
@@ -1057,10 +1056,10 @@ KktSystem<dim>::KktSystem()
 
 template<int dim>
 double
-KktSystem<dim>::calculate_rhs_norm(const BlockVector<double> &state, const double barrier_size) const
+KktSystem<dim>::calculate_convergence(const BlockVector<double> &state, const double barrier_size) const
 {
     BlockVector<double> test_rhs = calculate_test_rhs(state, barrier_size);
-
+    std::cout << "test_rhs.l2_norm()   " << test_rhs.l2_norm() << std::endl;
     return test_rhs.l2_norm();
 }
 

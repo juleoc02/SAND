@@ -70,7 +70,7 @@ public:
     get_initial_state();
 
     double
-    calculate_objective_value(const BlockVector<double> &state) const;
+    calculate_objective_value(const BlockVector<double> &state, const double barrier_size) const;
 
     double
     calculate_barrier_distance(const BlockVector<double> &state) const;
@@ -79,7 +79,7 @@ public:
     calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const;
 
     double
-    calculate_rhs_norm(const BlockVector<double> &state, const double barrier_size) const;
+    calculate_convergence(const BlockVector<double> &state, const double barrier_size) const;
 
     void
     output(const BlockVector<double> &state, const unsigned int j) const;
