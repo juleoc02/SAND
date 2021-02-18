@@ -70,7 +70,7 @@ public:
     get_initial_state();
 
     double
-    calculate_objective_value(const BlockVector<double> &state, const double barrier_size) const;
+    calculate_objective_value(const BlockVector<double> &state) const;
 
     double
     calculate_barrier_distance(const BlockVector<double> &state) const;

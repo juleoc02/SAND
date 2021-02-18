@@ -981,31 +981,69 @@ KktSystem<dim>::KktSystem()
 
     template<int dim>
     double
-    KktSystem<dim>::calculate_objective_value(const BlockVector<double> &state, const double barrier_size) const
+    KktSystem<dim>::calculate_objective_value(const BlockVector<double> &state) const
     {
-            BlockVector<double> test_rhs = calculate_test_rhs(state, barrier_size);
-            double objective_value;
-            objective_value = test_rhs.block(0)*state.block(0);
-            return objective_value;
+
+        double objective_value;
+        objective_value = 0;
+        QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
+        FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
+             update_values | update_quadrature_points | update_normal_vectors
+             | update_JxW_values);
+        const FEValuesExtractors::Vector displacements(1);
+        const unsigned int dofs_per_cell = fe.dofs_per_cell;
+        Tensor<1, dim> traction;
+        traction[1] = -1;
+
+        const unsigned int n_face_q_points = face_quadrature_formula.size();
+        std::vector<Tensor<1, dim>> old_displacement_values(n_face_q_points);
+        for (const auto &cell : dof_handler.active_cell_iterators()) {
+            for (unsigned int face_number = 0;
+                 face_number < GeometryInfo<dim>::faces_per_cell;
+                 ++face_number) {
+                if (cell->face(face_number)->at_boundary() && cell->face(
+                        face_number)->boundary_id()
+                                                              == 1) {
+                    fe_face_values.reinit(cell, face_number);
+                    fe_face_values[displacements].get_function_values(state,
+                                                                 old_displacement_values);
+
+                    for (unsigned int face_q_point = 0;
+                         face_q_point < n_face_q_points; ++face_q_point) {
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                            objective_value += (old_displacement_values[face_q_point] * traction)
+                                           * fe_face_values.JxW(face_q_point);
+                        }
+                    }
+                }
+            }
+
+        }
+
+        return objective_value;
     }
 
+
+    //As the KKT System know which vectors correspond to the slack variables, the sum of the logs of the slacks is computed here for use in the filter.
     template<int dim>
     double
     KktSystem<dim>::calculate_barrier_distance(const BlockVector<double> &state) const
     {
         double barrier_distance_log_sum = 0;
-        unsigned int vect_size = state.block(2).size();
+        unsigned int vect_size = state.block(5).size();
         for (unsigned int k=0; k < vect_size; k++)
         {
-            barrier_distance_log_sum += std::log(state.block(2)[k]);
+            barrier_distance_log_sum += std::log(state.block(5)[k]);
         }
         for (unsigned int k=0; k < vect_size; k++)
         {
-            barrier_distance_log_sum += std::log(1 - state.block(2)[k]);
+            barrier_distance_log_sum += std::log(1 - state.block(7)[k]);
         }
         return barrier_distance_log_sum;
     }
 
+
+    //Feasibility conditions appear on the RHS of the linear system, so I compute the RHS to find it. Could probably be combined with the objective value finding part to make it faster.
     template<int dim>
     double
     KktSystem<dim>::calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const
