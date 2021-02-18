@@ -79,6 +79,8 @@ namespace SAND {
             fraction_to_boundary = min_fraction_to_boundary;
         }
 
+        fraction_to_boundary = min_fraction_to_boundary;
+
         double step_size_s_low = 0;
         double step_size_z_low = 0;
         double step_size_s_high = 1;
@@ -88,13 +90,10 @@ namespace SAND {
         for (unsigned int k = 0; k < 50; k++) {
             step_size_s = (step_size_s_low + step_size_s_high) / 2;
             step_size_z = (step_size_z_low + step_size_z_high) / 2;
-
             const BlockVector<double> state_test_s =
                     (fraction_to_boundary * state) + (step_size_s * step);
-
             const BlockVector<double> state_test_z =
                     (fraction_to_boundary * state) + (step_size_z * step);
-
             const bool accept_s = (state_test_s.block(5).is_non_negative())
                                   && (state_test_s.block(7).is_non_negative());
             const bool accept_z = (state_test_z.block(6).is_non_negative())
@@ -206,7 +205,7 @@ namespace SAND {
         BlockVector<double> current_step;
         markov_filter.setup(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
 
-        while((barrier_size > .0005 || !check_convergence(current_state)) && iteration_number < 10000)
+        while((barrier_size > min_barrier_size || !check_convergence(current_state)) && iteration_number < 10000)
         {
             bool converged = false;
             //while not converged
@@ -229,6 +228,8 @@ namespace SAND {
                     }
                     //apply full step to current state
                     current_state=current_state+current_step;
+
+
                     //if new state passes filter
                     if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
                     {
@@ -288,40 +289,78 @@ namespace SAND {
                 }
                 //output current state
                 kkt_system.output(current_state,iteration_number);
+
+                double loqo_min = 1000;
+                double loqo_average;
+                unsigned int vect_size = current_state.block(5).size();
+                for(unsigned int k = 0; k < vect_size; k++)
+                {
+                    if (current_state.block(5)[k]*current_state.block(6)[k] < loqo_min)
+                    {
+                        loqo_min = current_state.block(5)[k]*current_state.block(6)[k];
+                    }
+                    if (current_state.block(7)[k]*current_state.block(8)[k] < loqo_min)
+                    {
+                        loqo_min = current_state.block(7)[k]*current_state.block(8)[k];
+                    }
+                }
+                loqo_average = (current_state.block(5)*current_state.block(6) + current_state.block(7)*current_state.block(8))/(2*vect_size);
+
+                double loqo_complimentarity_deviation = loqo_min/loqo_average;
+                double loqo_multiplier;
+                if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
+                {
+                    loqo_multiplier = .1*std::pow((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation),3);
+                    std::cout << "in if" << std::endl;
+                }
+                else
+                {
+                    loqo_multiplier = .8;
+                    std::cout << "in then" << std::endl;
+                }
+                std::cout << "loqo_multiplier" << loqo_multiplier << std::endl;
+                std::cout << "loqo_average" << loqo_average << std::endl;
+                std::cout << "loqo_min" << loqo_min << std::endl;
+                std::cout << "loqo_complimentarity_deviation" << loqo_complimentarity_deviation << std::endl;
+                barrier_size = loqo_multiplier * loqo_average;
+                markov_filter.update_barrier_value(barrier_size);
+                std::cout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
+
+
                 //check convergence
                 converged = check_convergence(current_state);
                 //end while
             }
-            const double barrier_size_multiplier = .5;
-            const double barrier_size_exponent = 1.2;
-
-            if (barrier_size * barrier_size_multiplier < std::pow(barrier_size, barrier_size_exponent))
-            {
-                if (barrier_size * barrier_size_multiplier < min_barrier_size)
-                {
-                    barrier_size = min_barrier_size;
-                }
-                else
-                {
-                    barrier_size = barrier_size * barrier_size_multiplier;
-                }
-            }
-            else
-            {
-                if (std::pow(barrier_size, barrier_size_exponent) < min_barrier_size)
-                {
-                    barrier_size = min_barrier_size;
-                }
-                else
-                {
-                    barrier_size = std::pow(barrier_size, barrier_size_exponent);
-                }
-            }
+//            const double barrier_size_multiplier = .5;
+//            const double barrier_size_exponent = 1.2;
+//
+//            if (barrier_size * barrier_size_multiplier < std::pow(barrier_size, barrier_size_exponent))
+//            {
+//                if (barrier_size * barrier_size_multiplier < min_barrier_size)
+//                {
+//                    barrier_size = min_barrier_size;
+//                }
+//                else
+//                {
+//                    barrier_size = barrier_size * barrier_size_multiplier;
+//                }
+//            }
+//            else
+//            {
+//                if (std::pow(barrier_size, barrier_size_exponent) < min_barrier_size)
+//                {
+//                    barrier_size = min_barrier_size;
+//                }
+//                else
+//                {
+//                    barrier_size = std::pow(barrier_size, barrier_size_exponent);
+//                }
+//            }
 
 
 
 //            barrier_size = barrier_size * barrier_size_multiplier;
-            std::cout << "barrier size reduced to " << barrier_size << " on iteration number " << iteration_number << std::endl;
+//            std::cout << "barrier size reduced to " << barrier_size << " on iteration number " << iteration_number << std::endl;
 //
 //            penalty_multiplier = 1;
             //end while

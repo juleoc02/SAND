@@ -40,8 +40,8 @@ bool
 MarkovFilter::check_filter(const double objective_value_input, const  double barrier_distance_input,
                                        const double feasibility_input) const
 {
-    if ((objective_value_input + barrier_distance_input * barrier_value < filter_barrier_function_value) ||
-        (feasibility_input < feasibility))
+    if ((objective_value_input + barrier_distance_input * barrier_value <= filter_barrier_function_value) ||
+        (feasibility_input <= feasibility))
     {
         return true;
     }
