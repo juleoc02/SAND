@@ -67,8 +67,8 @@ SANDTopOpt<dim>::SANDTopOpt():
     SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
 
         double fraction_to_boundary;
-        const double min_fraction_to_boundary = .8;
-        const double max_fraction_to_boundary = .995;
+        const double min_fraction_to_boundary = .7;
+        const double max_fraction_to_boundary = .8;
 
         if (min_fraction_to_boundary < 1 - barrier_size)
         {
@@ -86,7 +86,6 @@ SANDTopOpt<dim>::SANDTopOpt():
         {
             fraction_to_boundary = min_fraction_to_boundary;
         }
-        fraction_to_boundary = min_fraction_to_boundary;
 
         double step_size_s_low = 0;
         double step_size_z_low = 0;
@@ -263,14 +262,12 @@ SANDTopOpt<dim>::SANDTopOpt():
                     //if current merit is less than watchdog merit, or if stretch merit is less than earlier goal merit
                     if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
                     {
-                        std::cout << "in then" << std::endl;
                         current_state = stretch_state;
                         iteration_number = iteration_number + max_uphill_steps + 1;
                         markov_filter.add_point(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
                     }
                     else
                     {
-                        std::cout << "in else" << std::endl;
                         //if merit of stretch state is bigger than watchdog merit
                         if (markov_filter.check_filter(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
                         {
@@ -319,19 +316,13 @@ SANDTopOpt<dim>::SANDTopOpt():
                 if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
                 {
                     loqo_multiplier = .1*std::pow((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation),3);
-                    std::cout << "in if" << std::endl;
                 }
                 else
                 {
                     loqo_multiplier = .8;
-                    std::cout << "in then" << std::endl;
                 }
-                std::cout << "loqo_multiplier" << loqo_multiplier << std::endl;
-                std::cout << "loqo_average" << loqo_average << std::endl;
-                std::cout << "loqo_min" << loqo_min << std::endl;
-                std::cout << "loqo_complimentarity_deviation" << loqo_complimentarity_deviation << std::endl;
                 barrier_size = loqo_multiplier * loqo_average;
-                if (loqo_average < min_barrier_size)
+                if (barrier_size < min_barrier_size)
                 {
                     barrier_size = min_barrier_size;
                 }
