@@ -12,11 +12,11 @@
 #include <deal.II/lac/block_vector.h>
 #include <deal.II/lac/full_matrix.h>
 #include <deal.II/lac/block_sparse_matrix.h>
-#include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/packaged_operation.h>
 #include <deal.II/lac/sparse_direct.h>
+#include <deal.II/lac/solver_gmres.h>
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
@@ -35,6 +35,8 @@
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
+
+#include "../include/parameters_and_components.h"
 
 #include <iostream>
 #include <algorithm>
@@ -56,7 +58,7 @@ KktSystem<dim>::KktSystem()
            FE_DGQ<dim>(0) ^ 5),
         density_ratio (.5),
         density_penalty_exponent (3),
-        filter_r (.25)
+        filter_r (.2)
 {
 }
 
@@ -204,22 +206,30 @@ KktSystem<dim>::KktSystem()
                     const auto center = cell->face(face_number)->center();
                     if (std::fabs(center(1) - 0) < 1e-12) {
                         /*Boundary ID of 2 is the 0 neumann, so no external force*/
-                        cell->face(face_number)->set_boundary_id(2);
+                        cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
                     }
                     if (std::fabs(center(1) - 1) < 1e-12) {
-                        /*Find top middle*/
-                        if ((std::fabs(center(0) - 3) < .1)) {
-                            /*downward force is boundary id of 1*/
-                            cell->face(face_number)->set_boundary_id(1);
-                        } else {
-                            cell->face(face_number)->set_boundary_id(2);
+                        if (std::fabs(center(0) - 3) < .2)
+                        {
+                            cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
+                        }
+                        else
+                        {
+                            cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
                         }
                     }
                     if (std::fabs(center(0) - 0) < 1e-12) {
-                        cell->face(face_number)->set_boundary_id(2);
+                        cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
                     }
                     if (std::fabs(center(0) - 6) < 1e-12) {
-                        cell->face(face_number)->set_boundary_id(2);
+                        if (std::fabs(center(1) - .5) < .1)
+                        {
+                            cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                        }
+                        else
+                        {
+                            cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                        }
                     }
                 }
             }
@@ -242,49 +252,43 @@ KktSystem<dim>::KktSystem()
                  face_number < GeometryInfo<dim>::faces_per_cell;
                  ++face_number) {
                 if (cell->face(face_number)->at_boundary()) {
-                    const auto center = cell->face(face_number)->center();
-                    if (std::fabs(center(1) - 0) < 1e-12) {
+                    for (unsigned int vertex_number = 0;
+                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                         ++vertex_number) {
+                        const auto vert = cell->vertex(vertex_number);
+                        /*Find bottom left corner*/
+                        if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                vert(1) - 0) < 1e-12) {
 
-                        for (unsigned int vertex_number = 0;
-                             vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                             ++vertex_number) {
-                            const auto vert = cell->vertex(vertex_number);
-                            /*Find bottom left corner*/
-                            if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                    vert(1) - 0) < 1e-12) {
-
-                                const unsigned int x_displacement =
-                                        cell->vertex_dof_index(vertex_number, 0);
-                                const unsigned int y_displacement =
-                                        cell->vertex_dof_index(vertex_number, 1);
-                                const unsigned int x_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 2);
-                                const unsigned int y_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 3);
-                                /*set bottom left BC*/
-                                boundary_values[x_displacement] = 0;
-                                boundary_values[y_displacement] = 0;
-                                boundary_values[x_displacement_multiplier] = 0;
-                                boundary_values[y_displacement_multiplier] = 0;
-                            }
-                            /*Find bottom right corner*/
-                            if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-                                    vert(
-                                            1)
-                                    - 0)
-                                                                  < 1e-12) {
-                                const unsigned int y_displacement =
-                                        cell->vertex_dof_index(vertex_number, 1);
-                                const unsigned int y_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 3);
-                                // const unsigned int x_displacement =
-                                //         cell->vertex_dof_index(vertex_number, 0);
-                                // const unsigned int x_displacement_multiplier =
-                                //         cell->vertex_dof_index(vertex_number, 2);
-                                /*set bottom left BC*/
-                                boundary_values[y_displacement] = 0;
-                                boundary_values[y_displacement_multiplier] = 0;
-                            }
+                            const unsigned int x_displacement =
+                                    cell->vertex_dof_index(vertex_number, 0);
+                            const unsigned int y_displacement =
+                                    cell->vertex_dof_index(vertex_number, 1);
+                            const unsigned int x_displacement_multiplier =
+                                    cell->vertex_dof_index(vertex_number, 2);
+                            const unsigned int y_displacement_multiplier =
+                                    cell->vertex_dof_index(vertex_number, 3);
+                            /*set bottom left BC*/
+                            boundary_values[x_displacement] = 0;
+                            boundary_values[y_displacement] = 0;
+                            boundary_values[x_displacement_multiplier] = 0;
+                            boundary_values[y_displacement_multiplier] = 0;
+                        }
+                        /*Find bottom right corner*/
+                        if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
+                                vert(1) - 0) < 1e-12) {
+//                            const unsigned int x_displacement =
+//                                    cell->vertex_dof_index(vertex_number, 0);
+                            const unsigned int y_displacement =
+                                    cell->vertex_dof_index(vertex_number, 1);
+//                            const unsigned int x_displacement_multiplier =
+//                                    cell->vertex_dof_index(vertex_number, 2);
+                            const unsigned int y_displacement_multiplier =
+                                    cell->vertex_dof_index(vertex_number, 3);
+//                            boundary_values[x_displacement] = 0;
+                            boundary_values[y_displacement] = 0;
+//                            boundary_values[x_displacement_multiplier] = 0;
+                            boundary_values[y_displacement_multiplier] = 0;
                         }
                     }
                 }
@@ -328,33 +332,33 @@ KktSystem<dim>::KktSystem()
 
         Table<2, DoFTools::Coupling> coupling(2 * dim + 7, 2 * dim + 7);
 
-        coupling[0][0] = DoFTools::always;
+        coupling[SolutionComponents<dim>::density][SolutionComponents<dim>::density] = DoFTools::always;
 
         for (unsigned int i = 0; i < dim; i++) {
-            coupling[0][1 + i] = DoFTools::always;
-            coupling[1 + i][0] = DoFTools::always;
+            coupling[SolutionComponents<dim>::density][SolutionComponents<dim>::displacement + i] = DoFTools::always;
+            coupling[SolutionComponents<dim>::displacement + i][SolutionComponents<dim>::density] = DoFTools::always;
         }
 
-        coupling[0][1 + dim] = DoFTools::none;
-        coupling[1 + dim][0] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density][SolutionComponents<dim>::unfiltered_density] = DoFTools::none;
+        coupling[SolutionComponents<dim>::unfiltered_density][SolutionComponents<dim>::density] = DoFTools::none;
 
         for (unsigned int i = 0; i < dim; i++) {
-            coupling[0][2 + dim + i] = DoFTools::always;
-            coupling[2 + dim + i][0] = DoFTools::always;
+            coupling[SolutionComponents<dim>::density][SolutionComponents<dim>::displacement_multiplier + i] = DoFTools::always;
+            coupling[SolutionComponents<dim>::displacement_multiplier + i][SolutionComponents<dim>::density] = DoFTools::always;
         }
 
-        coupling[0][2 + 2 * dim] = DoFTools::always;
-        coupling[2 + 2 * dim][0] = DoFTools::always;
+        coupling[SolutionComponents<dim>::density][SolutionComponents<dim>::unfiltered_density_multiplier] = DoFTools::always;
+        coupling[SolutionComponents<dim>::unfiltered_density_multiplier][SolutionComponents<dim>::density] = DoFTools::always;
 
 
-        coupling[0][2 + 2 * dim + 1] = DoFTools::none;
-        coupling[0][2 + 2 * dim + 2] = DoFTools::none;
-        coupling[0][2 + 2 * dim + 3] = DoFTools::none;
-        coupling[0][2 + 2 * dim + 4] = DoFTools::none;
-        coupling[2 + 2 * dim + 1][0] = DoFTools::none;
-        coupling[2 + 2 * dim + 2][0] = DoFTools::none;
-        coupling[2 + 2 * dim + 3][0] = DoFTools::none;
-        coupling[2 + 2 * dim + 4][0] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density][SolutionComponents<dim>::density_lower_slack] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density][SolutionComponents<dim>::density_lower_slack_multiplier] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density][SolutionComponents<dim>::density_upper_slack] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density][SolutionComponents<dim>::density_upper_slack_multiplier] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_lower_slack][SolutionComponents<dim>::density] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_lower_slack_multiplier][SolutionComponents<dim>::density] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_upper_slack][SolutionComponents<dim>::density] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_upper_slack_multiplier][SolutionComponents<dim>::density] = DoFTools::none;
 
 
 
@@ -363,66 +367,98 @@ KktSystem<dim>::KktSystem()
 
         for (unsigned int i = 0; i < dim; i++) {
             for (unsigned int k = 0; k < dim; k++) {
-                coupling[1 + i][1 + k] = DoFTools::none;
+                coupling[SolutionComponents<dim>::displacement + i][SolutionComponents<dim>::displacement + k] = DoFTools::none;
             }
-            coupling[1 + i][1 + dim ] = DoFTools::none;
-            coupling[1 + dim ][1 + i] = DoFTools::none;
+            coupling[SolutionComponents<dim>::displacement + i][SolutionComponents<dim>::unfiltered_density] = DoFTools::none;
+            coupling[SolutionComponents<dim>::unfiltered_density][SolutionComponents<dim>::displacement + i] = DoFTools::none;
 
             for (unsigned int k = 0; k < dim; k++) {
-                coupling[1 + i][2 + dim + k] = DoFTools::always;
-                coupling[2 + dim + k][1 + i] = DoFTools::always;
+                coupling[SolutionComponents<dim>::displacement + i][SolutionComponents<dim>::displacement_multiplier + k] = DoFTools::always;
+                coupling[SolutionComponents<dim>::displacement_multiplier + k][SolutionComponents<dim>::displacement + i] = DoFTools::always;
             }
-            for (unsigned int k = 0; k < 5; k++) {
-                coupling[1 + i][2 + 2 * dim + k] = DoFTools::none;
-                coupling[2 + 2 * dim + k][1 + i] = DoFTools::none;
-            }
+
+            coupling[SolutionComponents<dim>::displacement + i][SolutionComponents<dim>::unfiltered_density_multiplier] = DoFTools::none;
+            coupling[SolutionComponents<dim>::unfiltered_density_multiplier][SolutionComponents<dim>::displacement + i] = DoFTools::none;
+
+            coupling[SolutionComponents<dim>::displacement + i][SolutionComponents<dim>::density_lower_slack] = DoFTools::none;
+            coupling[SolutionComponents<dim>::density_lower_slack][SolutionComponents<dim>::displacement + i] = DoFTools::none;
+
+            coupling[SolutionComponents<dim>::displacement + i][SolutionComponents<dim>::density_lower_slack_multiplier] = DoFTools::none;
+            coupling[SolutionComponents<dim>::density_lower_slack_multiplier][SolutionComponents<dim>::displacement + i] = DoFTools::none;
+
+            coupling[SolutionComponents<dim>::displacement + i][SolutionComponents<dim>::density_upper_slack] = DoFTools::none;
+            coupling[SolutionComponents<dim>::density_upper_slack][SolutionComponents<dim>::displacement + i] = DoFTools::none;
+
+            coupling[SolutionComponents<dim>::displacement + i][SolutionComponents<dim>::density_upper_slack_multiplier] = DoFTools::none;
+            coupling[SolutionComponents<dim>::density_upper_slack_multiplier][SolutionComponents<dim>::displacement + i] = DoFTools::none;
+
         }
 
 // coupling for unfiltered density
-        coupling[1+dim][1+dim]= DoFTools::none;
+        coupling[SolutionComponents<dim>::unfiltered_density][SolutionComponents<dim>::unfiltered_density]= DoFTools::none;
         for (unsigned int i = 0; i < dim; i++) {
-            coupling[1 + dim][2 + dim + i] = DoFTools::none;
-            coupling[2 + dim + i][1 + dim] = DoFTools::none;
+            coupling[SolutionComponents<dim>::unfiltered_density][SolutionComponents<dim>::displacement_multiplier + i] = DoFTools::none;
+            coupling[SolutionComponents<dim>::displacement_multiplier + i][SolutionComponents<dim>::unfiltered_density] = DoFTools::none;
         }
 
-        coupling[1 + dim][3 + 2 * dim] = DoFTools::none;
-        coupling[3 + 2 * dim][1 + dim] = DoFTools::none;
-        coupling[1 + dim][4 + 2 * dim] = DoFTools::none;
-        coupling[4 + 2 * dim][1 + dim] = DoFTools::none;
-        coupling[1 + dim][5 + 2 * dim] = DoFTools::always;
-        coupling[5 + 2 * dim][1 + dim] = DoFTools::always;
-        coupling[1 + dim][6 + 2 * dim] = DoFTools::always;
-        coupling[6 + 2 * dim][1 + dim] = DoFTools::always;
+        coupling[SolutionComponents<dim>::unfiltered_density][SolutionComponents<dim>::density_lower_slack] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_lower_slack][SolutionComponents<dim>::unfiltered_density] = DoFTools::none;
+
+        coupling[SolutionComponents<dim>::unfiltered_density][SolutionComponents<dim>::density_lower_slack_multiplier] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_lower_slack_multiplier][SolutionComponents<dim>::unfiltered_density] = DoFTools::none;
+
+        coupling[SolutionComponents<dim>::unfiltered_density][SolutionComponents<dim>::density_upper_slack] = DoFTools::always;
+        coupling[SolutionComponents<dim>::density_upper_slack][SolutionComponents<dim>::unfiltered_density] = DoFTools::always;
+
+        coupling[SolutionComponents<dim>::unfiltered_density][SolutionComponents<dim>::density_upper_slack_multiplier] = DoFTools::always;
+        coupling[SolutionComponents<dim>::density_upper_slack_multiplier][SolutionComponents<dim>::unfiltered_density] = DoFTools::always;
 
 //Coupling for equality multipliers
-        for (unsigned int i = 0; i < dim + 1; i++) {
-            for (unsigned int k = 0; k < dim + 5; k++) {
-                coupling[2 + dim + i][2 + dim + k] = DoFTools::none;
-                coupling[2 + dim + k][2 + dim + i] = DoFTools::none;
+        for (unsigned int i = 0; i < dim; i++) {
+            for (unsigned int k = 0; i < dim; i++) {
+                coupling[SolutionComponents<dim>::displacement_multiplier + i][SolutionComponents<dim>::displacement_multiplier + k] = DoFTools::none;
+                coupling[SolutionComponents<dim>::displacement_multiplier + k][SolutionComponents<dim>::displacement_multiplier + i] = DoFTools::none;
             }
+
+            coupling[SolutionComponents<dim>::displacement_multiplier + i][SolutionComponents<dim>::unfiltered_density_multiplier] = DoFTools::none;
+            coupling[SolutionComponents<dim>::unfiltered_density_multiplier][SolutionComponents<dim>::displacement_multiplier + i] = DoFTools::none;
+
+            coupling[SolutionComponents<dim>::displacement_multiplier + i][SolutionComponents<dim>::density_lower_slack] = DoFTools::none;
+            coupling[SolutionComponents<dim>::density_lower_slack][SolutionComponents<dim>::displacement_multiplier + i] = DoFTools::none;
+
+            coupling[SolutionComponents<dim>::displacement_multiplier + i][SolutionComponents<dim>::density_lower_slack_multiplier] = DoFTools::none;
+            coupling[SolutionComponents<dim>::density_lower_slack_multiplier][SolutionComponents<dim>::displacement_multiplier + i] = DoFTools::none;
+
+            coupling[SolutionComponents<dim>::displacement_multiplier + i][SolutionComponents<dim>::density_upper_slack] = DoFTools::none;
+            coupling[SolutionComponents<dim>::density_upper_slack][SolutionComponents<dim>::displacement_multiplier + i] = DoFTools::none;
+
+            coupling[SolutionComponents<dim>::displacement_multiplier + i][SolutionComponents<dim>::density_upper_slack_multiplier] = DoFTools::none;
+            coupling[SolutionComponents<dim>::density_upper_slack_multiplier][SolutionComponents<dim>::displacement_multiplier + i] = DoFTools::none;
+
         }
 
 //        Coupling for lower slack
-        coupling[3 + 2 * dim][3 + 2 * dim] = DoFTools::always;
-        coupling[3 + 2 * dim][4 + 2 * dim] = DoFTools::none;
-        coupling[4 + 2 * dim][3 + 2 * dim] = DoFTools::none;
-        coupling[3 + 2 * dim][5 + 2 * dim] = DoFTools::always;
-        coupling[5 + 2 * dim][3 + 2 * dim] = DoFTools::always;
-        coupling[3 + 2 * dim][6 + 2 * dim] = DoFTools::none;
-        coupling[6 + 2 * dim][3 + 2 * dim] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_lower_slack][SolutionComponents<dim>::density_lower_slack] = DoFTools::always;
+        coupling[SolutionComponents<dim>::density_lower_slack][SolutionComponents<dim>::density_lower_slack_multiplier] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_lower_slack_multiplier][SolutionComponents<dim>::density_lower_slack] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_lower_slack][SolutionComponents<dim>::density_upper_slack] = DoFTools::always;
+        coupling[SolutionComponents<dim>::density_upper_slack][SolutionComponents<dim>::density_lower_slack] = DoFTools::always;
+        coupling[SolutionComponents<dim>::density_lower_slack][SolutionComponents<dim>::density_upper_slack_multiplier] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_upper_slack_multiplier][SolutionComponents<dim>::density_lower_slack] = DoFTools::none;
 
 //
-        coupling[4 + 2 * dim][4 + 2 * dim] = DoFTools::always;
-        coupling[4 + 2 * dim][5 + 2 * dim] = DoFTools::none;
-        coupling[5 + 2 * dim][4 + 2 * dim] = DoFTools::none;
-        coupling[4 + 2 * dim][6 + 2 * dim] = DoFTools::always;
-        coupling[6 + 2 * dim][4 + 2 * dim] = DoFTools::always;
+        coupling[SolutionComponents<dim>::density_lower_slack_multiplier][SolutionComponents<dim>::density_lower_slack_multiplier] = DoFTools::always;
+        coupling[SolutionComponents<dim>::density_lower_slack_multiplier][SolutionComponents<dim>::density_upper_slack] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_upper_slack][SolutionComponents<dim>::density_lower_slack_multiplier] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_lower_slack_multiplier][SolutionComponents<dim>::density_upper_slack_multiplier] = DoFTools::always;
+        coupling[SolutionComponents<dim>::density_upper_slack_multiplier][SolutionComponents<dim>::density_lower_slack_multiplier] = DoFTools::always;
 
 //
-        coupling[5 + 2 * dim][5 + 2 * dim] = DoFTools::none;
-        coupling[5 + 2 * dim][6 + 2 * dim] = DoFTools::none;
-        coupling[6 + 2 * dim][5 + 2 * dim] = DoFTools::none;
-        coupling[6 + 2 * dim][6 + 2 * dim] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_upper_slack][SolutionComponents<dim>::density_upper_slack] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_upper_slack][SolutionComponents<dim>::density_upper_slack_multiplier] = DoFTools::none;
+        coupling[SolutionComponents<dim>::density_upper_slack_multiplier][SolutionComponents<dim>::density_upper_slack] = DoFTools::none;
+
+        coupling[SolutionComponents<dim>::density_upper_slack_multiplier][SolutionComponents<dim>::density_upper_slack_multiplier] = DoFTools::none;
 
         constraints.clear();
 
@@ -522,17 +558,17 @@ KktSystem<dim>::KktSystem()
     template<int dim>
     void
     KktSystem<dim>::assemble_block_system(const BlockVector<double> &state,const double barrier_size) {
-        const FEValuesExtractors::Scalar densities(0);
-        const FEValuesExtractors::Vector displacements(1);
-        const FEValuesExtractors::Scalar unfiltered_densities(1 + dim);
-        const FEValuesExtractors::Vector displacement_multipliers(2 + dim);
-        const FEValuesExtractors::Scalar unfiltered_density_multipliers(2 + 2 * dim);
-        const FEValuesExtractors::Scalar density_lower_slacks(3 + 2 * dim);
+        const FEValuesExtractors::Scalar densities(SolutionComponents<dim>::density);
+        const FEValuesExtractors::Vector displacements(SolutionComponents<dim>::displacement);
+        const FEValuesExtractors::Scalar unfiltered_densities(SolutionComponents<dim>::unfiltered_density);
+        const FEValuesExtractors::Vector displacement_multipliers(SolutionComponents<dim>::displacement_multiplier);
+        const FEValuesExtractors::Scalar unfiltered_density_multipliers(SolutionComponents<dim>::unfiltered_density_multiplier);
+        const FEValuesExtractors::Scalar density_lower_slacks(SolutionComponents<dim>::density_lower_slack);
         const FEValuesExtractors::Scalar density_lower_slack_multipliers(
-                4 + 2 * dim);
-        const FEValuesExtractors::Scalar density_upper_slacks(5 + 2 * dim);
+                SolutionComponents<dim>::density_lower_slack_multiplier);
+        const FEValuesExtractors::Scalar density_upper_slacks(SolutionComponents<dim>::density_upper_slack);
         const FEValuesExtractors::Scalar density_upper_slack_multipliers(
-                6 + 2 * dim);
+                SolutionComponents<dim>::density_upper_slack_multiplier);
 
         /*Remove any values from old iterations*/
         system_matrix.reinit(sparsity_pattern);
@@ -932,8 +968,7 @@ KktSystem<dim>::KktSystem()
                  face_number < GeometryInfo<dim>::faces_per_cell;
                  ++face_number) {
                 if (cell->face(face_number)->at_boundary() && cell->face(
-                        face_number)->boundary_id()
-                                                              == 1) {
+                        face_number)->boundary_id() == BoundaryIds::down_force) {
                     fe_face_values.reinit(cell, face_number);
 
                     for (unsigned int face_q_point = 0;
@@ -973,8 +1008,8 @@ KktSystem<dim>::KktSystem()
                 unsigned int j = iter->column();
                 double value = iter->value() * cell->measure();
 
-                system_matrix.block(4, 2).add(i, j, value);
-                system_matrix.block(2, 4).add(j, i, value);
+                system_matrix.block(SolutionBlocks::unfiltered_density_multiplier, SolutionBlocks::unfiltered_density).add(i, j, value);
+                system_matrix.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
             }
         }
     }
@@ -990,7 +1025,7 @@ KktSystem<dim>::KktSystem()
         FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
              update_values | update_quadrature_points | update_normal_vectors
              | update_JxW_values);
-        const FEValuesExtractors::Vector displacements(1);
+        const FEValuesExtractors::Vector displacements(SolutionComponents<dim>::displacement);
         const unsigned int n_face_q_points = face_quadrature_formula.size();
         std::vector<Tensor<1, dim>> old_displacement_values(n_face_q_points);
         Tensor<1, dim> traction;
@@ -1002,7 +1037,7 @@ KktSystem<dim>::KktSystem()
                  ++face_number) {
                 if (cell->face(face_number)->at_boundary() && cell->face(
                         face_number)->boundary_id()
-                                                              == 1) {
+                                                              == BoundaryIds::down_force) {
                     fe_face_values.reinit(cell, face_number);
                     fe_face_values[displacements].get_function_values(state,
                                                                  old_displacement_values);
@@ -1058,26 +1093,37 @@ template<int dim>
 double
 KktSystem<dim>::calculate_convergence(const BlockVector<double> &state, const double barrier_size) const
 {
-    BlockVector<double> test_rhs = calculate_test_rhs(state, barrier_size);
-    std::cout << "test_rhs.l2_norm()   " << test_rhs.l2_norm() << std::endl;
-    return test_rhs.l2_norm();
+    BlockVector<double> test_rhs = calculate_test_rhs(state, 0);
+    std::cout << "test_rhs.l1_norm()   " << test_rhs.l2_norm() << std::endl;
+    double norm = 0;
+    norm += test_rhs.block(SolutionBlocks::density).l1_norm();
+    norm += test_rhs.block(SolutionBlocks::displacement).l1_norm();
+    norm += test_rhs.block(SolutionBlocks::unfiltered_density).l1_norm();
+    norm += test_rhs.block(SolutionBlocks::displacement_multiplier).l1_norm();
+    norm += test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l1_norm();
+    norm -= test_rhs.block(SolutionBlocks::density_lower_slack)*state.block(SolutionBlocks::density_lower_slack);
+    norm += test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l1_norm();
+    norm -= test_rhs.block(SolutionBlocks::density_upper_slack)*state.block(SolutionBlocks::density_upper_slack);
+    norm += test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l1_norm();
+    std::cout << "norm" << norm <<std::endl;
+    return norm;
 }
 
      template<int dim>
     BlockVector<double>
     KktSystem<dim>::calculate_test_rhs(const BlockVector<double> &test_state, const double barrier_size) const
     {
-        const FEValuesExtractors::Scalar densities(0);
-        const FEValuesExtractors::Vector displacements(1);
-        const FEValuesExtractors::Scalar unfiltered_densities(1 + dim);
-        const FEValuesExtractors::Vector displacement_multipliers(2 + dim);
-        const FEValuesExtractors::Scalar unfiltered_density_multipliers(2 + 2 * dim);
-        const FEValuesExtractors::Scalar density_lower_slacks(3 + 2 * dim);
+        const FEValuesExtractors::Scalar densities(SolutionComponents<dim>::density);
+        const FEValuesExtractors::Vector displacements(SolutionComponents<dim>::displacement);
+        const FEValuesExtractors::Scalar unfiltered_densities(SolutionComponents<dim>::unfiltered_density);
+        const FEValuesExtractors::Vector displacement_multipliers(SolutionComponents<dim>::displacement_multiplier);
+        const FEValuesExtractors::Scalar unfiltered_density_multipliers(SolutionComponents<dim>::unfiltered_density_multiplier);
+        const FEValuesExtractors::Scalar density_lower_slacks(SolutionComponents<dim>::density_lower_slack);
         const FEValuesExtractors::Scalar density_lower_slack_multipliers(
-                4 + 2 * dim);
-        const FEValuesExtractors::Scalar density_upper_slacks(5 + 2 * dim);
+                SolutionComponents<dim>::density_lower_slack_multiplier);
+        const FEValuesExtractors::Scalar density_upper_slacks(SolutionComponents<dim>::density_upper_slack);
         const FEValuesExtractors::Scalar density_upper_slack_multipliers(
-                6 + 2 * dim);
+                SolutionComponents<dim>::density_upper_slack_multiplier);
 
         /*Remove any values from old iterations*/
 
@@ -1111,12 +1157,12 @@ KktSystem<dim>::calculate_convergence(const BlockVector<double> &state, const do
 
         BlockVector<double> filtered_unfiltered_density_solution = test_state;
         BlockVector<double> filter_adjoint_unfiltered_density_multiplier_solution = test_state;
-        filtered_unfiltered_density_solution.block(2) = 0;
-        filter_adjoint_unfiltered_density_multiplier_solution.block(4) = 0;
+        filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
+        filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
-        filter_matrix.vmult(filtered_unfiltered_density_solution.block(2), test_state.block(2));
-        filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(4),
-                             test_state.block(4));
+        filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density), test_state.block(SolutionBlocks::unfiltered_density));
+        filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),
+                             test_state.block(SolutionBlocks::unfiltered_density_multiplier));
 
 
         std::vector<double> old_density_values(n_q_points);
@@ -1306,7 +1352,7 @@ KktSystem<dim>::calculate_convergence(const BlockVector<double> &state, const do
                  ++face_number) {
                 if (cell->face(face_number)->at_boundary() && cell->face(
                         face_number)->boundary_id()
-                                                              == 1) {
+                                                              == BoundaryIds::down_force) {
                     fe_face_values.reinit(cell, face_number);
 
                     for (unsigned int face_q_point = 0;
@@ -1344,9 +1390,10 @@ KktSystem<dim>::calculate_convergence(const BlockVector<double> &state, const do
     template <int dim>
     BlockVector<double>
     KktSystem<dim>::solve() {
-        //This broke everything. Unsure why.
-//      constraints.condense(system_matrix);
-//      constraints.condense(system_rhs);
+//        SolverControl            solver_control(10000, 1e-8*system_rhs.l2_norm());
+//        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
+//        A_gmres.solve(system_matrix, linear_solution, system_rhs, PreconditionIdentity());
+//        return linear_solution;
 
         SparseDirectUMFPACK A_direct;
         A_direct.initialize(system_matrix);
@@ -1379,16 +1426,17 @@ KktSystem<dim>::get_initial_state() {
     state.collect_sizes();
 
     for (unsigned int k = 0; k < n_u; k++) {
-        state.block(1)[k] = 0;
+        state.block(SolutionBlocks::displacement)[k] = 0;
+        state.block(SolutionBlocks::displacement_multiplier)[k] = 0;
     }
     for (unsigned int k = 0; k < n_p; k++) {
-        state.block(0)[k] = density_ratio;
-        state.block(2)[k] = density_ratio;
-        state.block(4)[k] = density_ratio;
-        state.block(5)[k] = density_ratio;
-        state.block(6)[k] = 50;
-        state.block(7)[k] = 1 - density_ratio;
-        state.block(8)[k] = 50;
+        state.block(SolutionBlocks::density)[k] = density_ratio;
+        state.block(SolutionBlocks::unfiltered_density)[k] = density_ratio;
+        state.block(SolutionBlocks::unfiltered_density_multiplier)[k] = density_ratio;
+        state.block(SolutionBlocks::density_lower_slack)[k] = density_ratio;
+        state.block(SolutionBlocks::density_lower_slack_multiplier)[k] = 50;
+        state.block(SolutionBlocks::density_upper_slack)[k] = 1 - density_ratio;
+        state.block(SolutionBlocks::density_upper_slack_multiplier)[k] = 50;
     }
 
     return state;

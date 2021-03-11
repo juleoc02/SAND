@@ -38,12 +38,6 @@ namespace SAND {
         bool
         check_convergence(const BlockVector<double> &state) const;
 
-        Timer solve_timer;
-        Timer merit_function_timer;
-        Timer assemble_timer;
-        Timer setup_timer;
-        Timer big_timer;
-
         KktSystem<dim> kkt_system;
         MarkovFilter markov_filter;
 
@@ -55,7 +49,7 @@ namespace SAND {
 
 template <int dim>
 SANDTopOpt<dim>::SANDTopOpt():
-        min_barrier_size (.0005)
+        min_barrier_size (0)
 {
 
 }
@@ -67,8 +61,8 @@ SANDTopOpt<dim>::SANDTopOpt():
     SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
 
         double fraction_to_boundary;
-        const double min_fraction_to_boundary = .7;
-        const double max_fraction_to_boundary = .8;
+        const double min_fraction_to_boundary = .8;
+        const double max_fraction_to_boundary = .9;
 
         if (min_fraction_to_boundary < 1 - barrier_size)
         {
@@ -176,7 +170,7 @@ SANDTopOpt<dim>::SANDTopOpt():
     bool
     SANDTopOpt<dim>::check_convergence(const BlockVector<double> &state) const
     {
-              if (kkt_system.calculate_convergence(state,barrier_size) < 1e-2 * min_barrier_size)
+              if (kkt_system.calculate_convergence(state,barrier_size) < 1e-6 * min_barrier_size)
               {
                   return true;
               }
@@ -321,10 +315,14 @@ SANDTopOpt<dim>::SANDTopOpt():
                 {
                     loqo_multiplier = .8;
                 }
-                barrier_size = loqo_multiplier * loqo_average;
-                if (barrier_size < min_barrier_size)
+
+                if (loqo_multiplier<.01)
                 {
-                    barrier_size = min_barrier_size;
+                    barrier_size = .01 * loqo_average;
+                }
+                else
+                {
+                    barrier_size = loqo_multiplier * loqo_average;
                 }
                 markov_filter.update_barrier_value(barrier_size);
                 std::cout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
@@ -369,12 +367,6 @@ SANDTopOpt<dim>::SANDTopOpt():
             //end while
         }
 
-        big_timer.stop();
-        std::cout << "overall time:  " << big_timer.cpu_time() << std::endl;
-        std::cout << "setup time:  " << setup_timer.cpu_time() << std::endl;
-        std::cout << "solve time:  " << solve_timer.cpu_time() << std::endl;
-        std::cout << "assemble time:  " << assemble_timer.cpu_time() << std::endl;
-        std::cout << "merit finding time:  " << merit_function_timer.cpu_time() << std::endl;
 
 
 
