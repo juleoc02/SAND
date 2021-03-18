@@ -40,75 +40,76 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
-using namespace dealii;
-template<int dim>
-class KktSystem
-{
+namespace SAND {
+    using namespace dealii;
 
-public:
-    KktSystem();
+    template<int dim>
+    class KktSystem {
 
-    void
-    create_triangulation();
+    public:
+        KktSystem();
 
-    void
-    setup_boundary_values();
+        void
+        create_triangulation();
 
-    void
-    setup_filter_matrix();
+        void
+        setup_boundary_values();
 
-    void
-    setup_block_system();
+        void
+        setup_filter_matrix();
 
-    void
-    assemble_block_system(const BlockVector<double> &state,const double barrier_size);
+        void
+        setup_block_system();
 
-   BlockVector<double>
-    solve();
+        void
+        assemble_block_system(const BlockVector<double> &state, const double barrier_size);
 
-    BlockVector<double>
-    get_initial_state();
+        BlockVector<double>
+        solve();
 
-    double
-    calculate_objective_value(const BlockVector<double> &state, const double barrier_size) const;
+        BlockVector<double>
+        get_initial_state();
 
-    double
-    calculate_barrier_distance(const BlockVector<double> &state) const;
+        double
+        calculate_objective_value(const BlockVector<double> &state, const double barrier_size) const;
 
-    double
-    calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const;
+        double
+        calculate_barrier_distance(const BlockVector<double> &state) const;
 
-    double
-    calculate_convergence(const BlockVector<double> &state, const double barrier_size) const;
+        double
+        calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const;
 
-    void
-    output(const BlockVector<double> &state, const unsigned int j) const;
+        double
+        calculate_convergence(const BlockVector<double> &state, const double barrier_size) const;
 
-
-private:
-
-    BlockVector<double>
-    calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size) const;
-
-    BlockSparsityPattern sparsity_pattern;
-    BlockSparseMatrix<double> system_matrix;
-    SparsityPattern filter_sparsity_pattern;
-    SparseMatrix<double> filter_matrix;
-    BlockVector<double> linear_solution;
-    BlockVector<double> system_rhs;
-    Triangulation<dim> triangulation;
-    DoFHandler<dim> dof_handler;
-    AffineConstraints<double> constraints;
-    FESystem<dim> fe;
-    DynamicSparsityPattern filter_dsp;
-    const double density_ratio;
-    const double density_penalty_exponent;
-    const double filter_r;
+        void
+        output(const BlockVector<double> &state, const unsigned int j) const;
 
 
-    std::map<types::global_dof_index, double> boundary_values;
+    private:
 
-};
+        BlockVector<double>
+        calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size) const;
 
+        BlockSparsityPattern sparsity_pattern;
+        BlockSparseMatrix<double> system_matrix;
+        SparsityPattern filter_sparsity_pattern;
+        SparseMatrix<double> filter_matrix;
+        BlockVector<double> linear_solution;
+        BlockVector<double> system_rhs;
+        Triangulation<dim> triangulation;
+        DoFHandler<dim> dof_handler;
+        AffineConstraints<double> constraints;
+        FESystem<dim> fe;
+        DynamicSparsityPattern filter_dsp;
+        const double density_ratio;
+        const double density_penalty_exponent;
+        const double filter_r;
+
+
+        std::map<types::global_dof_index, double> boundary_values;
+
+    };
+}
 
 #endif //SAND_KKTSYSTEM_H

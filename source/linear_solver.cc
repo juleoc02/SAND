@@ -7,11 +7,41 @@
 #include "../include/linear_solver.h"
 
 namespace SAND {
+
     using namespace dealii;
-//    void BigPreconditioner::initialize(const MatrixType &matrix,
-//                                       const dealii::SparseDirectUMFPACK::AdditionalData &additional_data)
-//    {
-//
-//    }
+
+    TopOptSchurPreconditioner::TopOptSchurPreconditioner()
+            :
+            n_rows(0),
+            n_columns(0),
+            n_block_rows(0),
+            n_block_columns(0)
+    {
+    }
+
+    void TopOptSchurPreconditioner::initialize(const BlockSparseMatrix<double> &matrix)
+    {
+
+    }
+
+    void TopOptSchurPreconditioner::vmult(BlockVector<double> &dst, const BlockVector<double> &src) const
+    {
+        dst = src;
+    }
+
+    void TopOptSchurPreconditioner::Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const
+    {
+        dst = src;
+    }
+
+    void TopOptSchurPreconditioner::vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const
+    {
+        dst = dst + src;
+    }
+
+    void TopOptSchurPreconditioner::Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const
+    {
+        dst = dst+src;
+    }
 
 }

@@ -8,6 +8,8 @@
 #include <iostream>
 #include "../include/markov.h"
 #include "../include/kktSystem.h"
+#include "../include/parameters_and_components.h"
+#include "../include/linear_solver.h"
 
 ///Above are fairly normal files to include.  I also use the sparse direct package, which requiresBLAS/LAPACK
 /// to  perform  a  direct  solve  while  I  work  on  a  fast  iterative  solver  for  this problem.
@@ -62,7 +64,7 @@ SANDTopOpt<dim>::SANDTopOpt():
 
         double fraction_to_boundary;
         const double min_fraction_to_boundary = .8;
-        const double max_fraction_to_boundary = .9;
+        const double max_fraction_to_boundary = .8;
 
         if (min_fraction_to_boundary < 1 - barrier_size)
         {
