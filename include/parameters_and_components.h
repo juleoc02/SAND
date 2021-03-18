@@ -8,22 +8,20 @@
 
 namespace SAND {
     using namespace dealii;
-    template<int dim>
-    struct SolutionComponents {
-    public:
-        static constexpr unsigned int density = 0;
-        static constexpr unsigned int displacement = 1;
-        static constexpr unsigned int unfiltered_density = 1 + dim;
-        static constexpr unsigned int displacement_multiplier = 2 + dim;
-        static constexpr unsigned int unfiltered_density_multiplier = 2 + 2 * dim;
-        static constexpr unsigned int density_lower_slack = 3 + 2 * dim;
-        static constexpr unsigned int density_lower_slack_multiplier = 4 + 2 * dim;
-        static constexpr unsigned int density_upper_slack = 5 + 2 * dim;
-        static constexpr unsigned int density_upper_slack_multiplier = 6 + 2 * dim;
-    };
 
-    struct SolutionBlocks {
-    public:
+    namespace SolutionComponents {
+        template<int dim> static constexpr unsigned int density = 0;
+        template<int dim> static constexpr unsigned int displacement = 1;
+        template<int dim> static constexpr unsigned int unfiltered_density = 1 + dim;
+        template<int dim> static constexpr unsigned int displacement_multiplier = 2 + dim;
+        template<int dim> static constexpr unsigned int unfiltered_density_multiplier = 2 + 2 * dim;
+        template<int dim> static constexpr unsigned int density_lower_slack = 3 + 2 * dim;
+        template<int dim> static constexpr unsigned int density_lower_slack_multiplier = 4 + 2 * dim;
+        template<int dim> static constexpr unsigned int density_upper_slack = 5 + 2 * dim;
+        template<int dim> static constexpr unsigned int density_upper_slack_multiplier = 6 + 2 * dim;
+    }
+
+    namespace SolutionBlocks {
         static constexpr unsigned int density = 0;
         static constexpr unsigned int displacement = 1;
         static constexpr unsigned int unfiltered_density = 2;
@@ -33,14 +31,13 @@ namespace SAND {
         static constexpr unsigned int density_lower_slack_multiplier = 6;
         static constexpr unsigned int density_upper_slack = 7;
         static constexpr unsigned int density_upper_slack_multiplier = 8;
-    };
+    }
 
-    struct BoundaryIds {
-    public:
+    namespace BoundaryIds {
         static constexpr types::boundary_id no_force = 101;
         static constexpr types::boundary_id down_force = 102;
         static constexpr types::boundary_id held_still = 103;
-    };
+    }
 
 }
 #endif //SAND_PARAMETERS_AND_COMPONENTS_H

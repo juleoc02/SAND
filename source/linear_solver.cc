@@ -19,29 +19,57 @@ namespace SAND {
     {
     }
 
-    void TopOptSchurPreconditioner::initialize(const BlockSparseMatrix<double> &matrix)
-    {
+//    void TopOptSchurPreconditioner::initialize(const BlockSparseMatrix<double> &matrix)
+//    {
+//
+//        const auto op_D1 = linear_operator(matrix.block());
+//    }
+//
+//    void TopOptSchurPreconditioner::vmult(BlockVector<double> &dst, const BlockVector<double> &src) const
+//    {
+//        vmult_step_1(dst,src);
+//        BlockVector<double> temp_src = dst;
+//        vmult_step_2(dst,temp_src);
+//        temp_src = dst;
+//        vmult_step_3(dst,temp_src);
+//        temp_src = dst;
+//        vmult_step_4(dst,temp_src);
+//    }
+//
+//    void TopOptSchurPreconditioner::Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const
+//    {
+//        dst = src;
+//    }
+//
+//    void TopOptSchurPreconditioner::vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const
+//    {
+//        dst = dst + src;
+//    }
+//
+//    void TopOptSchurPreconditioner::Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const
+//    {
+//        dst = dst+src;
+//    }
+//
+//
+//
+//
+//    void TopOptSchurPreconditioner::vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src) const
+//    {
+//        dst.block()
+//    }
+//    void TopOptSchurPreconditioner::vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const
+//    {
+//        dst = src;
+//    }
+//    void TopOptSchurPreconditioner::vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const
+//    {
+//        dst = src;
+//    }
+//    void TopOptSchurPreconditioner::vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const
+//    {
+//        dst = src;
+//    }
 
-    }
-
-    void TopOptSchurPreconditioner::vmult(BlockVector<double> &dst, const BlockVector<double> &src) const
-    {
-        dst = src;
-    }
-
-    void TopOptSchurPreconditioner::Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const
-    {
-        dst = src;
-    }
-
-    void TopOptSchurPreconditioner::vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const
-    {
-        dst = dst + src;
-    }
-
-    void TopOptSchurPreconditioner::Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const
-    {
-        dst = dst+src;
-    }
 
 }

@@ -74,6 +74,17 @@ namespace SAND
         unsigned int n_columns;
         unsigned int n_block_rows;
         unsigned int n_block_columns;
+        void vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        void vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        void vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        void vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const;
+
+//        op_A;
+//        op_F;
+//        op_D1;
+//        op_D2;
+//        op_A_inv;
+
     };
 
 }
