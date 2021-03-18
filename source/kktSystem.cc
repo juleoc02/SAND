@@ -1413,17 +1413,19 @@ namespace SAND {
     template<int dim>
     BlockVector<double>
     KktSystem<dim>::solve() {
-        SolverControl solver_control(1000, 1e-1 * system_rhs.l2_norm());
-        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
-        TopOptSchurPreconditioner preconditioner;
-        preconditioner.initialize(system_matrix);
-        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-        return linear_solution;
-//        SparseDirectUMFPACK A_direct;
-//        A_direct.initialize(system_matrix);
-//        A_direct.vmult(linear_solution, system_rhs);
-//        constraints.distribute(linear_solution);
+//        SolverControl solver_control(1000, 1e-1 * system_rhs.l2_norm());
+//        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
+//        TopOptSchurPreconditioner preconditioner;
+//        preconditioner.initialize(system_matrix);
+//        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
 //        return linear_solution;
+
+
+        SparseDirectUMFPACK A_direct;
+        A_direct.initialize(system_matrix);
+        A_direct.vmult(linear_solution, system_rhs);
+        constraints.distribute(linear_solution);
+        return linear_solution;
     }
 
 ///A direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
