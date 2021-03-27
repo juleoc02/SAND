@@ -18,6 +18,7 @@
 #include <deal.II/lac/packaged_operation.h>
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/solver_cg.h>
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
@@ -79,12 +80,20 @@ namespace SAND
         void vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const;
 
-//        op_A;
-//        op_F;
-//        op_D1;
-//        op_D2;
-//        op_A_inv;
+        SolverControl elastic_solver_control;
+        SolverControl diag_solver_control;
+        SolverCG<Vector<double>> elastic_cg;
+        SolverCG<Vector<double>> diag_cg;
 
+
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_filter;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_1;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_2;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_sum_inv;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic_inv;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_displacement_density;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_displacement_multiplier_density;
     };
 
 }
