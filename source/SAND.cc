@@ -62,7 +62,7 @@ SANDTopOpt<dim>::SANDTopOpt():
 
         double fraction_to_boundary;
         const double min_fraction_to_boundary = .8;
-        const double max_fraction_to_boundary = .9;
+        const double max_fraction_to_boundary = .8;
 
         if (min_fraction_to_boundary < 1 - barrier_size)
         {
@@ -110,7 +110,7 @@ SANDTopOpt<dim>::SANDTopOpt():
                 step_size_z_high = step_size_z;
             }
         }
-//        std::cout << step_size_s_low << "    " << step_size_z_low << std::endl;
+        std::cout << "max step sizes are " << step_size_s_low << "    " << step_size_z_low << std::endl;
         return {step_size_s_low, step_size_z_low};
     }
 

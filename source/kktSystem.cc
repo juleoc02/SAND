@@ -58,7 +58,7 @@ KktSystem<dim>::KktSystem()
            FE_DGQ<dim>(0) ^ 5),
         density_ratio (.5),
         density_penalty_exponent (3),
-        filter_r (.2)
+        filter_r (.251)
 {
 }
 
@@ -1097,15 +1097,23 @@ KktSystem<dim>::calculate_convergence(const BlockVector<double> &state, const do
     std::cout << "test_rhs.l1_norm()   " << test_rhs.l2_norm() << std::endl;
     double norm = 0;
     norm += test_rhs.block(SolutionBlocks::density).l1_norm();
+    std::cout << "norm 0:  " << norm <<std::endl;
     norm += test_rhs.block(SolutionBlocks::displacement).l1_norm();
+    std::cout << "norm 1:  " << norm <<std::endl;
     norm += test_rhs.block(SolutionBlocks::unfiltered_density).l1_norm();
+    std::cout << "norm 2:  " << norm <<std::endl;
     norm += test_rhs.block(SolutionBlocks::displacement_multiplier).l1_norm();
+    std::cout << "norm 3:  " << norm <<std::endl;
     norm += test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l1_norm();
+    std::cout << "norm 4:  " << norm <<std::endl;
     norm -= test_rhs.block(SolutionBlocks::density_lower_slack)*state.block(SolutionBlocks::density_lower_slack);
+    std::cout << "norm 5:  " << norm <<std::endl;
     norm += test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l1_norm();
+    std::cout << "norm 6:  " << norm <<std::endl;
     norm -= test_rhs.block(SolutionBlocks::density_upper_slack)*state.block(SolutionBlocks::density_upper_slack);
+    std::cout << "norm 7:  " << norm <<std::endl;
     norm += test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l1_norm();
-    std::cout << "norm" << norm <<std::endl;
+    std::cout << "norm total:  " << norm <<std::endl;
     return norm;
 }
 
