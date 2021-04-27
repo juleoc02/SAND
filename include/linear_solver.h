@@ -62,7 +62,7 @@ namespace SAND
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
         TopOptSchurPreconditioner();
-        void initialize (const BlockSparseMatrix<double> &matrix);
+        void initialize (BlockSparseMatrix<double> &matrix,  std::map<types::global_dof_index, double> boundary_values);
         void vmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const;
@@ -80,6 +80,12 @@ namespace SAND
         void vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const;
 
+        SparseDirectUMFPACK A_direct;
+
+//        A_direct.vmult(linear_solution, system_rhs);
+//        constraints.distribute(linear_solution);
+//        return linear_solution;
+
         SolverControl elastic_solver_control;
         SolverControl diag_solver_control;
         SolverCG<Vector<double>> elastic_cg;
@@ -92,6 +98,7 @@ namespace SAND
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_2;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_sum_inv;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic_inv;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_density_density;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_displacement_density;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_displacement_multiplier_density;
     };

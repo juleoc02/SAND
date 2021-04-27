@@ -62,6 +62,8 @@ SANDTopOpt<dim>::SANDTopOpt():
     std::pair<double,double>
     SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
 
+        std::cout << state.size() <<std::endl;
+        std::cout << step.size() <<std::endl;
         double fraction_to_boundary;
         const double min_fraction_to_boundary = .8;
         const double max_fraction_to_boundary = .8;
@@ -83,23 +85,34 @@ SANDTopOpt<dim>::SANDTopOpt():
             fraction_to_boundary = min_fraction_to_boundary;
         }
 
+
+
         double step_size_s_low = 0;
         double step_size_z_low = 0;
         double step_size_s_high = 1;
         double step_size_z_high = 1;
         double step_size_s, step_size_z;
 
+        std::cout << "max_step_size good" << std::endl;
+
         for (unsigned int k = 0; k < 50; k++) {
+
             step_size_s = (step_size_s_low + step_size_s_high) / 2;
             step_size_z = (step_size_z_low + step_size_z_high) / 2;
+            std::cout << "max_step_size" << std::endl;
             const BlockVector<double> state_test_s =
                     (fraction_to_boundary * state) + (step_size_s * step);
+
+            std::cout << "max_step_size" << std::endl;
             const BlockVector<double> state_test_z =
                     (fraction_to_boundary * state) + (step_size_z * step);
-            const bool accept_s = (state_test_s.block(5).is_non_negative())
-                                  && (state_test_s.block(7).is_non_negative());
-            const bool accept_z = (state_test_z.block(6).is_non_negative())
-                                  && (state_test_z.block(8).is_non_negative());
+
+            std::cout << "max_step_size bad" << std::endl;
+
+            const bool accept_s = (state_test_s.block(SolutionBlocks::density_lower_slack).is_non_negative())
+                                  && (state_test_s.block(SolutionBlocks::density_upper_slack).is_non_negative());
+            const bool accept_z = (state_test_z.block(SolutionBlocks::density_lower_slack_multiplier).is_non_negative())
+                                  && (state_test_z.block(SolutionBlocks::density_upper_slack_multiplier).is_non_negative());
 
             if (accept_s) {
                 step_size_s_low = step_size_s;
@@ -193,18 +206,22 @@ SANDTopOpt<dim>::SANDTopOpt():
 
         barrier_size = 25;
         kkt_system.create_triangulation();
-
+        std::cout << "finished setup 1" <<std::endl;
         kkt_system.setup_boundary_values();
-
+        std::cout << "finished setup 2" <<std::endl;
         kkt_system.setup_filter_matrix();
-
+        std::cout << "finished setup 3" <<std::endl;
         kkt_system.setup_block_system();
+        std::cout << "finished setup 4" <<std::endl;
         const unsigned int max_uphill_steps = 8;
         unsigned int iteration_number = 0;
         //while barrier value above minimal value and total iterations under some value
         BlockVector<double> current_state = kkt_system.get_initial_state();
         BlockVector<double> current_step;
+        std::cout << "finished setup 5" <<std::endl;
         markov_filter.setup(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
+ std::cout << "finished setup 6" <<std::endl;
+
 
         while((barrier_size > min_barrier_size || !check_convergence(current_state)) && iteration_number < 10000)
         {
