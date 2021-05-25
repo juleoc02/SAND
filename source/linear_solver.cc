@@ -5,6 +5,7 @@
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/sparse_matrix.h>
+#include <deal.II/lac/solver_bicgstab.h>
 #include "../include/linear_solver.h"
 #include "../include/parameters_and_components.h"
 
@@ -188,8 +189,8 @@ namespace SAND {
                 op_elastic_inv * src.block(SolutionBlocks::displacement);
 
         //Fourth (ugly) Block Inverse
-        SolverControl other_solver_control(10000, 1e-6);
-        SolverCG<Vector<double>> other_cg(other_solver_control);
+        SolverControl other_solver_control(10001, 1e-6);
+        SolverBicgstab<Vector<double>> other_cg(other_solver_control);
 
         const auto op_fddf_chunk = -1 * op_filter * op_diag_sum_inv * transpose_operator(op_filter);
         const auto op_bcaeeac_chunk =  (op_density_density

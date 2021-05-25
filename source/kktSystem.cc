@@ -1468,7 +1468,7 @@ namespace SAND {
 
         linear_solution = 0;
 
-        SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
+        SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
         SolverGMRES<BlockVector<double>> A_gmres(solver_control);
         A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
 

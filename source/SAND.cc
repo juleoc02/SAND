@@ -198,21 +198,16 @@ SANDTopOpt<dim>::SANDTopOpt():
 
         barrier_size = 25;
         kkt_system.create_triangulation();
-        std::cout << "finished setup 1" <<std::endl;
         kkt_system.setup_boundary_values();
-        std::cout << "finished setup 2" <<std::endl;
         kkt_system.setup_filter_matrix();
-        std::cout << "finished setup 3" <<std::endl;
         kkt_system.setup_block_system();
-        std::cout << "finished setup 4" <<std::endl;
         const unsigned int max_uphill_steps = 8;
         unsigned int iteration_number = 0;
         //while barrier value above minimal value and total iterations under some value
         BlockVector<double> current_state = kkt_system.get_initial_state();
         BlockVector<double> current_step;
-        std::cout << "finished setup 5" <<std::endl;
         markov_filter.setup(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
- std::cout << "finished setup 6" <<std::endl;
+
 
 
         while((barrier_size > min_barrier_size || !check_convergence(current_state)) && iteration_number < 10000)
