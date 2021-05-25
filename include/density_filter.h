@@ -59,8 +59,9 @@ public:
 private:
     SparsityPattern filter_sparsity_pattern;
     std::set<typename Triangulation<dim>::cell_iterator>
-    find_relevant_neighbors(
-            typename Triangulation<dim>::cell_iterator cell) const;
+
+    std::set<typename Triangulation<dim>::cell_iterator> find_relevant_neighbors(Triangulation<dim> &triangulation,
+    typename Triangulation<dim>::cell_iterator cell) const
 
 
 };
