@@ -62,8 +62,6 @@ SANDTopOpt<dim>::SANDTopOpt():
     std::pair<double,double>
     SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
 
-        std::cout << state.size() <<std::endl;
-        std::cout << step.size() <<std::endl;
         double fraction_to_boundary;
         const double min_fraction_to_boundary = .8;
         const double max_fraction_to_boundary = .8;
@@ -93,21 +91,16 @@ SANDTopOpt<dim>::SANDTopOpt():
         double step_size_z_high = 1;
         double step_size_s, step_size_z;
 
-        std::cout << "max_step_size good" << std::endl;
 
         for (unsigned int k = 0; k < 50; k++) {
 
             step_size_s = (step_size_s_low + step_size_s_high) / 2;
             step_size_z = (step_size_z_low + step_size_z_high) / 2;
-            std::cout << "max_step_size" << std::endl;
             const BlockVector<double> state_test_s =
                     (fraction_to_boundary * state) + (step_size_s * step);
 
-            std::cout << "max_step_size" << std::endl;
             const BlockVector<double> state_test_z =
                     (fraction_to_boundary * state) + (step_size_z * step);
-
-            std::cout << "max_step_size bad" << std::endl;
 
             const bool accept_s = (state_test_s.block(SolutionBlocks::density_lower_slack).is_non_negative())
                                   && (state_test_s.block(SolutionBlocks::density_upper_slack).is_non_negative());
@@ -125,7 +118,6 @@ SANDTopOpt<dim>::SANDTopOpt():
                 step_size_z_high = step_size_z;
             }
         }
-//        std::cout << step_size_s_low << "    " << step_size_z_low << std::endl;
         return {step_size_s_low, step_size_z_low};
     }
 
@@ -143,15 +135,15 @@ SANDTopOpt<dim>::SANDTopOpt():
         const double step_size_z = max_step_sizes.second;
         BlockVector<double> max_step(9);
 
-        max_step.block(0) = step_size_s * step.block(0);
-        max_step.block(1) = step_size_s * step.block(1);
-        max_step.block(2) = step_size_s * step.block(2);
-        max_step.block(3) = step_size_z * step.block(3);
-        max_step.block(4) = step_size_z * step.block(4);
-        max_step.block(5) = step_size_s * step.block(5);
-        max_step.block(6) = step_size_z * step.block(6);
-        max_step.block(7) = step_size_s * step.block(7);
-        max_step.block(8) = step_size_z * step.block(8);
+        max_step.block(SolutionBlocks::density) = step_size_s * step.block(SolutionBlocks::density);
+        max_step.block(SolutionBlocks::displacement) = step_size_s * step.block(SolutionBlocks::displacement);
+        max_step.block(SolutionBlocks::unfiltered_density) = step_size_s * step.block(SolutionBlocks::unfiltered_density);
+        max_step.block(SolutionBlocks::density_lower_slack) = step_size_z * step.block(SolutionBlocks::density_lower_slack);
+        max_step.block(SolutionBlocks::density_upper_slack) = step_size_z * step.block(SolutionBlocks::density_upper_slack);
+        max_step.block(SolutionBlocks::unfiltered_density_multiplier) = step_size_s * step.block(SolutionBlocks::unfiltered_density_multiplier);
+        max_step.block(SolutionBlocks::density_lower_slack_multiplier) = step_size_z * step.block(SolutionBlocks::density_lower_slack_multiplier);
+        max_step.block(SolutionBlocks::density_upper_slack_multiplier) = step_size_s * step.block(SolutionBlocks::density_upper_slack_multiplier);
+        max_step.block(SolutionBlocks::displacement_multiplier) = step_size_z * step.block(SolutionBlocks::displacement_multiplier);
 
         return max_step;
     }
@@ -310,19 +302,21 @@ SANDTopOpt<dim>::SANDTopOpt():
 
                 double loqo_min = 1000;
                 double loqo_average;
-                unsigned int vect_size = current_state.block(5).size();
+                unsigned int vect_size = current_state.block(SolutionBlocks::density_lower_slack).size();
                 for(unsigned int k = 0; k < vect_size; k++)
                 {
-                    if (current_state.block(5)[k]*current_state.block(6)[k] < loqo_min)
+                    if (current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k] < loqo_min)
                     {
-                        loqo_min = current_state.block(5)[k]*current_state.block(6)[k];
+                        loqo_min = current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
                     }
-                    if (current_state.block(7)[k]*current_state.block(8)[k] < loqo_min)
+                    if (current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k] < loqo_min)
                     {
-                        loqo_min = current_state.block(7)[k]*current_state.block(8)[k];
+                        loqo_min = current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
                     }
                 }
-                loqo_average = (current_state.block(5)*current_state.block(6) + current_state.block(7)*current_state.block(8))/(2*vect_size);
+                loqo_average = (current_state.block(SolutionBlocks::density_lower_slack)*current_state.block(SolutionBlocks::density_lower_slack_multiplier)
+                                + current_state.block(SolutionBlocks::density_upper_slack)*current_state.block(SolutionBlocks::density_upper_slack_multiplier)
+                                )/(2*vect_size);
 
                 double loqo_complimentarity_deviation = loqo_min/loqo_average;
                 double loqo_multiplier;

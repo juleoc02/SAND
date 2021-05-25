@@ -81,15 +81,13 @@ namespace SAND
         void vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const;
 
         SparseDirectUMFPACK A_direct;
-
-//        A_direct.vmult(linear_solution, system_rhs);
-//        constraints.distribute(linear_solution);
-//        return linear_solution;
+        SparseDirectUMFPACK Scaled_direct;
 
         SolverControl elastic_solver_control;
         SolverControl diag_solver_control;
         SolverCG<Vector<double>> elastic_cg;
         SolverCG<Vector<double>> diag_cg;
+        unsigned int times_used;
 
 
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic;
@@ -101,6 +99,8 @@ namespace SAND
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_density_density;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_displacement_density;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_displacement_multiplier_density;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_scaled_identity;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_scaled_inv;
     };
 
 }

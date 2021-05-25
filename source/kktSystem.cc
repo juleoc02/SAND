@@ -1,8 +1,6 @@
 //
 // Created by justin on 2/17/21.
 //
-
-
 #include "../include/kktSystem.h"
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
@@ -195,7 +193,7 @@ namespace SAND {
             GridGenerator::merge_triangulations(triangulation_temp,
                                                 triangulation, triangulation);
         }
-        triangulation.refine_global(3);
+        triangulation.refine_global(2);
 
         /*Set BCIDs   */
         for (const auto &cell : triangulation.active_cell_iterators()) {
@@ -498,7 +496,7 @@ namespace SAND {
         for (unsigned int i = 1;
              i < density_dofs.n_elements(); ++i) {
             constraints.add_entry(first_density_dof,
-                                  density_dofs.nth_index_in_set(i ), -1);
+                                  density_dofs.nth_index_in_set(i), -1);
         }
 
 
@@ -1104,8 +1102,9 @@ namespace SAND {
     KktSystem<dim>::calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const {
         BlockVector<double> test_rhs = calculate_test_rhs(state, barrier_size);
         double feasibility = 0;
-        feasibility += test_rhs.block(3).l2_norm() + test_rhs.block(4).l2_norm() + test_rhs.block(5).l2_norm()
-                       + test_rhs.block(6).l2_norm() + test_rhs.block(7).l2_norm() + test_rhs.block(8).l2_norm();
+        feasibility += test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() + test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm()
+                + test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm()+ test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm()
+                + test_rhs.block(SolutionBlocks::density_lower_slack).l2_norm() + test_rhs.block(SolutionBlocks::density_upper_slack).l2_norm();
         return feasibility;
     }
 
@@ -1411,48 +1410,67 @@ namespace SAND {
     template<int dim>
     BlockVector<double>
     KktSystem<dim>::solve() {
+//        constraints.condense(system_matrix);
         TopOptSchurPreconditioner preconditioner;
         preconditioner.initialize(system_matrix,boundary_values);
         FullMatrix<double> preconditioned_full_system;
         preconditioned_full_system.reinit(system_matrix.m(),system_matrix.m());
+
+        FullMatrix<double> printable_full_system;
+        printable_full_system.reinit(system_matrix.m(),system_matrix.m());
+
         BlockVector<double> temp_vector_in = system_rhs;
         BlockVector<double> temp_vector_out = system_rhs;
         for (unsigned int col = 0; col < system_matrix.m(); col++)
         {
-            std::cout << col << std::endl;
+             for (unsigned int row = 0; row < system_matrix.m(); row++)
+            {
+                printable_full_system.set(row,col,system_matrix.el(row,col));
+            }
+        }
+
+//        Threads::TaskGroup<> tasks;
+        for (unsigned int col = 0; col < system_matrix.m(); col++)
+        {
+//            auto eval_one_col = [&]() { ;
+//                BlockVector<double> e_i(...);
+//                e_i(col) = 1;
+//
+//                BlockVector<double> sys_col_i(...);
+//                system_matrix.vmult(sys_col_i, e_i);
             for (unsigned int row = 0; row < system_matrix.m(); row++)
             {
                 temp_vector_in[row] = system_matrix.el(row,col);
             }
-            preconditioner.vmult(temp_vector_out,temp_vector_in);
-            for (unsigned int row = 0; row < system_matrix.m(); row++)
-            {
-                preconditioned_full_system.set(row,col,temp_vector_out[row]);
-            }
-            if(col+1%50 == 0)
-            {
-                MatrixOut matrix_out;
-                std::ofstream out ("MatrixOut" + std::to_string(col) + ".vtk");
-                matrix_out.build_patches (preconditioned_full_system, "Matrix");
-                matrix_out.write_vtk(out);
-            }
 
+//                BlockVector<double> temp_vector_out(...);
+                preconditioner.vmult(temp_vector_out, temp_vector_in);
 
+                for (unsigned int row = 0; row < system_matrix.m(); row++) {
+                    preconditioned_full_system.set(row, col, temp_vector_out[row]);
+                }
+//            tasks += Threads::new_task (eval_one_col);
         }
-    std::cout << "A MIRACLE HAS OCCURRED";
-    MatrixOut matrix_out;
-    std::ofstream out ("MatrixOut.vtk");
-    matrix_out.build_patches (preconditioned_full_system, "Matrix");
-    matrix_out.write_vtk(out);
+//        tasks,join_all();
+        std::ofstream myfile;
+        myfile.open ("precond_second_zero_diag_system_matrix.csv");
+        for (unsigned int row = 0; row < system_matrix.m(); row++)
+        {
+            for (unsigned int col = 0; col < system_matrix.m(); col++)
+            {
+                myfile <<preconditioned_full_system(row,col) <<",";
+            }
+            myfile << "\n";
+        }
+        myfile.close();
+        std::cout << "wrote" << std::endl;
 
-//          linear_solution = 0;
-//
-//        SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
-//        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
-//        TopOptSchurPreconditioner preconditioner;
-//        preconditioner.initialize(system_matrix,boundary_values);
-//        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-//        return linear_solution;
+        linear_solution = 0;
+
+        SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
+        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
+        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+        return linear_solution;
 
 //        SparseDirectUMFPACK A_direct;
 //
