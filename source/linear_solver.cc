@@ -143,7 +143,7 @@ namespace SAND {
     void TopOptSchurPreconditioner::vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const {
         dst = src;
         dst.block(SolutionBlocks::unfiltered_density_multiplier) +=
-                op_filter * op_diag_sum_inv * src.block(SolutionBlocks::unfiltered_density);
+                -1 * op_filter * op_diag_sum_inv * src.block(SolutionBlocks::unfiltered_density);
 
     }
 
@@ -202,18 +202,18 @@ namespace SAND {
                                         );
 
 
-        const auto op_top_big_inverse = inverse_operator( op_scaled_inv * op_bcaeeac_chunk * op_fddf_chunk
+        const auto op_top_big_inverse = inverse_operator(op_bcaeeac_chunk * op_scaled_inv * op_fddf_chunk
                                                         - op_scaled_identity,
                                                           other_cg,
                                                           PreconditionIdentity());
 
-        const auto op_bot_big_inverse = inverse_operator(op_scaled_inv * op_fddf_chunk * op_bcaeeac_chunk
+        const auto op_bot_big_inverse = inverse_operator(op_fddf_chunk * op_scaled_inv *  op_bcaeeac_chunk
                                                            - op_scaled_identity,
                                                            other_cg,
                                                            PreconditionIdentity());
 
         dst.block(SolutionBlocks::unfiltered_density_multiplier) =
-                (op_scaled_inv * op_bcaeeac_chunk * src.block(SolutionBlocks::unfiltered_density_multiplier));
+                (op_bcaeeac_chunk * op_scaled_inv * src.block(SolutionBlocks::unfiltered_density_multiplier));
 
         dst.block(SolutionBlocks::unfiltered_density_multiplier) =
                         (op_top_big_inverse * dst.block(SolutionBlocks::unfiltered_density_multiplier));
@@ -222,12 +222,11 @@ namespace SAND {
                          (op_top_big_inverse * src.block(SolutionBlocks::density));
 
         dst.block(SolutionBlocks::density) =
-                (op_scaled_inv * op_fddf_chunk * src.block(SolutionBlocks::density));
+                (op_fddf_chunk * op_scaled_inv * src.block(SolutionBlocks::density));
 
         dst.block(SolutionBlocks::density) = op_bot_big_inverse * dst.block(SolutionBlocks::density);
 
         dst.block(SolutionBlocks::density) +=
                 (op_bot_big_inverse * src.block(SolutionBlocks::unfiltered_density_multiplier));
-
     }
 }

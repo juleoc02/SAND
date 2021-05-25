@@ -1413,63 +1413,67 @@ namespace SAND {
 //        constraints.condense(system_matrix);
         TopOptSchurPreconditioner preconditioner;
         preconditioner.initialize(system_matrix,boundary_values);
-        FullMatrix<double> preconditioned_full_system;
-        preconditioned_full_system.reinit(system_matrix.m(),system_matrix.m());
-
-        FullMatrix<double> printable_full_system;
-        printable_full_system.reinit(system_matrix.m(),system_matrix.m());
-
-        BlockVector<double> temp_vector_in = system_rhs;
-        BlockVector<double> temp_vector_out = system_rhs;
-        for (unsigned int col = 0; col < system_matrix.m(); col++)
-        {
-             for (unsigned int row = 0; row < system_matrix.m(); row++)
-            {
-                printable_full_system.set(row,col,system_matrix.el(row,col));
-            }
-        }
-
-//        Threads::TaskGroup<> tasks;
-        for (unsigned int col = 0; col < system_matrix.m(); col++)
-        {
-//            auto eval_one_col = [&]() { ;
-//                BlockVector<double> e_i(...);
-//                e_i(col) = 1;
+//        FullMatrix<double> preconditioned_full_system;
+//        preconditioned_full_system.reinit(system_matrix.m(),system_matrix.m());
 //
-//                BlockVector<double> sys_col_i(...);
-//                system_matrix.vmult(sys_col_i, e_i);
-            for (unsigned int row = 0; row < system_matrix.m(); row++)
-            {
-                temp_vector_in[row] = system_matrix.el(row,col);
-            }
-
-//                BlockVector<double> temp_vector_out(...);
-                preconditioner.vmult(temp_vector_out, temp_vector_in);
-
-                for (unsigned int row = 0; row < system_matrix.m(); row++) {
-                    preconditioned_full_system.set(row, col, temp_vector_out[row]);
-                }
-//            tasks += Threads::new_task (eval_one_col);
-        }
-//        tasks,join_all();
-        std::ofstream myfile;
-        myfile.open ("precond_second_zero_diag_system_matrix.csv");
-        for (unsigned int row = 0; row < system_matrix.m(); row++)
-        {
-            for (unsigned int col = 0; col < system_matrix.m(); col++)
-            {
-                myfile <<preconditioned_full_system(row,col) <<",";
-            }
-            myfile << "\n";
-        }
-        myfile.close();
-        std::cout << "wrote" << std::endl;
+//        FullMatrix<double> printable_full_system;
+//        printable_full_system.reinit(system_matrix.m(),system_matrix.m());
+//
+//        BlockVector<double> temp_vector_in = system_rhs;
+//        BlockVector<double> temp_vector_out = system_rhs;
+//        for (unsigned int col = 0; col < system_matrix.m(); col++)
+//        {
+//             for (unsigned int row = 0; row < system_matrix.m(); row++)
+//            {
+//                printable_full_system.set(row,col,system_matrix.el(row,col));
+//            }
+//        }
+//
+////        Threads::TaskGroup<> tasks;
+//        for (unsigned int col = 0; col < system_matrix.m(); col++)
+//        {
+//            std::cout << col << std::endl;
+////            auto eval_one_col = [&]() { ;
+////                BlockVector<double> e_i(...);
+////                e_i(col) = 1;
+////
+////                BlockVector<double> sys_col_i(...);
+////                system_matrix.vmult(sys_col_i, e_i);
+//            for (unsigned int row = 0; row < system_matrix.m(); row++)
+//            {
+//                temp_vector_in[row] = system_matrix.el(row,col);
+//            }
+//
+////                BlockVector<double> temp_vector_out(...);
+//                preconditioner.vmult(temp_vector_out, temp_vector_in);
+//
+//                for (unsigned int row = 0; row < system_matrix.m(); row++) {
+//                    preconditioned_full_system.set(row, col, temp_vector_out[row]);
+//                }
+////            tasks += Threads::new_task (eval_one_col);
+//        }
+////        tasks,join_all();
+//        std::ofstream myfile;
+//        myfile.open ("precond_second_zero_diag_system_matrix.csv");
+//        for (unsigned int row = 0; row < system_matrix.m(); row++)
+//        {
+//            for (unsigned int col = 0; col < system_matrix.m(); col++)
+//            {
+//                myfile <<preconditioned_full_system(row,col) <<",";
+//            }
+//            myfile << "\n";
+//        }
+//        myfile.close();
+//        std::cout << "wrote" << std::endl;
 
         linear_solution = 0;
 
         SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
         SolverGMRES<BlockVector<double>> A_gmres(solver_control);
         A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+
+        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+
         return linear_solution;
 
 //        SparseDirectUMFPACK A_direct;
