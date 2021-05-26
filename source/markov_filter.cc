@@ -1,7 +1,7 @@
 //
 // Created by justin on 2/17/21.
 //
-#include "../include/markov.h"
+#include "../include/markov_filter.h"
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/sparse_direct.h>
 

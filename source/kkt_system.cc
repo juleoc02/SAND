@@ -1,7 +1,7 @@
 //
 // Created by justin on 2/17/21.
 //
-#include "../include/kktSystem.h"
+#include "../include/kkt_system.h"
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/tensor.h>
@@ -12,8 +12,6 @@
 #include <deal.II/lac/block_sparse_matrix.h>
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/linear_operator.h>
-#include <deal.II/lac/packaged_operation.h>
-#include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/solver_gmres.h>
 
 #include <deal.II/lac/matrix_out.h>
@@ -37,7 +35,7 @@
 #include <deal.II/numerics/error_estimator.h>
 
 #include "../include/parameters_and_components.h"
-#include "../include/linear_solver.h"
+#include "../include/schur_preconditioner.h"
 
 #include <iostream>
 #include <algorithm>
@@ -57,7 +55,7 @@ namespace SAND {
                FE_DGQ<dim>(0) ^ 2),
             density_ratio(.5),
             density_penalty_exponent(3),
-            filter_r(.251) {
+            filter_r(.2) {
     }
 
 
@@ -193,7 +191,7 @@ namespace SAND {
             GridGenerator::merge_triangulations(triangulation_temp,
                                                 triangulation, triangulation);
         }
-        triangulation.refine_global(2);
+        triangulation.refine_global(4);
 
         /*Set BCIDs   */
         for (const auto &cell : triangulation.active_cell_iterators()) {
@@ -295,7 +293,7 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::setup_block_system() {
-        const FEValuesExtractors::Scalar densities(0);
+        const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
 
         //MAKE n_u and n_P*****************************************************************
 
@@ -1039,7 +1037,7 @@ namespace SAND {
 
     template<int dim>
     double
-    KktSystem<dim>::calculate_objective_value(const BlockVector<double> &state, const double barrier_size) const {
+    KktSystem<dim>::calculate_objective_value(const BlockVector<double> &state) const {
         const unsigned int dofs_per_cell = fe.dofs_per_cell;
         double objective_value;
         objective_value = 0;
@@ -1110,7 +1108,7 @@ namespace SAND {
 
     template<int dim>
     double
-    KktSystem<dim>::calculate_convergence(const BlockVector<double> &state, const double barrier_size) const {
+    KktSystem<dim>::calculate_convergence(const BlockVector<double> &state) const {
         BlockVector<double> test_rhs = calculate_test_rhs(state, 0);
         std::cout << "test_rhs.l1_norm()   " << test_rhs.l2_norm() << std::endl;
         double norm = 0;
@@ -1466,23 +1464,23 @@ namespace SAND {
 //        myfile.close();
 //        std::cout << "wrote" << std::endl;
 
-        linear_solution = 0;
-
-        SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
-        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
-        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-
-        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-
-        return linear_solution;
-
-//        SparseDirectUMFPACK A_direct;
+//        linear_solution = 0;
 //
-//        constraints.distribute(linear_solution);
-//        A_direct.initialize(system_matrix);
-//        A_direct.vmult(linear_solution, system_rhs);
-//        constraints.distribute(linear_solution);
+//        SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
+//        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
+//        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+//
+//        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+//
 //        return linear_solution;
+
+        SparseDirectUMFPACK A_direct;
+
+        constraints.distribute(linear_solution);
+        A_direct.initialize(system_matrix);
+        A_direct.vmult(linear_solution, system_rhs);
+        constraints.distribute(linear_solution);
+        return linear_solution;
 
     }
 
@@ -1531,35 +1529,35 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::output(const BlockVector<double> &state, const unsigned int j) const {
-        std::vector<std::string> solution_names(1, "density");
+        std::vector<std::string> solution_names(1, "low_slack_multiplier");
         std::vector<DataComponentInterpretation::DataComponentInterpretation> data_component_interpretation(
                 1, DataComponentInterpretation::component_is_scalar);
-        for (unsigned int i = 0; i < dim; i++) {
-            solution_names.emplace_back("displacement");
-            data_component_interpretation.push_back(
-                    DataComponentInterpretation::component_is_part_of_vector);
-        }
-        solution_names.emplace_back("unfiltered_density");
-        data_component_interpretation.push_back(
-                DataComponentInterpretation::component_is_scalar);
-        for (unsigned int i = 0; i < dim; i++) {
-            solution_names.emplace_back("displacement_multiplier");
-            data_component_interpretation.push_back(
-                    DataComponentInterpretation::component_is_part_of_vector);
-        }
-        solution_names.emplace_back("unfiltered_density_multiplier");
+        solution_names.emplace_back("upper_slack_multiplier");
         data_component_interpretation.push_back(
                 DataComponentInterpretation::component_is_scalar);
         solution_names.emplace_back("low_slack");
         data_component_interpretation.push_back(
                 DataComponentInterpretation::component_is_scalar);
-        solution_names.emplace_back("low_slack_multiplier");
+        solution_names.emplace_back("upper_slack");
         data_component_interpretation.push_back(
                 DataComponentInterpretation::component_is_scalar);
-        solution_names.emplace_back("high_slack");
+        solution_names.emplace_back("unfiltered_density");
         data_component_interpretation.push_back(
                 DataComponentInterpretation::component_is_scalar);
-        solution_names.emplace_back("high_slack_multiplier");
+        for (unsigned int i = 0; i < dim; i++) {
+            solution_names.emplace_back("displacement");
+            data_component_interpretation.push_back(
+                    DataComponentInterpretation::component_is_part_of_vector);
+        }
+        for (unsigned int i = 0; i < dim; i++) {
+            solution_names.emplace_back("displacement_multiplier");
+            data_component_interpretation.push_back(
+                    DataComponentInterpretation::component_is_part_of_vector);
+        }
+        solution_names.emplace_back("density_multiplier");
+        data_component_interpretation.push_back(
+                DataComponentInterpretation::component_is_scalar);
+        solution_names.emplace_back("density");
         data_component_interpretation.push_back(
                 DataComponentInterpretation::component_is_scalar);
         DataOut<dim> data_out;

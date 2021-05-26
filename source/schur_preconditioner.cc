@@ -1,12 +1,12 @@
 //
 // Created by justin on 2/17/21.
 //
-#include "../include/markov.h"
+#include "../include/markov_filter.h"
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/sparse_matrix.h>
 #include <deal.II/lac/solver_bicgstab.h>
-#include "../include/linear_solver.h"
+#include "../include/schur_preconditioner.h"
 #include "../include/parameters_and_components.h"
 
 namespace SAND {

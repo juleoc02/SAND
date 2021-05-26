@@ -2,9 +2,9 @@
 // Created by justin on 3/2/21.
 //
 
-#ifndef SAND_LINEAR_SOLVER_H
-#define SAND_LINEAR_SOLVER_H
-#include "../include/kktSystem.h"
+#ifndef SAND_SCHUR_PRECONDITIONER_H
+#define SAND_SCHUR_PRECONDITIONER_H
+#include "../include/kkt_system.h"
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/tensor.h>
@@ -104,4 +104,4 @@ namespace SAND
     };
 
 }
-#endif //SAND_LINEAR_SOLVER_H
+#endif //SAND_SCHUR_PRECONDITIONER_H

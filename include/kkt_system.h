@@ -2,8 +2,8 @@
 // Created by justin on 2/17/21.
 //
 
-#ifndef SAND_KKTSYSTEM_H
-#define SAND_KKTSYSTEM_H
+#ifndef SAND_KKT_SYSTEM_H
+#define SAND_KKT_SYSTEM_H
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/tensor.h>
@@ -71,7 +71,7 @@ namespace SAND {
         get_initial_state();
 
         double
-        calculate_objective_value(const BlockVector<double> &state, const double barrier_size) const;
+        calculate_objective_value(const BlockVector<double> &state) const;
 
         double
         calculate_barrier_distance(const BlockVector<double> &state) const;
@@ -80,7 +80,7 @@ namespace SAND {
         calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const;
 
         double
-        calculate_convergence(const BlockVector<double> &state, const double barrier_size) const;
+        calculate_convergence(const BlockVector<double> &state) const;
 
         void
         output(const BlockVector<double> &state, const unsigned int j) const;
@@ -112,4 +112,4 @@ namespace SAND {
     };
 }
 
-#endif //SAND_KKTSYSTEM_H
+#endif //SAND_KKT_SYSTEM_H
