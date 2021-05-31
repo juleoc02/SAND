@@ -119,11 +119,11 @@ SANDTopOpt<dim>::SANDTopOpt():
         max_step.block(SolutionBlocks::density) = step_size_s * step.block(SolutionBlocks::density);
         max_step.block(SolutionBlocks::displacement) = step_size_s * step.block(SolutionBlocks::displacement);
         max_step.block(SolutionBlocks::unfiltered_density) = step_size_s * step.block(SolutionBlocks::unfiltered_density);
-        max_step.block(SolutionBlocks::density_lower_slack) = step_size_z * step.block(SolutionBlocks::density_lower_slack);
-        max_step.block(SolutionBlocks::density_upper_slack) = step_size_z * step.block(SolutionBlocks::density_upper_slack);
-        max_step.block(SolutionBlocks::unfiltered_density_multiplier) = step_size_s * step.block(SolutionBlocks::unfiltered_density_multiplier);
+        max_step.block(SolutionBlocks::density_lower_slack) = step_size_s * step.block(SolutionBlocks::density_lower_slack);
+        max_step.block(SolutionBlocks::density_upper_slack) = step_size_s * step.block(SolutionBlocks::density_upper_slack);
+        max_step.block(SolutionBlocks::unfiltered_density_multiplier) = step_size_z * step.block(SolutionBlocks::unfiltered_density_multiplier);
         max_step.block(SolutionBlocks::density_lower_slack_multiplier) = step_size_z * step.block(SolutionBlocks::density_lower_slack_multiplier);
-        max_step.block(SolutionBlocks::density_upper_slack_multiplier) = step_size_s * step.block(SolutionBlocks::density_upper_slack_multiplier);
+        max_step.block(SolutionBlocks::density_upper_slack_multiplier) = step_size_z * step.block(SolutionBlocks::density_upper_slack_multiplier);
         max_step.block(SolutionBlocks::displacement_multiplier) = step_size_z * step.block(SolutionBlocks::displacement_multiplier);
 
         return max_step;

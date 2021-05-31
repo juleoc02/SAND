@@ -6,6 +6,8 @@
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/sparse_matrix.h>
 #include <deal.II/lac/solver_bicgstab.h>
+#include <deal.II/lac/solver_cg.h>
+#include <deal.II/base/timer.h>
 #include "../include/schur_preconditioner.h"
 #include "../include/parameters_and_components.h"
 
@@ -19,11 +21,8 @@ namespace SAND {
             n_columns(0),
             n_block_rows(0),
             n_block_columns(0),
-            elastic_solver_control(10000, 1e-12),
-            elastic_cg(elastic_solver_control),
-            diag_solver_control(10000, 1e-12),
+            diag_solver_control(10000, 1e-6),
             diag_cg(diag_solver_control)
-
     {
     }
 
@@ -63,22 +62,18 @@ namespace SAND {
             }
         }
 
-//        double diag_val = matrix.block(SolutionBlocks::density,SolutionBlocks::density).el(0,0);
-//        matrix.block(SolutionBlocks::density, SolutionBlocks::displacement).set(0,0,diag_val);
-//        matrix.block(SolutionBlocks::density, SolutionBlocks::displacement_multiplier).set(0,0,diag_val);
-//        matrix.block(SolutionBlocks::displacement, SolutionBlocks::density).set(0,0,diag_val);
-//        matrix.block(SolutionBlocks::displacement_multiplier, SolutionBlocks::density).set(0,0,diag_val);
-
         op_elastic = linear_operator(
                 matrix.block(SolutionBlocks::displacement, SolutionBlocks::displacement_multiplier));
-        op_elastic_inv = inverse_operator(op_elastic, elastic_cg, PreconditionIdentity());
 
         op_filter = linear_operator(
                 matrix.block(SolutionBlocks::unfiltered_density_multiplier, SolutionBlocks::unfiltered_density));
+
         op_diag_1 = linear_operator(
                 matrix.block(SolutionBlocks::density_lower_slack, SolutionBlocks::density_lower_slack));
+
         op_diag_2 = linear_operator(
                 matrix.block(SolutionBlocks::density_upper_slack, SolutionBlocks::density_upper_slack));
+
         op_displacement_density = linear_operator(matrix.block(SolutionBlocks::displacement, SolutionBlocks::density));
 
         op_displacement_multiplier_density = linear_operator(
@@ -86,16 +81,43 @@ namespace SAND {
 
         op_density_density = linear_operator(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
 
-        op_diag_sum_inv = inverse_operator(op_diag_1 + op_diag_2, diag_cg, PreconditionIdentity());
+//        diag_sum_direct.initialize(matrix.block(SolutionBlocks::density_lower_slack,SolutionBlocks::density_lower_slack)
+//                                    + matrix.block(SolutionBlocks::density_lower_slack,SolutionBlocks::density_upper_slack));
 
-        A_direct.initialize(matrix.block(SolutionBlocks::displacement,SolutionBlocks::displacement_multiplier));
+        op_diag_sum_inverse = inverse_operator(op_diag_1+op_diag_2, diag_cg, PreconditionIdentity());
 
-        op_elastic_inv = linear_operator(A_direct);
+        elastic_direct.initialize(matrix.block(SolutionBlocks::displacement,SolutionBlocks::displacement_multiplier));
+        op_elastic_inverse = linear_operator(elastic_direct);
 
         op_scaled_identity = linear_operator(matrix.block(SolutionBlocks::density_upper_slack,SolutionBlocks::density_upper_slack_multiplier));
 
-        Scaled_direct.initialize(matrix.block(SolutionBlocks::density_upper_slack,SolutionBlocks::density_upper_slack_multiplier));
-        op_scaled_inv = linear_operator(Scaled_direct);
+        scaled_direct.initialize(matrix.block(SolutionBlocks::density_upper_slack,SolutionBlocks::density_upper_slack_multiplier));
+        op_scaled_inverse = linear_operator(scaled_direct);
+
+        SolverControl other_solver_control(10000, 1e-6);
+        SolverBicgstab<Vector<double>> other_bicgstab(other_solver_control);
+
+        op_fddf_chunk = -1 * op_filter * op_diag_sum_inverse * transpose_operator(op_filter);
+        op_bcaeeac_chunk =  (op_density_density
+                                        -
+                                        transpose_operator(op_displacement_density) * op_elastic_inverse *
+                                        op_displacement_multiplier_density
+                                        -
+                                        transpose_operator(op_displacement_multiplier_density) *
+                                        op_elastic_inverse * op_displacement_density
+        );
+
+
+        op_top_big_inverse = inverse_operator(op_bcaeeac_chunk * op_scaled_inverse * op_fddf_chunk
+                                                         - op_scaled_identity,
+                                                         other_bicgstab,
+                                                         PreconditionIdentity());
+
+        op_bot_big_inverse = inverse_operator(op_fddf_chunk * op_scaled_inverse *  op_bcaeeac_chunk
+                                                         - op_scaled_identity,
+                                                         other_bicgstab,
+                                                         PreconditionIdentity());
+
     }
 
     void TopOptSchurPreconditioner::vmult(BlockVector<double> &dst, const BlockVector<double> &src) const {
@@ -132,9 +154,9 @@ namespace SAND {
     void TopOptSchurPreconditioner::vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src) const {
         dst = src;
         dst.block(SolutionBlocks::unfiltered_density) +=
-                -1 * op_diag_1 * op_scaled_inv * src.block(SolutionBlocks::density_lower_slack_multiplier)
+                -1 * op_diag_1 * op_scaled_inverse * src.block(SolutionBlocks::density_lower_slack_multiplier)
                 +
-                op_diag_2 * op_scaled_inv * src.block(SolutionBlocks::density_upper_slack_multiplier)
+                op_diag_2 * op_scaled_inverse * src.block(SolutionBlocks::density_upper_slack_multiplier)
                 +
                 src.block(SolutionBlocks::density_lower_slack)
                 -
@@ -144,17 +166,17 @@ namespace SAND {
     void TopOptSchurPreconditioner::vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const {
         dst = src;
         dst.block(SolutionBlocks::unfiltered_density_multiplier) +=
-                -1 * op_filter * op_diag_sum_inv * src.block(SolutionBlocks::unfiltered_density);
+                -1 * op_filter * op_diag_sum_inverse * src.block(SolutionBlocks::unfiltered_density);
 
     }
 
     void TopOptSchurPreconditioner::vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const {
         dst = src;
         dst.block(SolutionBlocks::density) +=
-                -1 * transpose_operator(op_displacement_density) * op_elastic_inv *
+                -1 * transpose_operator(op_displacement_density) * op_elastic_inverse *
                 src.block(SolutionBlocks::displacement_multiplier)
                 +
-                -1 * transpose_operator(op_displacement_multiplier_density) * op_elastic_inv *
+                -1 * transpose_operator(op_displacement_multiplier_density) * op_elastic_inverse *
                 src.block(SolutionBlocks::displacement);
     }
 
@@ -163,58 +185,35 @@ namespace SAND {
 
         //First Block Inverse
         dst.block(SolutionBlocks::density_lower_slack_multiplier) =
-                -1 * op_diag_1 * op_scaled_inv * op_scaled_inv * src.block(SolutionBlocks::density_lower_slack_multiplier)
+                -1 * op_diag_1 * op_scaled_inverse * op_scaled_inverse * src.block(SolutionBlocks::density_lower_slack_multiplier)
                 +
-                op_scaled_inv * src.block(SolutionBlocks::density_lower_slack);
+                op_scaled_inverse * src.block(SolutionBlocks::density_lower_slack);
 
         dst.block(SolutionBlocks::density_upper_slack_multiplier) =
-                -1 * op_diag_2 *op_scaled_inv *op_scaled_inv * src.block(SolutionBlocks::density_upper_slack_multiplier)
+                -1 * op_diag_2 *op_scaled_inverse *op_scaled_inverse * src.block(SolutionBlocks::density_upper_slack_multiplier)
                 +
-                op_scaled_inv *src.block(SolutionBlocks::density_upper_slack);
+                op_scaled_inverse *src.block(SolutionBlocks::density_upper_slack);
 
         dst.block(SolutionBlocks::density_lower_slack) =
-                op_scaled_inv * src.block(SolutionBlocks::density_lower_slack_multiplier);
+                op_scaled_inverse * src.block(SolutionBlocks::density_lower_slack_multiplier);
 
         dst.block(SolutionBlocks::density_upper_slack) =
-                op_scaled_inv * src.block(SolutionBlocks::density_upper_slack_multiplier);
+                op_scaled_inverse * src.block(SolutionBlocks::density_upper_slack_multiplier);
 
         //Second Block Inverse
         dst.block(SolutionBlocks::unfiltered_density) =
-                op_diag_sum_inv * src.block(SolutionBlocks::unfiltered_density);
+                op_diag_sum_inverse * src.block(SolutionBlocks::unfiltered_density);
 
         //Third Block Inverse
         dst.block(SolutionBlocks::displacement) =
-                op_elastic_inv * src.block(SolutionBlocks::displacement_multiplier);
+                op_elastic_inverse * src.block(SolutionBlocks::displacement_multiplier);
         dst.block(SolutionBlocks::displacement_multiplier) =
-                op_elastic_inv * src.block(SolutionBlocks::displacement);
+                op_elastic_inverse * src.block(SolutionBlocks::displacement);
 
         //Fourth (ugly) Block Inverse
-        SolverControl other_solver_control(10001, 1e-6);
-        SolverBicgstab<Vector<double>> other_cg(other_solver_control);
-
-        const auto op_fddf_chunk = -1 * op_filter * op_diag_sum_inv * transpose_operator(op_filter);
-        const auto op_bcaeeac_chunk =  (op_density_density
-                                        -
-                                        transpose_operator(op_displacement_density) * op_elastic_inv *
-                                        op_displacement_multiplier_density
-                                        -
-                                        transpose_operator(op_displacement_multiplier_density) *
-                                        op_elastic_inv * op_displacement_density
-                                        );
-
-
-        const auto op_top_big_inverse = inverse_operator(op_bcaeeac_chunk * op_scaled_inv * op_fddf_chunk
-                                                        - op_scaled_identity,
-                                                          other_cg,
-                                                          PreconditionIdentity());
-
-        const auto op_bot_big_inverse = inverse_operator(op_fddf_chunk * op_scaled_inv *  op_bcaeeac_chunk
-                                                           - op_scaled_identity,
-                                                           other_cg,
-                                                           PreconditionIdentity());
 
         dst.block(SolutionBlocks::unfiltered_density_multiplier) =
-                (op_bcaeeac_chunk * op_scaled_inv * src.block(SolutionBlocks::unfiltered_density_multiplier));
+                (op_bcaeeac_chunk * op_scaled_inverse * src.block(SolutionBlocks::unfiltered_density_multiplier));
 
         dst.block(SolutionBlocks::unfiltered_density_multiplier) =
                         (op_top_big_inverse * dst.block(SolutionBlocks::unfiltered_density_multiplier));
@@ -223,7 +222,7 @@ namespace SAND {
                          (op_top_big_inverse * src.block(SolutionBlocks::density));
 
         dst.block(SolutionBlocks::density) =
-                (op_fddf_chunk * op_scaled_inv * src.block(SolutionBlocks::density));
+                (op_fddf_chunk * op_scaled_inverse * src.block(SolutionBlocks::density));
 
         dst.block(SolutionBlocks::density) = op_bot_big_inverse * dst.block(SolutionBlocks::density);
 

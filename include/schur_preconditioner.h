@@ -41,9 +41,13 @@
 #include <deal.II/base/numbers.h>
 #include <deal.II/base/table.h>
 #include <deal.II/base/tensor.h>
+#include <deal.II/base/timer.h>
+
 #include <deal.II/differentiation/ad/ad_number_traits.h>
+
 #include <deal.II/lac/exceptions.h>
 #include <deal.II/lac/identity_matrix.h>
+
 #include <cstring>
 #include <iomanip>
 #include <vector>
@@ -70,6 +74,7 @@ namespace SAND
         void clear();
         unsigned int m() const;
         unsigned int n() const;
+
     private:
         unsigned int n_rows;
         unsigned int n_columns;
@@ -80,27 +85,28 @@ namespace SAND
         void vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const;
 
-        SparseDirectUMFPACK A_direct;
-        SparseDirectUMFPACK Scaled_direct;
-
-        SolverControl elastic_solver_control;
-        SolverControl diag_solver_control;
-        SolverCG<Vector<double>> elastic_cg;
-        SolverCG<Vector<double>> diag_cg;
-        unsigned int times_used;
-
+        SparseDirectUMFPACK elastic_direct;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic_inverse;
+        SparseDirectUMFPACK scaled_direct;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_scaled_inverse;
+        SparseDirectUMFPACK diag_sum_direct;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_sum_inverse;
 
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_filter;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_1;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_2;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_sum_inv;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic_inv;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_density_density;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_displacement_density;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_displacement_multiplier_density;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_scaled_identity;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_scaled_inv;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_fddf_chunk;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_bcaeeac_chunk;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_top_big_inverse;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_bot_big_inverse;
+
+        SolverControl diag_solver_control;
+        SolverCG<Vector<double>> diag_cg;
     };
 
 }

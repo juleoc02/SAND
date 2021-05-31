@@ -55,7 +55,7 @@ namespace SAND {
                FE_DGQ<dim>(0) ^ 2),
             density_ratio(.5),
             density_penalty_exponent(3),
-            filter_r(.2) {
+            filter_r(.15) {
     }
 
 
@@ -496,7 +496,6 @@ namespace SAND {
             constraints.add_entry(first_density_dof,
                                   density_dofs.nth_index_in_set(i), -1);
         }
-
 
         constraints.set_inhomogeneity(first_density_dof, 0);
 
@@ -1408,80 +1407,24 @@ namespace SAND {
     template<int dim>
     BlockVector<double>
     KktSystem<dim>::solve() {
-//        constraints.condense(system_matrix);
+        constraints.condense(system_matrix);
         TopOptSchurPreconditioner preconditioner;
         preconditioner.initialize(system_matrix,boundary_values);
-//        FullMatrix<double> preconditioned_full_system;
-//        preconditioned_full_system.reinit(system_matrix.m(),system_matrix.m());
-//
-//        FullMatrix<double> printable_full_system;
-//        printable_full_system.reinit(system_matrix.m(),system_matrix.m());
-//
-//        BlockVector<double> temp_vector_in = system_rhs;
-//        BlockVector<double> temp_vector_out = system_rhs;
-//        for (unsigned int col = 0; col < system_matrix.m(); col++)
-//        {
-//             for (unsigned int row = 0; row < system_matrix.m(); row++)
-//            {
-//                printable_full_system.set(row,col,system_matrix.el(row,col));
-//            }
-//        }
-//
-////        Threads::TaskGroup<> tasks;
-//        for (unsigned int col = 0; col < system_matrix.m(); col++)
-//        {
-//            std::cout << col << std::endl;
-////            auto eval_one_col = [&]() { ;
-////                BlockVector<double> e_i(...);
-////                e_i(col) = 1;
-////
-////                BlockVector<double> sys_col_i(...);
-////                system_matrix.vmult(sys_col_i, e_i);
-//            for (unsigned int row = 0; row < system_matrix.m(); row++)
-//            {
-//                temp_vector_in[row] = system_matrix.el(row,col);
-//            }
-//
-////                BlockVector<double> temp_vector_out(...);
-//                preconditioner.vmult(temp_vector_out, temp_vector_in);
-//
-//                for (unsigned int row = 0; row < system_matrix.m(); row++) {
-//                    preconditioned_full_system.set(row, col, temp_vector_out[row]);
-//                }
-////            tasks += Threads::new_task (eval_one_col);
-//        }
-////        tasks,join_all();
-//        std::ofstream myfile;
-//        myfile.open ("precond_second_zero_diag_system_matrix.csv");
-//        for (unsigned int row = 0; row < system_matrix.m(); row++)
-//        {
-//            for (unsigned int col = 0; col < system_matrix.m(); col++)
-//            {
-//                myfile <<preconditioned_full_system(row,col) <<",";
-//            }
-//            myfile << "\n";
-//        }
-//        myfile.close();
-//        std::cout << "wrote" << std::endl;
-
-//        linear_solution = 0;
-//
-//        SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
-//        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
-//        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-//
-//        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-//
-//        return linear_solution;
-
-        SparseDirectUMFPACK A_direct;
-
+        SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
+        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
+        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
         constraints.distribute(linear_solution);
-        A_direct.initialize(system_matrix);
-        A_direct.vmult(linear_solution, system_rhs);
-        constraints.distribute(linear_solution);
+
+        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+
+//        SparseDirectUMFPACK A_direct;
+//        constraints.distribute(linear_solution);
+//        A_direct.initialize(system_matrix);
+//        A_direct.vmult(linear_solution, system_rhs);
+//        constraints.distribute(linear_solution);
+
+
         return linear_solution;
-
     }
 
 ///A direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
