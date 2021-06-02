@@ -1413,6 +1413,7 @@ namespace SAND {
         preconditioner.initialize(system_matrix,boundary_values);
         std::cout << "initialized" << std::endl;
         preconditioner.vmult(system_rhs,system_rhs);
+        std::abort();
 
 //        SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
 //        SolverGMRES<BlockVector<double>> A_gmres(solver_control);

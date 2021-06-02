@@ -1,15 +1,11 @@
 //
 // Created by justin on 2/17/21.
 //
-#include "../include/markov_filter.h"
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/sparse_matrix.h>
-#include <deal.II/lac/solver_bicgstab.h>
-#include <deal.II/lac/solver_cg.h>
 #include <deal.II/base/timer.h>
 #include "../include/schur_preconditioner.h"
-#include "../include/parameters_and_components.h"
 
 namespace SAND {
 
@@ -122,47 +118,41 @@ namespace SAND {
 
     void TopOptSchurPreconditioner::vmult(BlockVector<double> &dst, const BlockVector<double> &src) {
         BlockVector<double> temp_src;
-        std::cout << "part 1" << std::endl;
         {
             TimerOutput::Scope t(timer, "part 1");
             vmult_step_1(dst, src);
             temp_src = dst;
         }
-        std::cout << "part 2" << std::endl;
+
         {
             TimerOutput::Scope t(timer, "part 2");
             vmult_step_2(dst, temp_src);
             temp_src = dst;
         }
-        std::cout << "part 3" << std::endl;
+
         {
             TimerOutput::Scope t(timer, "part 3");
             vmult_step_3(dst, temp_src);
             temp_src = dst;
         }
-        std::cout << "part 4" << std::endl;
 
         vmult_step_4(dst, temp_src);
 
-        std::cout << "vmult done" << std::endl;
         timer.print_summary();
     }
 
     void TopOptSchurPreconditioner::Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) {
         dst = src;
-        std::cout << "bad";
     }
 
     void TopOptSchurPreconditioner::vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) {
         BlockVector<double> dst_temp = dst;
         vmult(dst_temp, src);
         dst += dst_temp;
-        std::cout << "bad";
     }
 
     void TopOptSchurPreconditioner::Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) {
         dst = dst + src;
-        std::cout << "bad";
     }
 
     void TopOptSchurPreconditioner::vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src) {
@@ -195,7 +185,6 @@ namespace SAND {
     }
 
     void TopOptSchurPreconditioner::vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) {
-        std::cout << "in part 4" << std::endl;
         {
             //First Block Inverse
             TimerOutput::Scope t(timer, "inverse 1");
@@ -217,14 +206,14 @@ namespace SAND {
             dst.block(SolutionBlocks::density_upper_slack) =
                     op_scaled_inverse * src.block(SolutionBlocks::density_upper_slack_multiplier);
         }
-        std::cout << "part 4.1 done" << std::endl;
+
         {
             //Second Block Inverse
             TimerOutput::Scope t(timer, "inverse 2");
             dst.block(SolutionBlocks::unfiltered_density) =
                     op_diag_sum_inverse * src.block(SolutionBlocks::unfiltered_density);
         }
-        std::cout << "part 4.2 done" << std::endl;
+
         {
             //Third Block Inverse
             TimerOutput::Scope t(timer, "inverse 3");
@@ -233,17 +222,15 @@ namespace SAND {
             dst.block(SolutionBlocks::displacement_multiplier) =
                     op_elastic_inverse * src.block(SolutionBlocks::displacement);
         }
-        std::cout << "part 4.3 done" << std::endl;
+
         {
             //Fourth (ugly) Block Inverse
             TimerOutput::Scope t(timer, "inverse 4");
             dst.block(SolutionBlocks::unfiltered_density_multiplier) =
                     (op_bcaeeac_chunk * op_scaled_inverse * src.block(SolutionBlocks::unfiltered_density_multiplier));
-            std::cout << "part 4.4.1 done" << std::endl;
             dst.block(SolutionBlocks::unfiltered_density_multiplier) =
                     (op_top_big_inverse * dst.block(SolutionBlocks::unfiltered_density_multiplier));
 
-            std::cout << "part 4.4.2 done" << std::endl;
             dst.block(SolutionBlocks::unfiltered_density_multiplier) +=
                     (op_top_big_inverse * src.block(SolutionBlocks::density));
 
@@ -255,6 +242,5 @@ namespace SAND {
             dst.block(SolutionBlocks::density) +=
                     (op_bot_big_inverse * src.block(SolutionBlocks::unfiltered_density_multiplier));
         }
-        std::cout << "part 4.4 done" << std::endl;
     }
 }
