@@ -232,7 +232,7 @@ SANDTopOpt<dim>::SANDTopOpt():
         {
             bool converged = false;
             //while not converged
-            while(!converged && iteration_number < 10000)
+            while(!converged && iteration_number < 3)
             {
                 bool found_step = false;
                 //save current state as watchdog state

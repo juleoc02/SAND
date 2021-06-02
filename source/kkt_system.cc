@@ -191,7 +191,7 @@ namespace SAND {
             GridGenerator::merge_triangulations(triangulation_temp,
                                                 triangulation, triangulation);
         }
-        triangulation.refine_global(4);
+        triangulation.refine_global(3);
 
         /*Set BCIDs   */
         for (const auto &cell : triangulation.active_cell_iterators()) {
@@ -1408,14 +1408,17 @@ namespace SAND {
     BlockVector<double>
     KktSystem<dim>::solve() {
         constraints.condense(system_matrix);
+        std::cout << "start" << std::endl;
         TopOptSchurPreconditioner preconditioner;
         preconditioner.initialize(system_matrix,boundary_values);
-        SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
-        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
-        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-        constraints.distribute(linear_solution);
+        std::cout << "initialized" << std::endl;
+        preconditioner.vmult(system_rhs,system_rhs);
 
-        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+//        SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
+//        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
+//        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+//        constraints.distribute(linear_solution);
+//        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
 
 //        SparseDirectUMFPACK A_direct;
 //        constraints.distribute(linear_solution);

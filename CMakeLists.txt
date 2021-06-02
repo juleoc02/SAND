@@ -1,7 +1,3 @@
-##
-#  CMake script for the step-41 tutorial program:
-##
-
 # Set the name of the project and target:
 SET(TARGET "SAND")
 
