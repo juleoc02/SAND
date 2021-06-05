@@ -116,7 +116,7 @@ namespace SAND {
                                                          PreconditionIdentity());
     }
 
-    void TopOptSchurPreconditioner::vmult(BlockVector<double> &dst, const BlockVector<double> &src) {
+    void TopOptSchurPreconditioner::vmult(BlockVector<double> &dst, const BlockVector<double> &src) const {
         BlockVector<double> temp_src;
         {
             TimerOutput::Scope t(timer, "part 1");
@@ -141,21 +141,21 @@ namespace SAND {
         timer.print_summary();
     }
 
-    void TopOptSchurPreconditioner::Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) {
+    void TopOptSchurPreconditioner::Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const{
         dst = src;
     }
 
-    void TopOptSchurPreconditioner::vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) {
+    void TopOptSchurPreconditioner::vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const{
         BlockVector<double> dst_temp = dst;
         vmult(dst_temp, src);
         dst += dst_temp;
     }
 
-    void TopOptSchurPreconditioner::Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) {
+    void TopOptSchurPreconditioner::Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const{
         dst = dst + src;
     }
 
-    void TopOptSchurPreconditioner::vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src) {
+    void TopOptSchurPreconditioner::vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src) const{
         dst = src;
         dst.block(SolutionBlocks::unfiltered_density) +=
                 -1 * op_diag_1 * op_scaled_inverse * src.block(SolutionBlocks::density_lower_slack_multiplier)
@@ -167,14 +167,14 @@ namespace SAND {
                 src.block(SolutionBlocks::density_upper_slack);
     }
 
-    void TopOptSchurPreconditioner::vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) {
+    void TopOptSchurPreconditioner::vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const{
         dst = src;
         dst.block(SolutionBlocks::unfiltered_density_multiplier) +=
                 -1 * op_filter * op_diag_sum_inverse * src.block(SolutionBlocks::unfiltered_density);
 
     }
 
-    void TopOptSchurPreconditioner::vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) {
+    void TopOptSchurPreconditioner::vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const{
         dst = src;
         dst.block(SolutionBlocks::density) +=
                 -1 * transpose_operator(op_displacement_density) * op_elastic_inverse *
@@ -184,7 +184,7 @@ namespace SAND {
                 src.block(SolutionBlocks::displacement);
     }
 
-    void TopOptSchurPreconditioner::vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) {
+    void TopOptSchurPreconditioner::vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const{
         {
             //First Block Inverse
             TimerOutput::Scope t(timer, "inverse 1");

@@ -69,10 +69,10 @@ namespace SAND
     public:
         TopOptSchurPreconditioner();
         void initialize (BlockSparseMatrix<double> &matrix,  std::map<types::global_dof_index, double> boundary_values);
-        void vmult(BlockVector<double> &dst, const BlockVector<double> &src);
-        void Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) ;
-        void vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) ;
-        void Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) ;
+        void vmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        void Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        void vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        void Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void clear();
         unsigned int m() const;
         unsigned int n() const;
@@ -82,10 +82,10 @@ namespace SAND
         unsigned int n_columns;
         unsigned int n_block_rows;
         unsigned int n_block_columns;
-        void vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src);
-        void vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src);
-        void vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src);
-        void vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src);
+        void vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        void vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        void vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        void vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const;
 
         SparseDirectUMFPACK elastic_direct;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic_inverse;
@@ -113,7 +113,7 @@ namespace SAND
         SolverControl other_solver_control;
         SolverBicgstab<Vector<double>> other_bicgstab;
 
-        TimerOutput timer;
+        mutable TimerOutput timer;
     };
 
 }
