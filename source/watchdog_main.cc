@@ -4,12 +4,12 @@
 #include <deal.II/lac/packaged_operation.h>
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_refinement.h>
-#include <deal.II/numerics/matrix_tools.h>
 #include <iostream>
 #include "../include/markov_filter.h"
 #include "../include/kkt_system.h"
 #include "../include/parameters_and_components.h"
 #include "../include/schur_preconditioner.h"
+#include "../include/input_information.h"
 
 ///Above are fairly normal files to include.  I also use the sparse direct package, which requiresBLAS/LAPACK
 /// to  perform  a  direct  solve  while  I  work  on  a  fast  iterative  solver  for  this problem.
@@ -109,7 +109,7 @@ SANDTopOpt<dim>::SANDTopOpt():
     SANDTopOpt<dim>::find_max_step(const BlockVector<double> &state)
     {
         kkt_system.assemble_block_system(state, barrier_size);
-        const BlockVector<double> step = kkt_system.solve();
+        const BlockVector<double> step = kkt_system.solve(state);
 
         const auto max_step_sizes= calculate_max_step_size(state,step);
         const double step_size_s = max_step_sizes.first;
@@ -216,7 +216,7 @@ SANDTopOpt<dim>::SANDTopOpt():
     void
     SANDTopOpt<dim>::run() {
 
-        barrier_size = 25;
+        barrier_size = Input::initial_barrier_size;
         kkt_system.create_triangulation();
         kkt_system.setup_boundary_values();
         kkt_system.setup_filter_matrix();
@@ -232,7 +232,7 @@ SANDTopOpt<dim>::SANDTopOpt():
         {
             bool converged = false;
             //while not converged
-            while(!converged && iteration_number < 3)
+            while(!converged && iteration_number < 10000)
             {
                 bool found_step = false;
                 //save current state as watchdog state
@@ -248,6 +248,10 @@ SANDTopOpt<dim>::SANDTopOpt():
                     if(k==0)
                     {
                         watchdog_step = current_step;
+                        if (iteration_number == 0)
+                        {
+                            kkt_system.calculate_initial_rhs_error();
+                        }
                     }
                     //apply full step to current state
                     current_state=current_state+current_step;
@@ -325,7 +329,7 @@ SANDTopOpt<dim>::SANDTopOpt():
 int
 main() {
     try {
-        SAND::SANDTopOpt<2> elastic_problem_2d;
+        SAND::SANDTopOpt<SAND::Input::dim> elastic_problem_2d;
         elastic_problem_2d.run();
     }
     catch (std::exception &exc) {

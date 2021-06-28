@@ -37,6 +37,8 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
 
+#include "../include/schur_preconditioner.h"
+
 #include <iostream>
 #include <fstream>
 #include <algorithm>
@@ -65,7 +67,7 @@ namespace SAND {
         assemble_block_system(const BlockVector<double> &state, const double barrier_size);
 
         BlockVector<double>
-        solve();
+        solve(const BlockVector<double> &state);
 
         BlockVector<double>
         get_initial_state();
@@ -84,6 +86,10 @@ namespace SAND {
 
         void
         output(const BlockVector<double> &state, const unsigned int j) const;
+
+        void
+        calculate_initial_rhs_error();
+
 
 
     private:
@@ -108,6 +114,10 @@ namespace SAND {
 
 
         std::map<types::global_dof_index, double> boundary_values;
+
+        TopOptSchurPreconditioner<dim> preconditioner;
+
+        double initial_rhs_error;
 
     };
 }

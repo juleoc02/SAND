@@ -4,7 +4,6 @@
 
 #ifndef SAND_SCHUR_PRECONDITIONER_H
 #define SAND_SCHUR_PRECONDITIONER_H
-#include "../include/kkt_system.h"
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/function.h>
 #include <deal.II/base/tensor.h>
@@ -64,11 +63,11 @@
 namespace SAND
 {
     using namespace dealii;
-
+    template<int dim>
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
         TopOptSchurPreconditioner();
-        void initialize (BlockSparseMatrix<double> &matrix,  std::map<types::global_dof_index, double> boundary_values);
+        void initialize (BlockSparseMatrix<double> &matrix,  std::map<types::global_dof_index, double> &boundary_values);
         void vmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const;
@@ -76,6 +75,11 @@ namespace SAND
         void clear();
         unsigned int m() const;
         unsigned int n() const;
+        void get_sparsity_pattern(BlockDynamicSparsityPattern &bdsp);
+
+        void assemble_mass_matrix(const BlockVector<double> &state, const FESystem<dim> &fe, const DoFHandler<dim> &dof_handler, const AffineConstraints<double> &constraints);
+
+        void print_stuff(BlockSparseMatrix<double> &matrix);
 
     private:
         unsigned int n_rows;
@@ -86,6 +90,10 @@ namespace SAND
         void vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const;
+
+
+        BlockSparsityPattern mass_sparsity;
+        BlockSparseMatrix<double> weighted_mass_matrix;
 
         SparseDirectUMFPACK elastic_direct;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic_inverse;
@@ -104,8 +112,13 @@ namespace SAND
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_scaled_identity;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_fddf_chunk;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_bcaeeac_chunk;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_simplified_fddf_chunk;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_simplified_bcaeeac_chunk;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_lumped_bcaeeac_chunk;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_top_big_inverse;
         decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_bot_big_inverse;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_simplified_top_big_inverse;
+        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_simplified_bot_big_inverse;
 
         SolverControl diag_solver_control;
         SolverCG<Vector<double>> diag_cg;
@@ -114,6 +127,7 @@ namespace SAND
         SolverBicgstab<Vector<double>> other_bicgstab;
 
         mutable TimerOutput timer;
+
     };
 
 }

@@ -36,6 +36,7 @@
 
 #include "../include/parameters_and_components.h"
 #include "../include/schur_preconditioner.h"
+#include "../include/input_information.h"
 
 #include <iostream>
 #include <algorithm>
@@ -55,7 +56,7 @@ namespace SAND {
                FE_DGQ<dim>(0) ^ 2),
             density_ratio(.5),
             density_penalty_exponent(3),
-            filter_r(.15) {
+            filter_r(Input::filter_r) {
     }
 
 
@@ -172,26 +173,12 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::create_triangulation() {
-        /*Make a square*/
-        Triangulation<dim> triangulation_temp;
-        Point<dim> point_1, point_2;
-        point_1(0) = 0;
-        point_1(1) = 0;
-        point_2(0) = 1;
-        point_2(1) = 1;
-        GridGenerator::hyper_rectangle(triangulation, point_1, point_2);
+        GridGenerator::subdivided_hyper_rectangle(triangulation,
+                                                  {Input::width, Input::height},
+                                                  Point<dim>(0, 0),
+                                                  Point<dim>(Input::width, Input::height));
 
-        /*make 5 more squares*/
-        for (unsigned int n = 1; n < 6; n++) {
-            triangulation_temp.clear();
-            point_1(0) = n;
-            point_2(0) = n + 1;
-            GridGenerator::hyper_rectangle(triangulation_temp, point_1, point_2);
-            /*glue squares together*/
-            GridGenerator::merge_triangulations(triangulation_temp,
-                                                triangulation, triangulation);
-        }
-        triangulation.refine_global(3);
+        triangulation.refine_global(Input::refinements);
 
         /*Set BCIDs   */
         for (const auto &cell : triangulation.active_cell_iterators()) {
@@ -200,23 +187,10 @@ namespace SAND {
                  ++face_number) {
                 if (cell->face(face_number)->at_boundary()) {
                     const auto center = cell->face(face_number)->center();
-                    if (std::fabs(center(1) - 0) < 1e-12) {
-                        /*Boundary ID of 2 is the 0 neumann, so no external force*/
-                        cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
-                    }
-                    if (std::fabs(center(1) - 1) < 1e-12) {
-                        if (std::fabs(center(0) - 3) < .2) {
+
+                    if (std::fabs(center(1) - Input::downforce_y) < 1e-12) {
+                        if (std::fabs(center(0) - Input::downforce_x) < Input::downforce_size) {
                             cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
-                        } else {
-                            cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
-                        }
-                    }
-                    if (std::fabs(center(0) - 0) < 1e-12) {
-                        cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
-                    }
-                    if (std::fabs(center(0) - 6) < 1e-12) {
-                        if (std::fabs(center(1) - .5) < .1) {
-                            cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
                         } else {
                             cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
                         }
@@ -548,6 +522,7 @@ namespace SAND {
 
 //        constraints.condense(dsp);
         sparsity_pattern.copy_from(dsp);
+        preconditioner.get_sparsity_pattern(dsp);
 
 //        This also breaks everything
 //        sparsity_pattern.block(4,2).copy_from( filter_sparsity_pattern);
@@ -1406,17 +1381,25 @@ namespace SAND {
     ///A  direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
     template<int dim>
     BlockVector<double>
-    KktSystem<dim>::solve() {
+    KktSystem<dim>::solve(const BlockVector<double> &state) {
+        const double gmres_tolerance = std::max(
+                                                std::min(
+                                                        .1 * system_rhs.l2_norm() * system_rhs.l2_norm()/(initial_rhs_error * initial_rhs_error),
+                                                        .001 *system_rhs.l2_norm()
+                                                        ),
+                                                 system_rhs.l2_norm()*1e-12);
+
         constraints.condense(system_matrix);
         std::cout << "start" << std::endl;
-        TopOptSchurPreconditioner preconditioner;
+        preconditioner.assemble_mass_matrix(state, fe, dof_handler, constraints);
         preconditioner.initialize(system_matrix,boundary_values);
-
-        SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
+        SolverControl solver_control(10000, 1e-6);
         SolverGMRES<BlockVector<double>> A_gmres(solver_control);
         A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
         constraints.distribute(linear_solution);
         std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+        preconditioner.print_stuff(system_matrix);
+        std::cout << "printed";
 
 //        SparseDirectUMFPACK A_direct;
 //        constraints.distribute(linear_solution);
@@ -1428,7 +1411,12 @@ namespace SAND {
         return linear_solution;
     }
 
-///A direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
+    template<int dim>
+    void
+    KktSystem<dim>::calculate_initial_rhs_error() {
+                initial_rhs_error = system_rhs.l2_norm();
+            }
+
     template<int dim>
     BlockVector<double>
     KktSystem<dim>::get_initial_state() {
