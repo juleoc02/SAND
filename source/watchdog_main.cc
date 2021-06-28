@@ -4,10 +4,12 @@
 #include <deal.II/lac/packaged_operation.h>
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_refinement.h>
-#include <deal.II/numerics/matrix_tools.h>
 #include <iostream>
-#include "../include/markov.h"
-#include "../include/kktSystem.h"
+#include "../include/markov_filter.h"
+#include "../include/kkt_system.h"
+#include "../include/parameters_and_components.h"
+#include "../include/schur_preconditioner.h"
+#include "../include/input_information.h"
 
 ///Above are fairly normal files to include.  I also use the sparse direct package, which requiresBLAS/LAPACK
 /// to  perform  a  direct  solve  while  I  work  on  a  fast  iterative  solver  for  this problem.
@@ -29,7 +31,7 @@ namespace SAND {
         std::pair<double,double>
         calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const;
 
-        BlockVector<double>
+        const BlockVector<double>
         find_max_step(const BlockVector<double> &state);
 
         BlockVector<double>
@@ -38,18 +40,19 @@ namespace SAND {
         bool
         check_convergence(const BlockVector<double> &state) const;
 
+        void
+        update_barrier_loqo(BlockVector<double> &current_state);
+
         KktSystem<dim> kkt_system;
         MarkovFilter markov_filter;
-
         double barrier_size;
         const double min_barrier_size;
-
     };
 
 
 template <int dim>
 SANDTopOpt<dim>::SANDTopOpt():
-        min_barrier_size (0)
+        min_barrier_size (.00005)
 {
 
 }
@@ -60,26 +63,7 @@ SANDTopOpt<dim>::SANDTopOpt():
     std::pair<double,double>
     SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
 
-        double fraction_to_boundary;
-        const double min_fraction_to_boundary = .8;
-        const double max_fraction_to_boundary = .8;
-
-        if (min_fraction_to_boundary < 1 - barrier_size)
-        {
-            if (1 - barrier_size < max_fraction_to_boundary)
-            {
-                fraction_to_boundary = 1-barrier_size;
-            }
-            else
-            {
-                fraction_to_boundary = max_fraction_to_boundary;
-            }
-
-        }
-        else
-        {
-            fraction_to_boundary = min_fraction_to_boundary;
-        }
+        double fraction_to_boundary = .7;
 
         double step_size_s_low = 0;
         double step_size_z_low = 0;
@@ -87,17 +71,22 @@ SANDTopOpt<dim>::SANDTopOpt():
         double step_size_z_high = 1;
         double step_size_s, step_size_z;
 
-        for (unsigned int k = 0; k < 50; k++) {
+
+        for (unsigned int k = 0; k < 50; k++)
+        {
+
             step_size_s = (step_size_s_low + step_size_s_high) / 2;
             step_size_z = (step_size_z_low + step_size_z_high) / 2;
             const BlockVector<double> state_test_s =
                     (fraction_to_boundary * state) + (step_size_s * step);
+
             const BlockVector<double> state_test_z =
                     (fraction_to_boundary * state) + (step_size_z * step);
-            const bool accept_s = (state_test_s.block(5).is_non_negative())
-                                  && (state_test_s.block(7).is_non_negative());
-            const bool accept_z = (state_test_z.block(6).is_non_negative())
-                                  && (state_test_z.block(8).is_non_negative());
+
+            const bool accept_s = (state_test_s.block(SolutionBlocks::density_lower_slack).is_non_negative())
+                                  && (state_test_s.block(SolutionBlocks::density_upper_slack).is_non_negative());
+            const bool accept_z = (state_test_z.block(SolutionBlocks::density_lower_slack_multiplier).is_non_negative())
+                                  && (state_test_z.block(SolutionBlocks::density_upper_slack_multiplier).is_non_negative());
 
             if (accept_s) {
                 step_size_s_low = step_size_s;
@@ -110,33 +99,32 @@ SANDTopOpt<dim>::SANDTopOpt():
                 step_size_z_high = step_size_z;
             }
         }
-        std::cout << "max step sizes are " << step_size_s_low << "    " << step_size_z_low << std::endl;
         return {step_size_s_low, step_size_z_low};
     }
 
 ///Creates a rhs vector that we can use to look at the magnitude of the KKT conditions.  This is then used for testing the convergence before shrinking barrier size, as well as in the calculation of the l1 merit.
 
     template<int dim>
-    BlockVector<double>
+    const BlockVector<double>
     SANDTopOpt<dim>::find_max_step(const BlockVector<double> &state)
     {
         kkt_system.assemble_block_system(state, barrier_size);
-        const BlockVector<double> step = kkt_system.solve();
+        const BlockVector<double> step = kkt_system.solve(state);
 
         const auto max_step_sizes= calculate_max_step_size(state,step);
         const double step_size_s = max_step_sizes.first;
         const double step_size_z = max_step_sizes.second;
         BlockVector<double> max_step(9);
 
-        max_step.block(0) = step_size_s * step.block(0);
-        max_step.block(1) = step_size_s * step.block(1);
-        max_step.block(2) = step_size_s * step.block(2);
-        max_step.block(3) = step_size_z * step.block(3);
-        max_step.block(4) = step_size_z * step.block(4);
-        max_step.block(5) = step_size_s * step.block(5);
-        max_step.block(6) = step_size_z * step.block(6);
-        max_step.block(7) = step_size_s * step.block(7);
-        max_step.block(8) = step_size_z * step.block(8);
+        max_step.block(SolutionBlocks::density) = step_size_s * step.block(SolutionBlocks::density);
+        max_step.block(SolutionBlocks::displacement) = step_size_s * step.block(SolutionBlocks::displacement);
+        max_step.block(SolutionBlocks::unfiltered_density) = step_size_s * step.block(SolutionBlocks::unfiltered_density);
+        max_step.block(SolutionBlocks::density_lower_slack) = step_size_s * step.block(SolutionBlocks::density_lower_slack);
+        max_step.block(SolutionBlocks::density_upper_slack) = step_size_s * step.block(SolutionBlocks::density_upper_slack);
+        max_step.block(SolutionBlocks::unfiltered_density_multiplier) = step_size_z * step.block(SolutionBlocks::unfiltered_density_multiplier);
+        max_step.block(SolutionBlocks::density_lower_slack_multiplier) = step_size_z * step.block(SolutionBlocks::density_lower_slack_multiplier);
+        max_step.block(SolutionBlocks::density_upper_slack_multiplier) = step_size_z * step.block(SolutionBlocks::density_upper_slack_multiplier);
+        max_step.block(SolutionBlocks::displacement_multiplier) = step_size_z * step.block(SolutionBlocks::displacement_multiplier);
 
         return max_step;
     }
@@ -150,7 +138,7 @@ SANDTopOpt<dim>::SANDTopOpt():
         double step_size = 1;
             for(unsigned int k = 0; k<10; k++)
             {
-                if(markov_filter.check_filter(kkt_system.calculate_objective_value(state, barrier_size), kkt_system.calculate_barrier_distance(state), kkt_system.calculate_feasibility(state,barrier_size)))
+                if(markov_filter.check_filter(kkt_system.calculate_objective_value(state), kkt_system.calculate_barrier_distance(state), kkt_system.calculate_feasibility(state,barrier_size)))
                 {
                     break;
                 }
@@ -170,7 +158,7 @@ SANDTopOpt<dim>::SANDTopOpt():
     bool
     SANDTopOpt<dim>::check_convergence(const BlockVector<double> &state) const
     {
-              if (kkt_system.calculate_convergence(state,barrier_size) < 1e-6 * min_barrier_size)
+              if (kkt_system.calculate_convergence(state) < 1e-6 * min_barrier_size)
               {
                   return true;
               }
@@ -180,29 +168,65 @@ SANDTopOpt<dim>::SANDTopOpt():
               }
     }
 
+    template<int dim>
+    void
+    SANDTopOpt<dim>::update_barrier_loqo(BlockVector<double> &current_state)
+    {
+        double loqo_min = 1000;
+        double loqo_average;
+        unsigned int vect_size = current_state.block(SolutionBlocks::density_lower_slack).size();
+        for(unsigned int k = 0; k < vect_size; k++)
+        {
+            if (current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k] < loqo_min)
+            {
+                loqo_min = current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+            }
+            if (current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k] < loqo_min)
+            {
+                loqo_min = current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+            }
+        }
+        loqo_average = (current_state.block(SolutionBlocks::density_lower_slack)*current_state.block(SolutionBlocks::density_lower_slack_multiplier)
+                        + current_state.block(SolutionBlocks::density_upper_slack)*current_state.block(SolutionBlocks::density_upper_slack_multiplier)
+                        )/(2*vect_size);
 
+        double loqo_complimentarity_deviation = loqo_min/loqo_average;
+        double loqo_multiplier;
+        if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
+        {
+            loqo_multiplier = .1*std::pow((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation),3);
+        }
+        else
+        {
+            loqo_multiplier = .8;
+        }
 
-
+        if (loqo_multiplier<.01)
+        {
+            barrier_size = .01 * loqo_average;
+        }
+        else
+        {
+            barrier_size = loqo_multiplier * loqo_average;
+        }
+    }
 
     ///Contains watchdog algorithm
     template<int dim>
     void
     SANDTopOpt<dim>::run() {
 
-        barrier_size = 25;
+        barrier_size = Input::initial_barrier_size;
         kkt_system.create_triangulation();
-
         kkt_system.setup_boundary_values();
-
         kkt_system.setup_filter_matrix();
-
         kkt_system.setup_block_system();
         const unsigned int max_uphill_steps = 8;
         unsigned int iteration_number = 0;
         //while barrier value above minimal value and total iterations under some value
         BlockVector<double> current_state = kkt_system.get_initial_state();
         BlockVector<double> current_step;
-        markov_filter.setup(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
+        markov_filter.setup(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
 
         while((barrier_size > min_barrier_size || !check_convergence(current_state)) && iteration_number < 10000)
         {
@@ -224,22 +248,26 @@ SANDTopOpt<dim>::SANDTopOpt():
                     if(k==0)
                     {
                         watchdog_step = current_step;
+                        if (iteration_number == 0)
+                        {
+                            kkt_system.calculate_initial_rhs_error();
+                        }
                     }
                     //apply full step to current state
                     current_state=current_state+current_step;
 
 
                     //if new state passes filter
-                    if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
+                    if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
                     {
                         //Accept current state
-                        // iterate number of steps by number of steps taken in this process
+                        //iterate number of steps by number of steps taken in this process
                         iteration_number = iteration_number + k + 1;
                         //found step = true
                         found_step = true;
                         std::cout << "found workable step after " << k+1 << " iterations"<<std::endl;
                         //break for loop
-                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
                         break;
                         //end if
                     }
@@ -254,22 +282,22 @@ SANDTopOpt<dim>::SANDTopOpt():
                     //update stretch state with found step length
                     const BlockVector<double> stretch_state = take_scaled_step(current_state, current_step);
                     //if current merit is less than watchdog merit, or if stretch merit is less than earlier goal merit
-                    if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
+                    if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
                     {
                         current_state = stretch_state;
                         iteration_number = iteration_number + max_uphill_steps + 1;
-                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
                     }
                     else
                     {
                         //if merit of stretch state is bigger than watchdog merit
-                        if (markov_filter.check_filter(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
+                        if (markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
                         {
                             //find step length from watchdog state that meets descent requirement
                             current_state = take_scaled_step(watchdog_state, watchdog_step);
                             //update iteration count
                             iteration_number = iteration_number +  max_uphill_steps + 1;
-                            markov_filter.add_point(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                            markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
 
                         }
                         else
@@ -280,7 +308,7 @@ SANDTopOpt<dim>::SANDTopOpt():
                             current_state = take_scaled_step(stretch_state, stretch_step);
                             //update iteration count
                             iteration_number = iteration_number + max_uphill_steps + 2;
-                            markov_filter.add_point(kkt_system.calculate_objective_value(current_state, barrier_size), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                            markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
                         }
                     }
                 }
@@ -288,89 +316,12 @@ SANDTopOpt<dim>::SANDTopOpt():
                 kkt_system.output(current_state,iteration_number);
 
                 converged = check_convergence(current_state);
-
-                double loqo_min = 1000;
-                double loqo_average;
-                unsigned int vect_size = current_state.block(5).size();
-                for(unsigned int k = 0; k < vect_size; k++)
-                {
-                    if (current_state.block(5)[k]*current_state.block(6)[k] < loqo_min)
-                    {
-                        loqo_min = current_state.block(5)[k]*current_state.block(6)[k];
-                    }
-                    if (current_state.block(7)[k]*current_state.block(8)[k] < loqo_min)
-                    {
-                        loqo_min = current_state.block(7)[k]*current_state.block(8)[k];
-                    }
-                }
-                loqo_average = (current_state.block(5)*current_state.block(6) + current_state.block(7)*current_state.block(8))/(2*vect_size);
-
-                double loqo_complimentarity_deviation = loqo_min/loqo_average;
-                double loqo_multiplier;
-                if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
-                {
-                    loqo_multiplier = .1*std::pow((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation),3);
-                }
-                else
-                {
-                    loqo_multiplier = .8;
-                }
-
-                if (loqo_multiplier<.01)
-                {
-                    barrier_size = .01 * loqo_average;
-                }
-                else
-                {
-                    barrier_size = loqo_multiplier * loqo_average;
-                }
+                update_barrier_loqo(current_state);
                 markov_filter.update_barrier_value(barrier_size);
                 std::cout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
-
-
-                //check convergence
-
                 //end while
             }
-//            const double barrier_size_multiplier = .5;
-//            const double barrier_size_exponent = 1.2;
-//
-//            if (barrier_size * barrier_size_multiplier < std::pow(barrier_size, barrier_size_exponent))
-//            {
-//                if (barrier_size * barrier_size_multiplier < min_barrier_size)
-//                {
-//                    barrier_size = min_barrier_size;
-//                }
-//                else
-//                {
-//                    barrier_size = barrier_size * barrier_size_multiplier;
-//                }
-//            }
-//            else
-//            {
-//                if (std::pow(barrier_size, barrier_size_exponent) < min_barrier_size)
-//                {
-//                    barrier_size = min_barrier_size;
-//                }
-//                else
-//                {
-//                    barrier_size = std::pow(barrier_size, barrier_size_exponent);
-//                }
-//            }
-
-
-
-//            barrier_size = barrier_size * barrier_size_multiplier;
-//            std::cout << "barrier size reduced to " << barrier_size << " on iteration number " << iteration_number << std::endl;
-//
-//            penalty_multiplier = 1;
-            //end while
         }
-
-
-
-
-
     }
 
 } // namespace SAND
@@ -378,7 +329,7 @@ SANDTopOpt<dim>::SANDTopOpt():
 int
 main() {
     try {
-        SAND::SANDTopOpt<2> elastic_problem_2d;
+        SAND::SANDTopOpt<SAND::Input::dim> elastic_problem_2d;
         elastic_problem_2d.run();
     }
     catch (std::exception &exc) {

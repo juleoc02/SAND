@@ -6,42 +6,38 @@
 #define SAND_PARAMETERS_AND_COMPONENTS_H
 #include <deal.II/grid/tria_accessor.h>
 
-template <int dim>
-struct SolutionComponents
-{
-public:
-    static constexpr unsigned int density = 0;
-    static constexpr unsigned int displacement =1;
-    static constexpr unsigned int unfiltered_density = 1+dim;
-    static constexpr unsigned int displacement_multiplier = 2+dim;
-    static constexpr unsigned int unfiltered_density_multiplier = 2+2*dim;
-    static constexpr unsigned int density_lower_slack =  3+2*dim;
-    static constexpr unsigned int density_lower_slack_multiplier =  4+2*dim;
-    static constexpr unsigned int density_upper_slack =  5+2*dim;
-    static constexpr unsigned int density_upper_slack_multiplier =  6+2*dim;
-};
+namespace SAND {
+    using namespace dealii;
 
-struct SolutionBlocks
-{
-public:
-    static constexpr unsigned int density = 0;
-    static constexpr unsigned int displacement = 1;
-    static constexpr unsigned int unfiltered_density = 2;
-    static constexpr unsigned int displacement_multiplier = 3;
-    static constexpr unsigned int unfiltered_density_multiplier = 4;
-    static constexpr unsigned int density_lower_slack = 5;
-    static constexpr unsigned int density_lower_slack_multiplier = 6;
-    static constexpr unsigned int density_upper_slack = 7;
-    static constexpr unsigned int density_upper_slack_multiplier = 8;
-};
+    namespace SolutionComponents {
+        template<int dim> static constexpr unsigned int density_lower_slack_multiplier = 0;
+        template<int dim> static constexpr unsigned int density_upper_slack_multiplier = 1;
+        template<int dim> static constexpr unsigned int density_lower_slack = 2;
+        template<int dim> static constexpr unsigned int density_upper_slack = 3;
+        template<int dim> static constexpr unsigned int unfiltered_density = 4;
+        template<int dim> static constexpr unsigned int displacement = 5;
+        template<int dim> static constexpr unsigned int displacement_multiplier = 5 + dim;
+        template<int dim> static constexpr unsigned int unfiltered_density_multiplier = 5 + 2 * dim;
+        template<int dim> static constexpr unsigned int density = 6 + 2 * dim;
+    }
 
-struct BoundaryIds
-{
-public:
-    static constexpr types::boundary_id no_force = 101;
-    static constexpr types::boundary_id down_force = 102;
-    static constexpr types::boundary_id held_still = 103;
-};
+    namespace SolutionBlocks {
+        static constexpr unsigned int density_lower_slack_multiplier = 0;
+        static constexpr unsigned int density_upper_slack_multiplier = 1;
+        static constexpr unsigned int density_lower_slack = 2;
+        static constexpr unsigned int density_upper_slack = 3;
+        static constexpr unsigned int unfiltered_density = 4;
+        static constexpr unsigned int displacement = 5;
+        static constexpr unsigned int displacement_multiplier = 6;
+        static constexpr unsigned int unfiltered_density_multiplier = 7;
+        static constexpr unsigned int density = 8;
+    }
 
+    namespace BoundaryIds {
+        static constexpr types::boundary_id no_force = 101;
+        static constexpr types::boundary_id down_force = 102;
+        static constexpr types::boundary_id held_still = 103;
+    }
 
+}
 #endif //SAND_PARAMETERS_AND_COMPONENTS_H

@@ -2,8 +2,8 @@
 // Created by justin on 2/17/21.
 //
 
-#ifndef SAND_MARKOV_H
-#define SAND_MARKOV_H
+#ifndef SAND_MARKOV_FILTER_H
+#define SAND_MARKOV_FILTER_H
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/sparse_direct.h>
 
@@ -27,4 +27,4 @@ private:
 };
 
 
-#endif //SAND_MARKOV_H
+#endif //SAND_MARKOV_FILTER_H
