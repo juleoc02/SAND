@@ -36,6 +36,7 @@
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
+#include <deal.II/hp/fe_collection.h>
 
 #include "../include/schur_preconditioner.h"
 
@@ -106,7 +107,9 @@ namespace SAND {
         Triangulation<dim> triangulation;
         DoFHandler<dim> dof_handler;
         AffineConstraints<double> constraints;
-        FESystem<dim> fe;
+        FESystem<dim> fe_nine;
+        FESystem<dim> fe_ten;
+        hp::FECollection<dim> fe_collection;
         DynamicSparsityPattern filter_dsp;
         const double density_ratio;
         const double density_penalty_exponent;

@@ -20,7 +20,6 @@
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_refinement.h>
 
-#include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_renumbering.h>
 #include <deal.II/dofs/dof_tools.h>
 
@@ -28,14 +27,16 @@
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_q.h>
+#include <deal.II/fe/fe_nothing.h>
+
+#include <deal.II/hp/fe_collection.h>
+#include <deal.II/hp/fe_values.h>
 
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
 
-#include "../include/parameters_and_components.h"
-#include "../include/schur_preconditioner.h"
 #include "../include/input_information.h"
 
 #include <iostream>
@@ -51,13 +52,21 @@ namespace SAND {
             /*fe should have 1 FE_DGQ<dim>(0) element for density, dim FE_Q finite elements for displacement,
              * another dim FE_Q elements for the lagrange multiplier on the FE constraint, and 2 more FE_DGQ<dim>(0)
              * elements for the upper and lower bound constraints */
-            fe(FE_DGQ<dim>(0) ^ 5,
+            fe_nine(FE_DGQ<dim>(0) ^ 5,
                (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 2,
-               FE_DGQ<dim>(0) ^ 2),
+               FE_DGQ<dim>(0) ^ 2,
+               FE_Nothing<dim>()^1),
+            fe_ten(FE_DGQ<dim>(0) ^ 5,
+                   (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 2,
+                   FE_DGQ<dim>(0) ^ 2,
+                   FE_DGQ<dim>(0) ^ 1),
             density_ratio(.5),
             density_penalty_exponent(3),
-            filter_r(Input::filter_r) {
-    }
+            filter_r(Input::filter_r)
+            {
+                fe_collection.push_back(fe_nine);
+                fe_collection.push_back(fe_ten);
+            }
 
 
 ///A  function  used  once  at  the  beginning  of  the  program,  this  creates  a  matrix  H  so  that H* unfiltered density = filtered density
@@ -181,7 +190,9 @@ namespace SAND {
         triangulation.refine_global(Input::refinements);
 
         /*Set BCIDs   */
-        for (const auto &cell : triangulation.active_cell_iterators()) {
+        for (const auto &cell : dof_handler.active_cell_iterators()) {
+            cell->set_active_fe_index(0);
+            cell->set_material_id(MaterialIds::without_multiplier);
             for (unsigned int face_number = 0;
                  face_number < GeometryInfo<dim>::faces_per_cell;
                  ++face_number) {
@@ -197,9 +208,19 @@ namespace SAND {
                     }
                 }
             }
+            for (unsigned int vertex_number = 0;
+                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                 ++vertex_number)
+            {
+                if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1))<1e-10 )
+                {
+                    cell->set_active_fe_index(1);
+                    cell->set_material_id(MaterialIds::with_multiplier);
+                }
+            }
         }
 
-        dof_handler.distribute_dofs(fe);
+        dof_handler.distribute_dofs(fe_collection);
 
         DoFRenumbering::component_wise(dof_handler);
 
@@ -211,57 +232,58 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::setup_boundary_values() {
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
-            for (unsigned int face_number = 0;
-                 face_number < GeometryInfo<dim>::faces_per_cell;
-                 ++face_number) {
-                if (cell->face(face_number)->at_boundary()) {
-                    for (unsigned int vertex_number = 0;
-                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                         ++vertex_number) {
-                        const auto vert = cell->vertex(vertex_number);
-                        /*Find bottom left corner*/
-                        if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                vert(1) - 0) < 1e-12) {
-
-                            const unsigned int x_displacement =
-                                    cell->vertex_dof_index(vertex_number, 0);
-                            const unsigned int y_displacement =
-                                    cell->vertex_dof_index(vertex_number, 1);
-                            const unsigned int x_displacement_multiplier =
-                                    cell->vertex_dof_index(vertex_number, 2);
-                            const unsigned int y_displacement_multiplier =
-                                    cell->vertex_dof_index(vertex_number, 3);
-                            /*set bottom left BC*/
-                            boundary_values[x_displacement] = 0;
-                            boundary_values[y_displacement] = 0;
-                            boundary_values[x_displacement_multiplier] = 0;
-                            boundary_values[y_displacement_multiplier] = 0;
-                        }
-                        /*Find bottom right corner*/
-                        if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-                                vert(1) - 0) < 1e-12) {
+//        for (const auto &cell : dof_handler.active_cell_iterators()) {
+//
+//            for (unsigned int face_number = 0;
+//                 face_number < GeometryInfo<dim>::faces_per_cell;
+//                 ++face_number) {
+//                if (cell->face(face_number)->at_boundary()) {
+//                    for (unsigned int vertex_number = 0;
+//                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
+//                         ++vertex_number) {
+//                        const auto vert = cell->vertex(vertex_number);
+//                        /*Find bottom left corner*/
+//                        if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+//                                vert(1) - 0) < 1e-12) {
+//
 //                            const unsigned int x_displacement =
 //                                    cell->vertex_dof_index(vertex_number, 0);
-                            const unsigned int y_displacement =
-                                    cell->vertex_dof_index(vertex_number, 1);
+//                            const unsigned int y_displacement =
+//                                    cell->vertex_dof_index(vertex_number, 1);
 //                            const unsigned int x_displacement_multiplier =
 //                                    cell->vertex_dof_index(vertex_number, 2);
-                            const unsigned int y_displacement_multiplier =
-                                    cell->vertex_dof_index(vertex_number, 3);
+//                            const unsigned int y_displacement_multiplier =
+//                                    cell->vertex_dof_index(vertex_number, 3);
+//                            /*set bottom left BC*/
 //                            boundary_values[x_displacement] = 0;
-                            boundary_values[y_displacement] = 0;
+//                            boundary_values[y_displacement] = 0;
 //                            boundary_values[x_displacement_multiplier] = 0;
-                            boundary_values[y_displacement_multiplier] = 0;
-                        }
-                    }
-                }
-            }
-        }
+//                            boundary_values[y_displacement_multiplier] = 0;
+//                        }
+//                        /*Find bottom right corner*/
+//                        if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
+//                                vert(1) - 0) < 1e-12) {
+////                            const unsigned int x_displacement =
+////                                    cell->vertex_dof_index(vertex_number, 0, 0);
+//                            const unsigned int y_displacement =
+//                                    cell->vertex_dof_index(vertex_number, 1);
+////                            const unsigned int x_displacement_multiplier =
+////                                    cell->vertex_dof_index(vertex_number, 2, 0);
+//                            const unsigned int y_displacement_multiplier =
+//                                    cell->vertex_dof_index(vertex_number, 3);
+////                            boundary_values[x_displacement] = 0;
+//                            boundary_values[y_displacement] = 0;
+////                            boundary_values[x_displacement_multiplier] = 0;
+//                            boundary_values[y_displacement_multiplier] = 0;
+//                        }
+//                    }
+//                }
+//            }
+//        }
     }
 
 
-    ///This makes a giant 9-by-9 block matrix, and also sets up the necessary block vectors.  The
+    ///This makes a giant 10-by-10 block matrix, and also sets up the necessary block vectors.  The
     /// sparsity pattern for this matrix includes the sparsity pattern for the filter matrix. It also initializes
     /// any block vectors we will use.
     template<int dim>
@@ -271,9 +293,9 @@ namespace SAND {
 
         //MAKE n_u and n_P*****************************************************************
 
-        /*Setup 9 by 9 block matrix*/
+        /*Setup 10 by 10 block matrix*/
 
-        std::vector<unsigned int> block_component(9, 2);
+        std::vector<unsigned int> block_component(10, 2);
         block_component[0] = 0;
         block_component[5] = 1;
         const std::vector<types::global_dof_index> dofs_per_block =
@@ -282,19 +304,19 @@ namespace SAND {
         const unsigned int n_p = dofs_per_block[0];
         const unsigned int n_u = dofs_per_block[1];
         std::cout << "n_p:  " << n_p << "   n_u   " << n_u << std::endl;
-        const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p};
+        const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
 
-        BlockDynamicSparsityPattern dsp(9, 9);
+        BlockDynamicSparsityPattern dsp(10, 10);
 
-        for (unsigned int k = 0; k < 9; k++) {
-            for (unsigned int j = 0; j < 9; j++) {
+        for (unsigned int k = 0; k < 10; k++) {
+            for (unsigned int j = 0; j < 10; j++) {
                 dsp.block(j, k).reinit(block_sizes[j], block_sizes[k]);
             }
         }
 
         dsp.collect_sizes();
 
-        Table<2, DoFTools::Coupling> coupling(2 * dim + 7, 2 * dim + 7);
+        Table<2, DoFTools::Coupling> coupling(2 * dim + 8, 2 * dim + 8);
 
         coupling[SolutionComponents::density<dim>][SolutionComponents::density<dim>] = DoFTools::always;
 
@@ -457,7 +479,7 @@ namespace SAND {
 
         constraints.clear();
 
-        const ComponentMask density_mask = fe.component_mask(densities);
+        const ComponentMask density_mask = fe_collection.component_mask(densities);
 
         const IndexSet density_dofs = DoFTools::extract_dofs(dof_handler,
                                                              density_mask);
@@ -534,10 +556,10 @@ namespace SAND {
         system_matrix.reinit(sparsity_pattern);
 
 
-        linear_solution.reinit(9);
-        system_rhs.reinit(9);
+        linear_solution.reinit(10);
+        system_rhs.reinit(10);
 
-        for (unsigned int j = 0; j < 9; j++) {
+        for (unsigned int j = 0; j < 10; j++) {
             linear_solution.block(j).reinit(block_sizes[j]);
             system_rhs.block(j).reinit(block_sizes[j]);
         }
@@ -552,6 +574,38 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::assemble_block_system(const BlockVector<double> &state, const double barrier_size) {
+        /*Remove any values from old iterations*/
+        system_matrix.reinit(sparsity_pattern);
+        linear_solution = 0;
+        system_rhs = 0;
+
+        QGauss<dim> nine_quadrature(fe_nine.degree + 1);
+        QGauss<dim> ten_quadrature(fe_ten.degree + 1);
+
+        hp::QCollection<dim> q_collection;
+        q_collection.push_back(nine_quadrature);
+        q_collection.push_back(ten_quadrature);
+
+        hp::FEValues<dim> hp_fe_values(fe_collection,
+                                       q_collection,
+                                       update_values | update_quadrature_points |
+                                       update_JxW_values | update_gradients);
+
+        QGauss<dim - 1> common_face_quadrature(fe_ten.degree + 1);
+
+        FEFaceValues<dim>    fe_nine_face_values(fe_nine,
+                                                   common_face_quadrature,
+                                                   update_JxW_values |
+                                                   update_gradients | update_values);
+        FEFaceValues<dim>    fe_ten_face_values(fe_ten,
+                                                       common_face_quadrature,
+                                                       update_normal_vectors |
+                                                       update_values);
+
+        FullMatrix<double> cell_matrix;
+        Vector<double>     cell_rhs;
+        std::vector<types::global_dof_index> local_dof_indices;
+
         const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
         const FEValuesExtractors::Vector displacements(SolutionComponents::displacement<dim>);
         const FEValuesExtractors::Scalar unfiltered_densities(SolutionComponents::unfiltered_density<dim>);
@@ -564,39 +618,13 @@ namespace SAND {
         const FEValuesExtractors::Scalar density_upper_slacks(SolutionComponents::density_upper_slack<dim>);
         const FEValuesExtractors::Scalar density_upper_slack_multipliers(
                 SolutionComponents::density_upper_slack_multiplier<dim>);
+        const FEValuesExtractors::Scalar total_volume_multiplier(
+                SolutionComponents::total_volume_multiplier<dim>);
 
-        /*Remove any values from old iterations*/
-        system_matrix.reinit(sparsity_pattern);
-        linear_solution = 0;
-        system_rhs = 0;
 
-        QGauss<dim> quadrature_formula(fe.degree + 1);
-        QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
-        FEValues<dim> fe_values(fe, quadrature_formula,
-                                update_values | update_gradients | update_quadrature_points
-                                | update_JxW_values);
-        FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
-                                         update_values | update_quadrature_points | update_normal_vectors
-                                         | update_JxW_values);
-
-        const unsigned int dofs_per_cell = fe.dofs_per_cell;
-        const unsigned int n_q_points = quadrature_formula.size();
-        const unsigned int n_face_q_points = face_quadrature_formula.size();
-
-        FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-        Vector<double> cell_rhs(dofs_per_cell);
-        FullMatrix<double> full_density_cell_matrix(dofs_per_cell,
-                                                    dofs_per_cell);
-        FullMatrix<double> full_density_cell_matrix_for_Au(dofs_per_cell,
-                                                           dofs_per_cell);
-
-        std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-
-        std::vector<double> lambda_values(n_q_points);
-        std::vector<double> mu_values(n_q_points);
+        const unsigned int n_face_q_points = common_face_quadrature.size();
 
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
-        std::vector<Tensor<1, dim>> rhs_values(n_q_points);
 
         BlockVector<double> filtered_unfiltered_density_solution = state;
         BlockVector<double> filter_adjoint_unfiltered_density_multiplier_solution = state;
@@ -608,35 +636,42 @@ namespace SAND {
                              state.block(SolutionBlocks::unfiltered_density_multiplier));
 
 
-        std::vector<double> old_density_values(n_q_points);
-        std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
-        std::vector<double> old_displacement_divs(n_q_points);
-        std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
-                n_q_points);
-        std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
-                n_q_points);
-        std::vector<double> old_displacement_multiplier_divs(n_q_points);
-        std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
-                n_q_points);
-        std::vector<double> old_lower_slack_multiplier_values(n_q_points);
-        std::vector<double> old_upper_slack_multiplier_values(n_q_points);
-        std::vector<double> old_lower_slack_values(n_q_points);
-        std::vector<double> old_upper_slack_values(n_q_points);
-        std::vector<double> old_unfiltered_density_values(n_q_points);
-        std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
-        std::vector<double> filtered_unfiltered_density_values(n_q_points);
-        std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
-
-
         for (const auto &cell : dof_handler.active_cell_iterators()) {
+            hp_fe_values.reinit(cell);
+            const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
+            cell_matrix.reinit(cell->get_fe().n_dofs_per_cell(),
+                               cell->get_fe().n_dofs_per_cell());
+            cell_rhs.reinit(cell->get_fe().n_dofs_per_cell());
+
+            const unsigned int n_q_points = fe_values.n_quadrature_points;
+
+            std::vector<double> old_density_values(n_q_points);
+            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
+            std::vector<double> old_displacement_divs(n_q_points);
+            std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
+                    n_q_points);
+            std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
+                    n_q_points);
+            std::vector<double> old_displacement_multiplier_divs(n_q_points);
+            std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
+                    n_q_points);
+            std::vector<double> old_lower_slack_multiplier_values(n_q_points);
+            std::vector<double> old_upper_slack_multiplier_values(n_q_points);
+            std::vector<double> old_lower_slack_values(n_q_points);
+            std::vector<double> old_upper_slack_values(n_q_points);
+            std::vector<double> old_unfiltered_density_values(n_q_points);
+            std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
+            std::vector<double> filtered_unfiltered_density_values(n_q_points);
+            std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
+            std::vector<double> lambda_values(n_q_points);
+            std::vector<double> mu_values(n_q_points);
+
+            const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
+
             cell_matrix = 0;
-            full_density_cell_matrix = 0;
-            full_density_cell_matrix_for_Au = 0;
             cell_rhs = 0;
-
+            local_dof_indices.resize(cell->get_fe().n_dofs_per_cell());
             cell->get_dof_indices(local_dof_indices);
-
-            fe_values.reinit(cell);
 
             lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
             mu.value_list(fe_values.get_quadrature_points(), mu_values);
@@ -963,21 +998,38 @@ namespace SAND {
                  ++face_number) {
                 if (cell->face(face_number)->at_boundary() && cell->face(
                         face_number)->boundary_id() == BoundaryIds::down_force) {
-                    fe_face_values.reinit(cell, face_number);
+                    fe_ten_face_values.reinit(cell, face_number);
 
                     for (unsigned int face_q_point = 0;
                          face_q_point < n_face_q_points; ++face_q_point) {
-                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                            cell_rhs(i) += -1
-                                           * traction
-                                           * fe_face_values[displacements].value(i,
-                                                                                 face_q_point)
-                                           * fe_face_values.JxW(face_q_point);
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                        {
+                            if (cell->material_id() == MaterialIds::without_multiplier)
+                            {
+                                cell_rhs(i) += -1
+                                               * traction
+                                               * fe_nine_face_values[displacements].value(i,
+                                                                                         face_q_point)
+                                               * fe_nine_face_values.JxW(face_q_point);
 
-                            cell_rhs(i) += traction
-                                           * fe_face_values[displacement_multipliers].value(
-                                    i, face_q_point)
-                                           * fe_face_values.JxW(face_q_point);
+                                cell_rhs(i) += traction
+                                               * fe_ten_face_values[displacement_multipliers].value(
+                                        i, face_q_point)
+                                               * fe_ten_face_values.JxW(face_q_point);
+                            }
+                            else
+                            {
+                                cell_rhs(i) += -1
+                                               * traction
+                                               * fe_ten_face_values[displacements].value(i,
+                                                                                         face_q_point)
+                                               * fe_ten_face_values.JxW(face_q_point);
+
+                                cell_rhs(i) += traction
+                                               * fe_ten_face_values[displacement_multipliers].value(
+                                        i, face_q_point)
+                                               * fe_ten_face_values.JxW(face_q_point);
+                            }
                         }
                     }
                 }
@@ -990,11 +1042,12 @@ namespace SAND {
             constraints.distribute_local_to_global(
                     cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
-
         }
 
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
-            unsigned int i = cell->active_cell_index();
+        for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+            const unsigned int i = cell->active_cell_index();
+
             typename SparseMatrix<double>::iterator iter = filter_matrix.begin(
                     i);
             for (; iter != filter_matrix.end(i); iter++) {
@@ -1006,50 +1059,98 @@ namespace SAND {
                 system_matrix.block(SolutionBlocks::unfiltered_density,
                                     SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
             }
+
+            system_matrix.block(SolutionBlocks::density,SolutionBlocks::total_volume_multiplier).add(i,0,cell->measure());
+            system_matrix.block(SolutionBlocks::total_volume_multiplier,SolutionBlocks::density).add(0,i,cell->measure());
         }
     }
 
     template<int dim>
     double
     KktSystem<dim>::calculate_objective_value(const BlockVector<double> &state) const {
-        const unsigned int dofs_per_cell = fe.dofs_per_cell;
-        double objective_value;
-        objective_value = 0;
-        QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
-        FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
-                                         update_values | update_quadrature_points | update_normal_vectors
-                                         | update_JxW_values);
+        /*Remove any values from old iterations*/
+
+        QGauss<dim> nine_quadrature(fe_nine.degree + 1);
+        QGauss<dim> ten_quadrature(fe_ten.degree + 1);
+
+        hp::QCollection<dim> q_collection;
+        q_collection.push_back(nine_quadrature);
+        q_collection.push_back(ten_quadrature);
+
+        hp::FEValues<dim> hp_fe_values(fe_collection,
+                                       q_collection,
+                                       update_values | update_quadrature_points |
+                                       update_JxW_values | update_gradients);
+
+        QGauss<dim - 1> common_face_quadrature(fe_ten.degree + 1);
+
+        FEFaceValues<dim>    fe_nine_face_values(fe_nine,
+                                                 common_face_quadrature,
+                                                 update_JxW_values |
+                                                 update_gradients | update_values);
+        FEFaceValues<dim>    fe_ten_face_values(fe_ten,
+                                                common_face_quadrature,
+                                                update_normal_vectors |
+                                                update_values);
+
+        FullMatrix<double> cell_matrix;
+        Vector<double>     cell_rhs;
+
         const FEValuesExtractors::Vector displacements(SolutionComponents::displacement<dim>);
-        const unsigned int n_face_q_points = face_quadrature_formula.size();
-        std::vector<Tensor<1, dim>> old_displacement_values(n_face_q_points);
+
         Tensor<1, dim> traction;
         traction[1] = -1;
 
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
+        double objective_value = 0;
+        for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+            const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
+            const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
+            const unsigned int n_q_points = fe_values.n_quadrature_points;
+            const unsigned int n_face_q_points = common_face_quadrature.size();
+
+            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
+            fe_values[displacements].get_function_values(
+                    state, old_displacement_values);
+
             for (unsigned int face_number = 0;
                  face_number < GeometryInfo<dim>::faces_per_cell;
-                 ++face_number) {
-                if (cell->face(face_number)->at_boundary() && cell->face(
-                        face_number)->boundary_id()
-                                                              == BoundaryIds::down_force) {
-                    fe_face_values.reinit(cell, face_number);
-                    fe_face_values[displacements].get_function_values(state,
-                                                                      old_displacement_values);
+                 ++face_number)
+                {
+                if (cell->face(face_number)->at_boundary() && cell->face(face_number)->boundary_id()
+                                                              == BoundaryIds::down_force)
+                    {
+
 
                     for (unsigned int face_q_point = 0;
-                         face_q_point < n_face_q_points; ++face_q_point) {
-                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                            objective_value += old_displacement_values[face_q_point] * traction
-                                               * fe_face_values.JxW(face_q_point);
+                        face_q_point < n_face_q_points; ++face_q_point)
+                        {
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                            {
+                            if (cell->material_id() == MaterialIds::without_multiplier)
+                                {
+                                    objective_value += traction
+                                                   * fe_nine_face_values[displacements].value(i,
+                                                                                              face_q_point)
+                                                   * fe_nine_face_values.JxW(face_q_point);
+                                }
+                            else
+                                {
+                                    objective_value += traction
+                                                   * fe_ten_face_values[displacements].value(i,
+                                                                                             face_q_point)
+                                                   * fe_ten_face_values.JxW(face_q_point);
+                                }
+                            }
                         }
                     }
+
                 }
             }
-
+            return objective_value;
         }
 
-        return objective_value;
-    }
+
 
 
     //As the KKT System know which vectors correspond to the slack variables, the sum of the logs of the slacks is computed here for use in the filter.
@@ -1084,7 +1185,7 @@ namespace SAND {
     double
     KktSystem<dim>::calculate_convergence(const BlockVector<double> &state) const {
         BlockVector<double> test_rhs = calculate_test_rhs(state, 0);
-        std::cout << "test_rhs.l1_norm()   " << test_rhs.l2_norm() << std::endl;
+        std::cout << "test_rhs.l2_norm()   " << test_rhs.l2_norm() << std::endl;
         double norm = 0;
         norm += test_rhs.block(SolutionBlocks::density).l1_norm();
         norm += test_rhs.block(SolutionBlocks::displacement).l1_norm();
@@ -1095,13 +1196,47 @@ namespace SAND {
         norm += test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l1_norm();
         norm -= test_rhs.block(SolutionBlocks::density_upper_slack) * state.block(SolutionBlocks::density_upper_slack);
         norm += test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l1_norm();
+        norm += test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l1_norm();
+        norm += test_rhs.block(SolutionBlocks::total_volume_multiplier).l1_norm();
         std::cout << "norm" << norm << std::endl;
         return norm;
     }
 
     template<int dim>
     BlockVector<double>
-    KktSystem<dim>::calculate_test_rhs(const BlockVector<double> &test_state, const double barrier_size) const {
+    KktSystem<dim>::calculate_test_rhs(const BlockVector<double> &state, const double barrier_size) const {
+        BlockVector<double> test_rhs;
+        test_rhs = system_rhs;
+        test_rhs = 0;
+
+
+        QGauss<dim> nine_quadrature(fe_nine.degree + 1);
+        QGauss<dim> ten_quadrature(fe_ten.degree + 1);
+
+        hp::QCollection<dim> q_collection;
+        q_collection.push_back(nine_quadrature);
+        q_collection.push_back(ten_quadrature);
+
+        hp::FEValues<dim> hp_fe_values(fe_collection,
+                                       q_collection,
+                                       update_values | update_quadrature_points |
+                                       update_JxW_values | update_gradients);
+
+        QGauss<dim - 1> common_face_quadrature(fe_ten.degree + 1);
+
+        FEFaceValues<dim>    fe_nine_face_values(fe_nine,
+                                                 common_face_quadrature,
+                                                 update_JxW_values |
+                                                 update_gradients | update_values);
+        FEFaceValues<dim>    fe_ten_face_values(fe_ten,
+                                                common_face_quadrature,
+                                                update_normal_vectors |
+                                                update_values);
+
+        FullMatrix<double> cell_matrix;
+        Vector<double>     cell_rhs;
+        std::vector<types::global_dof_index> local_dof_indices;
+
         const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
         const FEValuesExtractors::Vector displacements(SolutionComponents::displacement<dim>);
         const FEValuesExtractors::Scalar unfiltered_densities(SolutionComponents::unfiltered_density<dim>);
@@ -1114,104 +1249,91 @@ namespace SAND {
         const FEValuesExtractors::Scalar density_upper_slacks(SolutionComponents::density_upper_slack<dim>);
         const FEValuesExtractors::Scalar density_upper_slack_multipliers(
                 SolutionComponents::density_upper_slack_multiplier<dim>);
+        const FEValuesExtractors::Scalar total_volume_multiplier(
+                SolutionComponents::total_volume_multiplier<dim>);
 
-        /*Remove any values from old iterations*/
 
-        BlockVector<double> test_rhs;
-        test_rhs = system_rhs;
-        test_rhs = 0;
-
-        const QGauss<dim> quadrature_formula(fe.degree + 1);
-        const QGauss<dim - 1> face_quadrature_formula(fe.degree + 1);
-        FEValues<dim> fe_values(fe, quadrature_formula,
-                                update_values | update_gradients | update_quadrature_points
-                                | update_JxW_values);
-        FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
-                                         update_values | update_quadrature_points | update_normal_vectors
-                                         | update_JxW_values);
-
-        const unsigned int dofs_per_cell = fe.dofs_per_cell;
-        const unsigned int n_q_points = quadrature_formula.size();
-        const unsigned int n_face_q_points = face_quadrature_formula.size();
-
-        Vector<double> cell_rhs(dofs_per_cell);
-        FullMatrix<double> dummy_cell_matrix(dofs_per_cell, dofs_per_cell);
-
-        std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-
-        std::vector<double> lambda_values(n_q_points);
-        std::vector<double> mu_values(n_q_points);
+        const unsigned int n_face_q_points = common_face_quadrature.size();
 
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
-        std::vector<Tensor<1, dim>> rhs_values(n_q_points);
 
-        BlockVector<double> filtered_unfiltered_density_solution = test_state;
-        BlockVector<double> filter_adjoint_unfiltered_density_multiplier_solution = test_state;
+        BlockVector<double> filtered_unfiltered_density_solution = state;
+        BlockVector<double> filter_adjoint_unfiltered_density_multiplier_solution = state;
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
-        filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density),
-                            test_state.block(SolutionBlocks::unfiltered_density));
-        filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(
-                SolutionBlocks::unfiltered_density_multiplier),
-                             test_state.block(SolutionBlocks::unfiltered_density_multiplier));
+        filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density), state.block(SolutionBlocks::unfiltered_density));
+        filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),
+                             state.block(SolutionBlocks::unfiltered_density_multiplier));
 
-
-        std::vector<double> old_density_values(n_q_points);
-        std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
-        std::vector<double> old_displacement_divs(n_q_points);
-        std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
-                n_q_points);
-        std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
-                n_q_points);
-        std::vector<double> old_displacement_multiplier_divs(n_q_points);
-        std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
-                n_q_points);
-        std::vector<double> old_lower_slack_multiplier_values(n_q_points);
-        std::vector<double> old_upper_slack_multiplier_values(n_q_points);
-        std::vector<double> old_lower_slack_values(n_q_points);
-        std::vector<double> old_upper_slack_values(n_q_points);
-        std::vector<double> old_unfiltered_density_values(n_q_points);
-        std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
-        std::vector<double> filtered_unfiltered_density_values(n_q_points);
-        std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
 
         for (const auto &cell : dof_handler.active_cell_iterators()) {
+            hp_fe_values.reinit(cell);
+            const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
+            cell_matrix.reinit(cell->get_fe().n_dofs_per_cell(),
+                               cell->get_fe().n_dofs_per_cell());
+            cell_rhs.reinit(cell->get_fe().n_dofs_per_cell());
+
+            const unsigned int n_q_points = fe_values.n_quadrature_points;
+
+            std::vector<double> old_density_values(n_q_points);
+            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
+            std::vector<double> old_displacement_divs(n_q_points);
+            std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
+                    n_q_points);
+            std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
+                    n_q_points);
+            std::vector<double> old_displacement_multiplier_divs(n_q_points);
+            std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
+                    n_q_points);
+            std::vector<double> old_lower_slack_multiplier_values(n_q_points);
+            std::vector<double> old_upper_slack_multiplier_values(n_q_points);
+            std::vector<double> old_lower_slack_values(n_q_points);
+            std::vector<double> old_upper_slack_values(n_q_points);
+            std::vector<double> old_unfiltered_density_values(n_q_points);
+            std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
+            std::vector<double> filtered_unfiltered_density_values(n_q_points);
+            std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
+            std::vector<double> lambda_values(n_q_points);
+            std::vector<double> mu_values(n_q_points);
+
+            const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
+
+            cell_matrix = 0;
             cell_rhs = 0;
+            local_dof_indices.resize(cell->get_fe().n_dofs_per_cell());
 
             cell->get_dof_indices(local_dof_indices);
-
-            fe_values.reinit(cell);
 
             lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
             mu.value_list(fe_values.get_quadrature_points(), mu_values);
 
-            fe_values[densities].get_function_values(test_state,
+            fe_values[densities].get_function_values(state,
                                                      old_density_values);
-            fe_values[displacements].get_function_values(test_state,
+            fe_values[displacements].get_function_values(state,
                                                          old_displacement_values);
-            fe_values[displacements].get_function_divergences(test_state,
+            fe_values[displacements].get_function_divergences(state,
                                                               old_displacement_divs);
             fe_values[displacements].get_function_symmetric_gradients(
-                    test_state, old_displacement_symmgrads);
+                    state, old_displacement_symmgrads);
             fe_values[displacement_multipliers].get_function_values(
-                    test_state, old_displacement_multiplier_values);
+                    state, old_displacement_multiplier_values);
             fe_values[displacement_multipliers].get_function_divergences(
-                    test_state, old_displacement_multiplier_divs);
+                    state, old_displacement_multiplier_divs);
             fe_values[displacement_multipliers].get_function_symmetric_gradients(
-                    test_state, old_displacement_multiplier_symmgrads);
+                    state, old_displacement_multiplier_symmgrads);
             fe_values[density_lower_slacks].get_function_values(
-                    test_state, old_lower_slack_values);
+                    state, old_lower_slack_values);
             fe_values[density_lower_slack_multipliers].get_function_values(
-                    test_state, old_lower_slack_multiplier_values);
+                    state, old_lower_slack_multiplier_values);
             fe_values[density_upper_slacks].get_function_values(
-                    test_state, old_upper_slack_values);
+                    state, old_upper_slack_values);
             fe_values[density_upper_slack_multipliers].get_function_values(
-                    test_state, old_upper_slack_multiplier_values);
+                    state, old_upper_slack_multiplier_values);
             fe_values[unfiltered_densities].get_function_values(
-                    test_state, old_unfiltered_density_values);
+                    state, old_unfiltered_density_values);
             fe_values[unfiltered_density_multipliers].get_function_values(
-                    test_state, old_unfiltered_density_multiplier_values);
+                    state, old_unfiltered_density_multiplier_values);
             fe_values[unfiltered_densities].get_function_values(
                     filtered_unfiltered_density_solution, filtered_unfiltered_density_values);
             fe_values[unfiltered_density_multipliers].get_function_values(
@@ -1311,8 +1433,9 @@ namespace SAND {
                     //rhs eqn 5
                     cell_rhs(i) +=
                             fe_values.JxW(q_point) * (
-                                    upper_slack_multiplier_phi_i * (1 - old_unfiltered_density_values[q_point]
-                                                                    - old_upper_slack_values[q_point]));
+                                    upper_slack_multiplier_phi_i
+                                    * (1 - old_unfiltered_density_values[q_point]
+                                       - old_upper_slack_values[q_point]));
 
                     //rhs eqn 6
                     cell_rhs(i) +=
@@ -1336,43 +1459,62 @@ namespace SAND {
 
                 }
 
-
             }
+
+
 
             for (unsigned int face_number = 0;
                  face_number < GeometryInfo<dim>::faces_per_cell;
                  ++face_number) {
                 if (cell->face(face_number)->at_boundary() && cell->face(
-                        face_number)->boundary_id()
-                                                              == BoundaryIds::down_force) {
-                    fe_face_values.reinit(cell, face_number);
+                        face_number)->boundary_id() == BoundaryIds::down_force) {
+                    fe_ten_face_values.reinit(cell, face_number);
 
                     for (unsigned int face_q_point = 0;
                          face_q_point < n_face_q_points; ++face_q_point) {
-                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                            cell_rhs(i) += -1
-                                           * traction
-                                           * fe_face_values[displacements].value(i,
-                                                                                 face_q_point)
-                                           * fe_face_values.JxW(face_q_point);
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                        {
+                            if (cell->material_id() == MaterialIds::without_multiplier)
+                            {
+                                cell_rhs(i) += -1
+                                               * traction
+                                               * fe_nine_face_values[displacements].value(i,
+                                                                                          face_q_point)
+                                               * fe_nine_face_values.JxW(face_q_point);
 
-                            cell_rhs(i) += traction
-                                           * fe_face_values[displacement_multipliers].value(
-                                    i, face_q_point)
-                                           * fe_face_values.JxW(face_q_point);
+                                cell_rhs(i) += traction
+                                               * fe_ten_face_values[displacement_multipliers].value(
+                                        i, face_q_point)
+                                               * fe_ten_face_values.JxW(face_q_point);
+                            }
+                            else
+                            {
+                                cell_rhs(i) += -1
+                                               * traction
+                                               * fe_ten_face_values[displacements].value(i,
+                                                                                         face_q_point)
+                                               * fe_ten_face_values.JxW(face_q_point);
+
+                                cell_rhs(i) += traction
+                                               * fe_ten_face_values[displacement_multipliers].value(
+                                        i, face_q_point)
+                                               * fe_ten_face_values.JxW(face_q_point);
+                            }
                         }
                     }
                 }
             }
 
+
             MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
-                                                     dummy_cell_matrix, cell_rhs, true);
+                                                     cell_matrix, cell_rhs, true);
 
             constraints.distribute_local_to_global(
-                    cell_rhs, local_dof_indices, test_rhs);
-
+                     cell_rhs, local_dof_indices, test_rhs);
 
         }
+
+
         return test_rhs;
 
     }
@@ -1382,30 +1524,30 @@ namespace SAND {
     template<int dim>
     BlockVector<double>
     KktSystem<dim>::solve(const BlockVector<double> &state) {
-        const double gmres_tolerance = std::max(
-                                                std::min(
-                                                        .1 * system_rhs.l2_norm() * system_rhs.l2_norm()/(initial_rhs_error * initial_rhs_error),
-                                                        .001 *system_rhs.l2_norm()
-                                                        ),
-                                                 system_rhs.l2_norm()*1e-12);
+//        const double gmres_tolerance = std::max(
+//                                                std::min(
+//                                                        .1 * system_rhs.l2_norm() * system_rhs.l2_norm()/(initial_rhs_error * initial_rhs_error),
+//                                                        .001 *system_rhs.l2_norm()
+//                                                        ),
+//                                                 system_rhs.l2_norm()*1e-12);
 
-        constraints.condense(system_matrix);
-        std::cout << "start" << std::endl;
-        preconditioner.assemble_mass_matrix(state, fe, dof_handler, constraints);
-        preconditioner.initialize(system_matrix,boundary_values);
-        SolverControl solver_control(10000, 1e-6);
-        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
-        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+//        constraints.condense(system_matrix);
+//        std::cout << "start" << std::endl;
+//        preconditioner.assemble_mass_matrix(state, fe, dof_handler, constraints);
+//        preconditioner.initialize(system_matrix,boundary_values);
+//        SolverControl solver_control(10000, 1e-6);
+//        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
+//        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+//        constraints.distribute(linear_solution);
+//        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+//        preconditioner.print_stuff(system_matrix);
+//        std::cout << "printed";
+
+        SparseDirectUMFPACK A_direct;
         constraints.distribute(linear_solution);
-        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-        preconditioner.print_stuff(system_matrix);
-        std::cout << "printed";
-
-//        SparseDirectUMFPACK A_direct;
-//        constraints.distribute(linear_solution);
-//        A_direct.initialize(system_matrix);
-//        A_direct.vmult(linear_solution, system_rhs);
-//        constraints.distribute(linear_solution);
+        A_direct.initialize(system_matrix);
+        A_direct.vmult(linear_solution, system_rhs);
+        constraints.distribute(linear_solution);
 
 
         return linear_solution;
@@ -1421,7 +1563,7 @@ namespace SAND {
     BlockVector<double>
     KktSystem<dim>::get_initial_state() {
 
-        std::vector<unsigned int> block_component(9, 2);
+        std::vector<unsigned int> block_component(10, 2);
         block_component[0] = 0;
         block_component[5] = 1;
         const std::vector<types::global_dof_index> dofs_per_block =
@@ -1429,11 +1571,11 @@ namespace SAND {
         const unsigned int n_p = dofs_per_block[0];
         const unsigned int n_u = dofs_per_block[1];
         std::cout << n_p << "  " << n_u << std::endl;
-        const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p};
+        const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
 
-        BlockVector<double> state(9);
+        BlockVector<double> state(10);
 
-        for (unsigned int j = 0; j < 9; j++) {
+        for (unsigned int j = 0; j < 10; j++) {
             state.block(j).reinit(block_sizes[j]);
         }
 
@@ -1452,7 +1594,7 @@ namespace SAND {
             state.block(SolutionBlocks::density_upper_slack)[k] = 1 - density_ratio;
             state.block(SolutionBlocks::density_upper_slack_multiplier)[k] = 50;
         }
-
+        state.block(SolutionBlocks::total_volume_multiplier)[0] = 1;
 
         return state;
 

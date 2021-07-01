@@ -125,6 +125,7 @@ SANDTopOpt<dim>::SANDTopOpt():
         max_step.block(SolutionBlocks::density_lower_slack_multiplier) = step_size_z * step.block(SolutionBlocks::density_lower_slack_multiplier);
         max_step.block(SolutionBlocks::density_upper_slack_multiplier) = step_size_z * step.block(SolutionBlocks::density_upper_slack_multiplier);
         max_step.block(SolutionBlocks::displacement_multiplier) = step_size_z * step.block(SolutionBlocks::displacement_multiplier);
+        max_step.block(SolutionBlocks::total_volume_multiplier) = step_size_z * step.block(SolutionBlocks::total_volume_multiplier);
 
         return max_step;
     }
