@@ -51,16 +51,13 @@ namespace SAND {
 
         DensityFilter(const double filter_r_in);
 
-        SparsityPattern get_filter_sparsity_pattern();
-
         SparseMatrix<double> filter_matrix;
-
+        SparsityPattern filter_sparsity_pattern;
         void initialize(Triangulation<dim> &triangulation);
 
-        SparsityPattern fill_filter_matrix();
 
     private:
-        SparsityPattern filter_sparsity_pattern;
+
         double filter_r;
         std::set<typename Triangulation<dim>::cell_iterator> find_relevant_neighbors(Triangulation<dim> &triangulation,
                                                                                      typename Triangulation<dim>::cell_iterator cell) const;

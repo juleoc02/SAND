@@ -50,7 +50,8 @@ namespace SAND {
         filter_sparsity_pattern.copy_from(filter_dsp);
         filter_matrix.reinit(filter_sparsity_pattern);
 
-        for (const auto &cell : triangulation.active_cell_iterators()) {
+        for (const auto &cell : triangulation.active_cell_iterators())
+        {
             const unsigned int i = cell->active_cell_index();
             for (const auto &neighbor_cell : find_relevant_neighbors(triangulation, cell)) {
                 const unsigned int j = neighbor_cell->active_cell_index();
@@ -58,26 +59,29 @@ namespace SAND {
                         cell->center().distance(neighbor_cell->center());
                 /*value should be max radius - distance between cells*/
                 double value = filter_r - distance;
-                std::cout << "i,j:   " << i <<"  "<<j<< std::endl;
+                std::cout << "i,j:   " << i << "  " << j << std::endl;
                 std::cout << "filter m value:   " << value << std::endl;
                 filter_matrix.add(i, j, value);
             }
+        }
 
-            //here we normalize the filter
-            for (const auto &cell : triangulation.active_cell_iterators()) {
-                const unsigned int i = cell->active_cell_index();
-                double denominator = 0;
-                typename SparseMatrix<double>::iterator iter = filter_matrix.begin(
-                        i);
-                for (; iter != filter_matrix.end(i); iter++) {
-                    denominator = denominator + iter->value();
-                }
-                iter = filter_matrix.begin(i);
-                for (; iter != filter_matrix.end(i); iter++) {
-                    iter->value() = iter->value() / denominator;
-                }
+        //here we normalize the filter
+        for (const auto &cell : triangulation.active_cell_iterators())
+        {
+            const unsigned int i = cell->active_cell_index();
+            double denominator = 0;
+            typename SparseMatrix<double>::iterator iter = filter_matrix.begin(
+                    i);
+            for (; iter != filter_matrix.end(i); iter++)
+            {
+                denominator = denominator + iter->value();
             }
-
+            iter = filter_matrix.begin(i);
+            for (; iter != filter_matrix.end(i); iter++)
+            {
+                iter->value() = iter->value() / denominator;
+                std::cout << iter->value() << std::endl;
+            }
         }
     }
 

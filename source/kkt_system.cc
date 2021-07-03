@@ -952,12 +952,12 @@ namespace SAND {
         for (const auto &cell : dof_handler.active_cell_iterators())
         {
             const unsigned int i = cell->active_cell_index();
-            SparseMatrix<double> copy_of_filter = &density_filter.filter_matrix;
+
             typename SparseMatrix<double>::iterator iter = density_filter.filter_matrix.begin(
                     i);
             for (; iter != density_filter.filter_matrix.end(i); iter++) {
                 unsigned int j = iter->column();
-                double value = iter->value();// * cell->measure();
+                double value = iter->value() * cell->measure();
                 std::cout << "value:   " << value << std::endl;
 
 //                system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
