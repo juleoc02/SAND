@@ -4,8 +4,6 @@
 
 #ifndef SAND_DENSITY_FILTER_H
 #define SAND_DENSITY_FILTER_H
-#ifndef SAND_KKTSYSTEM_H
-#define SAND_KKTSYSTEM_H
 
 
 #include <deal.II/base/quadrature_lib.h>
@@ -44,25 +42,30 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+namespace SAND {
+    using namespace dealii;
 
-using namespace dealii;
+    template<int dim>
+    class DensityFilter {
+    public:
 
-template <int dim>
-class DensityFilter
-{
-    DensityFilter();
-public:
-    SparsityPattern get_filter_sparsity_pattern();
-    SparseMatrix<double> filter_matrix;
-    void initialize(Triangulation &triangulation);
-    SparsityPattern fill_filter_matrix(Triangulation &triangulation);
-private:
-    SparsityPattern filter_sparsity_pattern;
-    std::set<typename Triangulation<dim>::cell_iterator>
-    std::set<typename Triangulation<dim>::cell_iterator> find_relevant_neighbors(Triangulation<dim> &triangulation,
-    typename Triangulation<dim>::cell_iterator cell) const
+        DensityFilter(const double filter_r_in);
+
+        SparsityPattern get_filter_sparsity_pattern();
+
+        SparseMatrix<double> filter_matrix;
+
+        void initialize(Triangulation<dim> &triangulation);
+
+        SparsityPattern fill_filter_matrix();
+
+    private:
+        SparsityPattern filter_sparsity_pattern;
+        double filter_r;
+        std::set<typename Triangulation<dim>::cell_iterator> find_relevant_neighbors(Triangulation<dim> &triangulation,
+                                                                                     typename Triangulation<dim>::cell_iterator cell) const;
 
 
-};
-
+    };
+}
 #endif //SAND_DENSITY_FILTER_H

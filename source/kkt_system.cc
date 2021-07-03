@@ -62,7 +62,8 @@ namespace SAND {
                    FE_DGQ<dim>(0) ^ 1),
             density_ratio(.5),
             density_penalty_exponent(3),
-            filter_r(Input::filter_r)
+            filter_r(Input::filter_r),
+            density_filter(Input::filter_r)
             {
                 fe_collection.push_back(fe_nine);
                 fe_collection.push_back(fe_ten);
@@ -75,105 +76,7 @@ namespace SAND {
     void
     KktSystem<dim>::setup_filter_matrix() {
 
-        filter_dsp.reinit(dof_handler.get_triangulation().n_active_cells(),
-                          dof_handler.get_triangulation().n_active_cells());
-        std::set<unsigned int> neighbor_ids;
-        std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
-        std::set<typename Triangulation<dim>::cell_iterator> cells_to_check_temp;
-        double distance;
-
-        /*finds neighbors-of-neighbors until it is out to specified radius*/
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
-            const unsigned int i = cell->active_cell_index();
-            neighbor_ids = {i};
-            cells_to_check = {cell};
-
-            unsigned int n_neighbors = 1;
-            while (true) {
-                cells_to_check_temp.clear();
-                for (auto check_cell : cells_to_check) {
-                    for (unsigned int n = 0;
-                         n < GeometryInfo<dim>::faces_per_cell; ++n) {
-                        if (!(check_cell->face(n)->at_boundary())) {
-                            distance = cell->center().distance(
-                                    check_cell->neighbor(n)->center());
-                            if ((distance < filter_r) &&
-                                !(neighbor_ids.count(check_cell->neighbor(n)->active_cell_index()))) {
-                                cells_to_check_temp.insert(check_cell->neighbor(n));
-                                neighbor_ids.insert(check_cell->neighbor(n)->active_cell_index());
-                            }
-                        }
-                    }
-                }
-
-                if (neighbor_ids.size() == n_neighbors) {
-                    break;
-                } else {
-                    cells_to_check = cells_to_check_temp;
-                    n_neighbors = neighbor_ids.size();
-                }
-            }
-/*add all of these to the sparsity pattern*/
-            for (auto j : neighbor_ids) {
-                filter_dsp.add(i, j);
-            }
-        }
-
-        filter_sparsity_pattern.copy_from(filter_dsp);
-        filter_matrix.reinit(filter_sparsity_pattern);
-
-/*find these cells again to add values to matrix*/
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
-            const unsigned int i = cell->active_cell_index();
-            neighbor_ids = {i};
-            cells_to_check = {cell};
-            cells_to_check_temp = {};
-
-            unsigned int n_neighbors = 1;
-            filter_matrix.add(i, i, filter_r);
-            while (true) {
-                cells_to_check_temp.clear();
-                for (auto check_cell : cells_to_check) {
-                    for (unsigned int n = 0; n < GeometryInfo<dim>::faces_per_cell; ++n) {
-                        if (!(check_cell->face(n)->at_boundary())) {
-                            distance = cell->center().distance(
-                                    check_cell->neighbor(n)->center());
-                            if ((distance < filter_r) && !(neighbor_ids.count(
-                                    check_cell->neighbor(n)->active_cell_index()))) {
-                                cells_to_check_temp.insert(
-                                        check_cell->neighbor(n));
-                                neighbor_ids.insert(
-                                        check_cell->neighbor(n)->active_cell_index());
-/*value should be max radius - distance between cells*/
-                                filter_matrix.add(i, check_cell->neighbor(n)->active_cell_index(),
-                                                  filter_r - distance);
-                            }
-                        }
-                    }
-                }
-
-                if (neighbor_ids.size() == n_neighbors) {
-                    break;
-                } else {
-                    cells_to_check = cells_to_check_temp;
-                    n_neighbors = neighbor_ids.size();
-                }
-            }
-        }
-
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
-            const unsigned int i = cell->active_cell_index();
-            double denominator = 0;
-            typename SparseMatrix<double>::iterator iter = filter_matrix.begin(
-                    i);
-            for (; iter != filter_matrix.end(i); iter++) {
-                denominator = denominator + iter->value();
-            }
-            iter = filter_matrix.begin(i);
-            for (; iter != filter_matrix.end(i); iter++) {
-                iter->value() = iter->value() / denominator;
-            }
-        }
+        density_filter.initialize(triangulation);
     }
 
     ///This triangulation matches the problem description in the introduction -
@@ -216,6 +119,7 @@ namespace SAND {
                 {
                     cell->set_active_fe_index(1);
                     cell->set_material_id(MaterialIds::with_multiplier);
+                    std::cout << "set" << std::endl;
                 }
             }
         }
@@ -232,54 +136,54 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::setup_boundary_values() {
-//        for (const auto &cell : dof_handler.active_cell_iterators()) {
-//
-//            for (unsigned int face_number = 0;
-//                 face_number < GeometryInfo<dim>::faces_per_cell;
-//                 ++face_number) {
-//                if (cell->face(face_number)->at_boundary()) {
-//                    for (unsigned int vertex_number = 0;
-//                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
-//                         ++vertex_number) {
-//                        const auto vert = cell->vertex(vertex_number);
-//                        /*Find bottom left corner*/
-//                        if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-//                                vert(1) - 0) < 1e-12) {
-//
+        for (const auto &cell : dof_handler.active_cell_iterators()) {
+
+            for (unsigned int face_number = 0;
+                 face_number < GeometryInfo<dim>::faces_per_cell;
+                 ++face_number) {
+                if (cell->face(face_number)->at_boundary()) {
+                    for (unsigned int vertex_number = 0;
+                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                         ++vertex_number) {
+                        const auto vert = cell->vertex(vertex_number);
+                        /*Find bottom left corner*/
+                        if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                vert(1) - 0) < 1e-12) {
+
+                            const unsigned int x_displacement =
+                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                            const unsigned int y_displacement =
+                                    cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                            const unsigned int x_displacement_multiplier =
+                                    cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                            const unsigned int y_displacement_multiplier =
+                                    cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                            /*set bottom left BC*/
+                            boundary_values[x_displacement] = 0;
+                            boundary_values[y_displacement] = 0;
+                            boundary_values[x_displacement_multiplier] = 0;
+                            boundary_values[y_displacement_multiplier] = 0;
+                        }
+                        /*Find bottom right corner*/
+                        if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
+                                vert(1) - 0) < 1e-12) {
 //                            const unsigned int x_displacement =
-//                                    cell->vertex_dof_index(vertex_number, 0);
-//                            const unsigned int y_displacement =
-//                                    cell->vertex_dof_index(vertex_number, 1);
+//                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                            const unsigned int y_displacement =
+                                    cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
 //                            const unsigned int x_displacement_multiplier =
-//                                    cell->vertex_dof_index(vertex_number, 2);
-//                            const unsigned int y_displacement_multiplier =
-//                                    cell->vertex_dof_index(vertex_number, 3);
-//                            /*set bottom left BC*/
+//                                    cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                            const unsigned int y_displacement_multiplier =
+                                    cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
 //                            boundary_values[x_displacement] = 0;
-//                            boundary_values[y_displacement] = 0;
+                            boundary_values[y_displacement] = 0;
 //                            boundary_values[x_displacement_multiplier] = 0;
-//                            boundary_values[y_displacement_multiplier] = 0;
-//                        }
-//                        /*Find bottom right corner*/
-//                        if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-//                                vert(1) - 0) < 1e-12) {
-////                            const unsigned int x_displacement =
-////                                    cell->vertex_dof_index(vertex_number, 0, 0);
-//                            const unsigned int y_displacement =
-//                                    cell->vertex_dof_index(vertex_number, 1);
-////                            const unsigned int x_displacement_multiplier =
-////                                    cell->vertex_dof_index(vertex_number, 2, 0);
-//                            const unsigned int y_displacement_multiplier =
-//                                    cell->vertex_dof_index(vertex_number, 3);
-////                            boundary_values[x_displacement] = 0;
-//                            boundary_values[y_displacement] = 0;
-////                            boundary_values[x_displacement_multiplier] = 0;
-//                            boundary_values[y_displacement_multiplier] = 0;
-//                        }
-//                    }
-//                }
-//            }
-//        }
+                            boundary_values[y_displacement_multiplier] = 0;
+                        }
+                    }
+                }
+            }
+        }
     }
 
 
@@ -348,11 +252,7 @@ namespace SAND {
         coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::density<dim>] = DoFTools::always;
         coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density<dim>] = DoFTools::always;
 
-
-
-
 //Coupling for displacement
-
         for (unsigned int i = 0; i < dim; i++) {
             for (unsigned int k = 0; k < dim; k++) {
                 coupling[SolutionComponents::displacement<dim> + i][SolutionComponents::displacement<dim> +
@@ -479,21 +379,21 @@ namespace SAND {
 
         constraints.clear();
 
-        const ComponentMask density_mask = fe_collection.component_mask(densities);
-
-        const IndexSet density_dofs = DoFTools::extract_dofs(dof_handler,
-                                                             density_mask);
-
-
-        const unsigned int first_density_dof = density_dofs.nth_index_in_set(0);
-        constraints.add_line(first_density_dof);
-        for (unsigned int i = 1;
-             i < density_dofs.n_elements(); ++i) {
-            constraints.add_entry(first_density_dof,
-                                  density_dofs.nth_index_in_set(i), -1);
-        }
-
-        constraints.set_inhomogeneity(first_density_dof, 0);
+//        const ComponentMask density_mask = fe_collection.component_mask(densities);
+//
+//        const IndexSet density_dofs = DoFTools::extract_dofs(dof_handler,
+//                                                             density_mask);
+//
+//
+//        const unsigned int first_density_dof = density_dofs.nth_index_in_set(0);
+//        constraints.add_line(first_density_dof);
+//        for (unsigned int i = 1;
+//             i < density_dofs.n_elements(); ++i) {
+//            constraints.add_entry(first_density_dof,
+//                                  density_dofs.nth_index_in_set(i), -1);
+//        }
+//
+//        constraints.set_inhomogeneity(first_density_dof, 0);
 
         constraints.close();
 
@@ -502,15 +402,15 @@ namespace SAND {
         std::set<unsigned int> neighbor_ids;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check_temp;
-        unsigned int n_neighbors, i;
         double distance;
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
-            i = cell->active_cell_index();
+        for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+            const unsigned int i = cell->active_cell_index();
             neighbor_ids.clear();
             neighbor_ids.insert(i);
             cells_to_check.clear();
             cells_to_check.insert(cell);
-            n_neighbors = 1;
+            unsigned int n_neighbors = 1;
             while (true) {
                 cells_to_check_temp.clear();
                 for (auto check_cell : cells_to_check) {
@@ -536,10 +436,16 @@ namespace SAND {
                 }
             }
 /*add all of these to the sparsity pattern*/
-            for (auto j : neighbor_ids) {
+            for (auto j : neighbor_ids)
+            {
                 dsp.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier).add(i, j);
                 dsp.block(SolutionBlocks::unfiltered_density_multiplier, SolutionBlocks::unfiltered_density).add(i, j);
             }
+        }
+        for (const auto &cell : dof_handler.active_cell_iterators()) {
+            const unsigned int i = cell->active_cell_index();
+            dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0);
+            dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i);
         }
 
 //        constraints.condense(dsp);
@@ -631,8 +537,8 @@ namespace SAND {
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
-        filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density), state.block(SolutionBlocks::unfiltered_density));
-        filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),
+        density_filter.filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density), state.block(SolutionBlocks::unfiltered_density));
+        density_filter.filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),
                              state.block(SolutionBlocks::unfiltered_density_multiplier));
 
 
@@ -790,7 +696,6 @@ namespace SAND {
                         cell_matrix(i, j) +=
                                 fe_values.JxW(q_point) *
                                 (
-
                                         -density_phi_i * unfiltered_density_multiplier_phi_j
 
                                         + density_penalty_exponent * (density_penalty_exponent
@@ -907,7 +812,6 @@ namespace SAND {
                                                 + upper_slack_phi_i * upper_slack_phi_j
                                                   * old_upper_slack_multiplier_values[q_point] /
                                                   old_upper_slack_values[q_point]);
-
                     }
 
                     //rhs eqn 0
@@ -998,14 +902,14 @@ namespace SAND {
                  ++face_number) {
                 if (cell->face(face_number)->at_boundary() && cell->face(
                         face_number)->boundary_id() == BoundaryIds::down_force) {
-                    fe_ten_face_values.reinit(cell, face_number);
-
                     for (unsigned int face_q_point = 0;
                          face_q_point < n_face_q_points; ++face_q_point) {
                         for (unsigned int i = 0; i < dofs_per_cell; ++i)
                         {
                             if (cell->material_id() == MaterialIds::without_multiplier)
                             {
+                                fe_nine_face_values.reinit(cell, face_number);
+
                                 cell_rhs(i) += -1
                                                * traction
                                                * fe_nine_face_values[displacements].value(i,
@@ -1013,12 +917,14 @@ namespace SAND {
                                                * fe_nine_face_values.JxW(face_q_point);
 
                                 cell_rhs(i) += traction
-                                               * fe_ten_face_values[displacement_multipliers].value(
+                                               * fe_nine_face_values[displacement_multipliers].value(
                                         i, face_q_point)
-                                               * fe_ten_face_values.JxW(face_q_point);
+                                               * fe_nine_face_values.JxW(face_q_point);
                             }
                             else
                             {
+                                fe_ten_face_values.reinit(cell, face_number);
+
                                 cell_rhs(i) += -1
                                                * traction
                                                * fe_ten_face_values[displacements].value(i,
@@ -1043,21 +949,21 @@ namespace SAND {
                     cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
         }
-
         for (const auto &cell : dof_handler.active_cell_iterators())
         {
             const unsigned int i = cell->active_cell_index();
-
-            typename SparseMatrix<double>::iterator iter = filter_matrix.begin(
+            SparseMatrix<double> copy_of_filter = &density_filter.filter_matrix;
+            typename SparseMatrix<double>::iterator iter = density_filter.filter_matrix.begin(
                     i);
-            for (; iter != filter_matrix.end(i); iter++) {
+            for (; iter != density_filter.filter_matrix.end(i); iter++) {
                 unsigned int j = iter->column();
-                double value = iter->value() * cell->measure();
+                double value = iter->value();// * cell->measure();
+                std::cout << "value:   " << value << std::endl;
 
-                system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                                    SolutionBlocks::unfiltered_density).add(i, j, value);
-                system_matrix.block(SolutionBlocks::unfiltered_density,
-                                    SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
+//                system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+//                                    SolutionBlocks::unfiltered_density).add(i, j, value);
+//                system_matrix.block(SolutionBlocks::unfiltered_density,
+//                                    SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
             }
 
             system_matrix.block(SolutionBlocks::density,SolutionBlocks::total_volume_multiplier).add(i,0,cell->measure());
@@ -1104,6 +1010,7 @@ namespace SAND {
         double objective_value = 0;
         for (const auto &cell : dof_handler.active_cell_iterators())
         {
+            hp_fe_values.reinit(cell);
             const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
             const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
             const unsigned int n_q_points = fe_values.n_quadrature_points;
@@ -1129,6 +1036,7 @@ namespace SAND {
                             {
                             if (cell->material_id() == MaterialIds::without_multiplier)
                                 {
+                                    fe_nine_face_values.reinit(cell,face_number);
                                     objective_value += traction
                                                    * fe_nine_face_values[displacements].value(i,
                                                                                               face_q_point)
@@ -1136,6 +1044,7 @@ namespace SAND {
                                 }
                             else
                                 {
+                                    fe_ten_face_values.reinit(cell,face_number);
                                     objective_value += traction
                                                    * fe_ten_face_values[displacements].value(i,
                                                                                              face_q_point)
@@ -1175,9 +1084,14 @@ namespace SAND {
     KktSystem<dim>::calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const {
         BlockVector<double> test_rhs = calculate_test_rhs(state, barrier_size);
         double feasibility = 0;
-        feasibility += test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() + test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm()
-                + test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm()+ test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm()
-                + test_rhs.block(SolutionBlocks::density_lower_slack).l2_norm() + test_rhs.block(SolutionBlocks::density_upper_slack).l2_norm();
+        feasibility +=
+//                test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() +
+//                test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm() +
+//                test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm() +
+//                test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm() +
+//                test_rhs.block(SolutionBlocks::density_lower_slack).l2_norm() +
+//                test_rhs.block(SolutionBlocks::density_upper_slack).l2_norm() +
+                0;
         return feasibility;
     }
 
@@ -1262,8 +1176,8 @@ namespace SAND {
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
-        filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density), state.block(SolutionBlocks::unfiltered_density));
-        filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),
+        density_filter.filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density), state.block(SolutionBlocks::unfiltered_density));
+        density_filter.filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),
                              state.block(SolutionBlocks::unfiltered_density_multiplier));
 
 
@@ -1380,6 +1294,8 @@ namespace SAND {
                             fe_values[density_upper_slack_multipliers].value(i,
                                                                              q_point);
 
+
+
                     //rhs eqn 0
                     cell_rhs(i) +=
                             -1 * fe_values.JxW(q_point) * (
@@ -1467,15 +1383,16 @@ namespace SAND {
                  face_number < GeometryInfo<dim>::faces_per_cell;
                  ++face_number) {
                 if (cell->face(face_number)->at_boundary() && cell->face(
-                        face_number)->boundary_id() == BoundaryIds::down_force) {
-                    fe_ten_face_values.reinit(cell, face_number);
-
+                        face_number)->boundary_id() == BoundaryIds::down_force)
+                {
                     for (unsigned int face_q_point = 0;
-                         face_q_point < n_face_q_points; ++face_q_point) {
+                         face_q_point < n_face_q_points; ++face_q_point)
+                    {
                         for (unsigned int i = 0; i < dofs_per_cell; ++i)
                         {
                             if (cell->material_id() == MaterialIds::without_multiplier)
                             {
+                                fe_nine_face_values.reinit(cell,face_number);
                                 cell_rhs(i) += -1
                                                * traction
                                                * fe_nine_face_values[displacements].value(i,
@@ -1483,12 +1400,13 @@ namespace SAND {
                                                * fe_nine_face_values.JxW(face_q_point);
 
                                 cell_rhs(i) += traction
-                                               * fe_ten_face_values[displacement_multipliers].value(
+                                               * fe_nine_face_values[displacement_multipliers].value(
                                         i, face_q_point)
-                                               * fe_ten_face_values.JxW(face_q_point);
+                                               * fe_nine_face_values.JxW(face_q_point);
                             }
                             else
                             {
+                                fe_ten_face_values.reinit(cell,face_number);
                                 cell_rhs(i) += -1
                                                * traction
                                                * fe_ten_face_values[displacements].value(i,
@@ -1544,11 +1462,11 @@ namespace SAND {
 //        std::cout << "printed";
 
         SparseDirectUMFPACK A_direct;
-        constraints.distribute(linear_solution);
+        std::cout << "here";
         A_direct.initialize(system_matrix);
+        std::cout << "there";
         A_direct.vmult(linear_solution, system_rhs);
         constraints.distribute(linear_solution);
-
 
         return linear_solution;
     }

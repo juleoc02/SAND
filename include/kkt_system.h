@@ -39,6 +39,7 @@
 #include <deal.II/hp/fe_collection.h>
 
 #include "../include/schur_preconditioner.h"
+#include "../include/density_filter.h"
 
 #include <iostream>
 #include <fstream>
@@ -115,6 +116,7 @@ namespace SAND {
         const double density_penalty_exponent;
         const double filter_r;
 
+        DensityFilter<dim> density_filter;
 
         std::map<types::global_dof_index, double> boundary_values;
 
