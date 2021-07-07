@@ -33,7 +33,7 @@ namespace SAND {
         static constexpr unsigned int displacement_multiplier = 6;
         static constexpr unsigned int unfiltered_density_multiplier = 7;
         static constexpr unsigned int density = 8;
-        static constexpr unsigned int total_volume_multiplier = 8;
+        static constexpr unsigned int total_volume_multiplier = 9;
     }
 
     namespace BoundaryIds {

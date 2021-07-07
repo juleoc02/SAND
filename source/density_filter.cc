@@ -2,6 +2,7 @@
 // Created by justin on 5/13/21.
 //
 #include "../include/density_filter.h"
+#include "../include/input_information.h"
 
 #include <deal.II/base/tensor.h>
 
@@ -20,13 +21,6 @@ namespace SAND {
     using namespace dealii;
 
     template<int dim>
-    DensityFilter<dim>::DensityFilter(const double filter_r_in)
-            :
-            filter_r(filter_r_in)
-    {
-    }
-
-    template<int dim>
     void
     DensityFilter<dim>::initialize(Triangulation<dim> &triangulation) {
         DynamicSparsityPattern filter_dsp;
@@ -41,7 +35,7 @@ namespace SAND {
         /*finds neighbors-of-neighbors until it is out to specified radius*/
         for (const auto &cell : triangulation.active_cell_iterators()) {
             const unsigned int i = cell->active_cell_index();
-            for (const auto &neighbor_cell : find_relevant_neighbors(triangulation, cell)) {
+            for (const auto &neighbor_cell : find_relevant_neighbors(cell)) {
                 const unsigned int j = neighbor_cell->active_cell_index();
                 filter_dsp.add(i, j);
             }
@@ -53,14 +47,12 @@ namespace SAND {
         for (const auto &cell : triangulation.active_cell_iterators())
         {
             const unsigned int i = cell->active_cell_index();
-            for (const auto &neighbor_cell : find_relevant_neighbors(triangulation, cell)) {
+            for (const auto &neighbor_cell : find_relevant_neighbors(cell)) {
                 const unsigned int j = neighbor_cell->active_cell_index();
-                const double distance =
+                const double d =
                         cell->center().distance(neighbor_cell->center());
                 /*value should be max radius - distance between cells*/
-                double value = filter_r - distance;
-                std::cout << "i,j:   " << i << "  " << j << std::endl;
-                std::cout << "filter m value:   " << value << std::endl;
+                double value = Input::filter_r - d;
                 filter_matrix.add(i, j, value);
             }
         }
@@ -80,15 +72,13 @@ namespace SAND {
             for (; iter != filter_matrix.end(i); iter++)
             {
                 iter->value() = iter->value() / denominator;
-                std::cout << iter->value() << std::endl;
             }
         }
     }
 
     template<int dim>
     std::set<typename Triangulation<dim>::cell_iterator>
-    DensityFilter<dim>::find_relevant_neighbors(Triangulation<dim> &triangulation,
-                                                typename Triangulation<dim>::cell_iterator cell) const {
+    DensityFilter<dim>::find_relevant_neighbors(typename Triangulation<dim>::cell_iterator cell) const {
         std::set<unsigned int> neighbor_ids;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
         neighbor_ids.insert(cell->active_cell_index());
@@ -104,7 +94,7 @@ namespace SAND {
                         const auto &neighbor = check_cell->neighbor(n);
                         const double distance =
                                 cell->center().distance(neighbor->center());
-                        if ((distance < filter_r) &&
+                        if ((distance < Input::filter_r) &&
                             !(neighbor_ids.count(neighbor->active_cell_index())))
                         {
                             cells_to_check.insert(neighbor);

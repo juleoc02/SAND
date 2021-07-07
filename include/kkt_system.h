@@ -97,12 +97,10 @@ namespace SAND {
     private:
 
         BlockVector<double>
-        calculate_test_rhs(const BlockVector<double> &test_solution, const double barrier_size) const;
+        calculate_rhs(const BlockVector<double> &test_solution, const double barrier_size) const;
 
         BlockSparsityPattern sparsity_pattern;
         BlockSparseMatrix<double> system_matrix;
-        SparsityPattern filter_sparsity_pattern;
-        SparseMatrix<double> filter_matrix;
         BlockVector<double> linear_solution;
         BlockVector<double> system_rhs;
         Triangulation<dim> triangulation;
@@ -111,10 +109,8 @@ namespace SAND {
         FESystem<dim> fe_nine;
         FESystem<dim> fe_ten;
         hp::FECollection<dim> fe_collection;
-        DynamicSparsityPattern filter_dsp;
         const double density_ratio;
         const double density_penalty_exponent;
-        const double filter_r;
 
         DensityFilter<dim> density_filter;
 

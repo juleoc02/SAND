@@ -1,5 +1,3 @@
-#include <deal.II/base/timer.h>
-
 #include <deal.II/lac/block_vector.h>
 #include <deal.II/lac/packaged_operation.h>
 #include <deal.II/grid/tria.h>
@@ -7,8 +5,6 @@
 #include <iostream>
 #include "../include/markov_filter.h"
 #include "../include/kkt_system.h"
-#include "../include/parameters_and_components.h"
-#include "../include/schur_preconditioner.h"
 #include "../include/input_information.h"
 
 ///Above are fairly normal files to include.  I also use the sparse direct package, which requiresBLAS/LAPACK
@@ -21,7 +17,7 @@ namespace SAND {
     template<int dim>
     class SANDTopOpt {
     public:
-        SANDTopOpt<dim>();
+        SANDTopOpt<dim>()=default;
 
         void
         run();
@@ -46,24 +42,13 @@ namespace SAND {
         KktSystem<dim> kkt_system;
         MarkovFilter markov_filter;
         double barrier_size;
-        const double min_barrier_size;
     };
-
-
-template <int dim>
-SANDTopOpt<dim>::SANDTopOpt():
-        min_barrier_size (.00005)
-{
-
-}
 
     ///A binary search figures out the maximum step that meets the dual feasibility - that s>0 and z>0. The fraction to boundary increases as the barrier size decreases.
 
     template<int dim>
     std::pair<double,double>
     SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
-
-        double fraction_to_boundary = .7;
 
         double step_size_s_low = 0;
         double step_size_z_low = 0;
@@ -78,10 +63,10 @@ SANDTopOpt<dim>::SANDTopOpt():
             step_size_s = (step_size_s_low + step_size_s_high) / 2;
             step_size_z = (step_size_z_low + step_size_z_high) / 2;
             const BlockVector<double> state_test_s =
-                    (fraction_to_boundary * state) + (step_size_s * step);
+                    (Input::fraction_to_boundary * state) + (step_size_s * step);
 
             const BlockVector<double> state_test_z =
-                    (fraction_to_boundary * state) + (step_size_z * step);
+                    (Input::fraction_to_boundary * state) + (step_size_z * step);
 
             const bool accept_s = (state_test_s.block(SolutionBlocks::density_lower_slack).is_non_negative())
                                   && (state_test_s.block(SolutionBlocks::density_upper_slack).is_non_negative());
@@ -108,13 +93,15 @@ SANDTopOpt<dim>::SANDTopOpt():
     const BlockVector<double>
     SANDTopOpt<dim>::find_max_step(const BlockVector<double> &state)
     {
+        std::cout << "finding max step" << std::endl;
         kkt_system.assemble_block_system(state, barrier_size);
+        std::cout << "assembled" << std::endl;
         const BlockVector<double> step = kkt_system.solve(state);
 
         const auto max_step_sizes= calculate_max_step_size(state,step);
         const double step_size_s = max_step_sizes.first;
         const double step_size_z = max_step_sizes.second;
-        BlockVector<double> max_step(9);
+        BlockVector<double> max_step(10);
 
         max_step.block(SolutionBlocks::density) = step_size_s * step.block(SolutionBlocks::density);
         max_step.block(SolutionBlocks::displacement) = step_size_s * step.block(SolutionBlocks::displacement);
@@ -159,7 +146,7 @@ SANDTopOpt<dim>::SANDTopOpt():
     bool
     SANDTopOpt<dim>::check_convergence(const BlockVector<double> &state) const
     {
-              if (kkt_system.calculate_convergence(state) < 1e-6 * min_barrier_size)
+              if (kkt_system.calculate_convergence(state) < 1e-6 * Input::min_barrier_size)
               {
                   return true;
               }
@@ -210,6 +197,10 @@ SANDTopOpt<dim>::SANDTopOpt():
         {
             barrier_size = loqo_multiplier * loqo_average;
         }
+        if (barrier_size < Input::min_barrier_size)
+        {
+            barrier_size=Input::min_barrier_size;
+        }
     }
 
     ///Contains watchdog algorithm
@@ -229,7 +220,7 @@ SANDTopOpt<dim>::SANDTopOpt():
         BlockVector<double> current_step;
         markov_filter.setup(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
 
-        while((barrier_size > min_barrier_size || !check_convergence(current_state)) && iteration_number < 10000)
+        while((barrier_size > Input::min_barrier_size || !check_convergence(current_state)) && iteration_number < 10000)
         {
             bool converged = false;
             //while not converged
@@ -243,8 +234,10 @@ SANDTopOpt<dim>::SANDTopOpt():
                 //for 1-8 steps - this is the number of steps away we will let it go uphill before demanding downhill
                 for(unsigned int k = 0; k<max_uphill_steps; k++)
                 {
+
                     //compute step from current state  - function from kktSystem
                     current_step = find_max_step(current_state);
+
                     // save the first of these as the watchdog step
                     if(k==0)
                     {
@@ -264,7 +257,6 @@ SANDTopOpt<dim>::SANDTopOpt():
                         //Accept current state
                         //iterate number of steps by number of steps taken in this process
                         iteration_number = iteration_number + k + 1;
-                        //found step = true
                         found_step = true;
                         std::cout << "found workable step after " << k+1 << " iterations"<<std::endl;
                         //break for loop

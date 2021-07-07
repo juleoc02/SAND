@@ -60,10 +60,9 @@ namespace SAND {
                    (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 2,
                    FE_DGQ<dim>(0) ^ 2,
                    FE_DGQ<dim>(0) ^ 1),
-            density_ratio(.5),
-            density_penalty_exponent(3),
-            filter_r(Input::filter_r),
-            density_filter(Input::filter_r)
+            density_ratio(Input::volume_percentage),
+            density_penalty_exponent(Input::density_penalty_exponent),
+            density_filter()
             {
                 fe_collection.push_back(fe_nine);
                 fe_collection.push_back(fe_ten);
@@ -119,7 +118,6 @@ namespace SAND {
                 {
                     cell->set_active_fe_index(1);
                     cell->set_material_id(MaterialIds::with_multiplier);
-                    std::cout << "set" << std::endl;
                 }
             }
         }
@@ -419,7 +417,7 @@ namespace SAND {
                         if (!(check_cell->face(n)->at_boundary())) {
                             distance = cell->center().distance(
                                     check_cell->neighbor(n)->center());
-                            if ((distance < filter_r) &&
+                            if ((distance < Input::filter_r) &&
                                 !(neighbor_ids.count(check_cell->neighbor(n)->active_cell_index()))) {
                                 cells_to_check_temp.insert(check_cell->neighbor(n));
                                 neighbor_ids.insert(check_cell->neighbor(n)->active_cell_index());
@@ -462,8 +460,8 @@ namespace SAND {
         system_matrix.reinit(sparsity_pattern);
 
 
-        linear_solution.reinit(10);
-        system_rhs.reinit(10);
+        linear_solution.reinit(block_sizes);
+        system_rhs.reinit(block_sizes);
 
         for (unsigned int j = 0; j < 10; j++) {
             linear_solution.block(j).reinit(block_sizes[j]);
@@ -526,9 +524,6 @@ namespace SAND {
                 SolutionComponents::density_upper_slack_multiplier<dim>);
         const FEValuesExtractors::Scalar total_volume_multiplier(
                 SolutionComponents::total_volume_multiplier<dim>);
-
-
-        const unsigned int n_face_q_points = common_face_quadrature.size();
 
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
 
@@ -814,131 +809,8 @@ namespace SAND {
                                                   old_upper_slack_values[q_point]);
                     }
 
-                    //rhs eqn 0
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (
-                                    density_penalty_exponent *
-                                    std::pow(old_density_values[q_point], density_penalty_exponent - 1) * density_phi_i
-                                    * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
-                                       * lambda_values[q_point]
-                                       + 2 * mu_values[q_point] * (old_displacement_symmgrads[q_point]
-                                                                   * old_displacement_multiplier_symmgrads[q_point]))
-                                    - density_phi_i * old_unfiltered_density_multiplier_values[q_point]);
-
-                    //rhs eqn 1 - boundary terms counted later
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (
-                                    std::pow(old_density_values[q_point], density_penalty_exponent)
-                                    * (old_displacement_multiplier_divs[q_point] * displacement_phi_i_div
-                                       * lambda_values[q_point]
-                                       + 2 * mu_values[q_point] * (old_displacement_multiplier_symmgrads[q_point]
-                                                                   * displacement_phi_i_symmgrad))
-                            );
-
-                    //rhs eqn 2
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (
-                                    unfiltered_density_phi_i *
-                                    filter_adjoint_unfiltered_density_multiplier_values[q_point]
-                                    + unfiltered_density_phi_i * old_upper_slack_multiplier_values[q_point]
-                                    + -1 * unfiltered_density_phi_i * old_lower_slack_multiplier_values[q_point]
-                            );
-
-
-
-
-                    //rhs eqn 3 - boundary terms counted later
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (
-                                    std::pow(old_density_values[q_point], density_penalty_exponent)
-                                    * (old_displacement_divs[q_point] * displacement_multiplier_phi_i_div
-                                       * lambda_values[q_point]
-                                       + 2 * mu_values[q_point] * (displacement_multiplier_phi_i_symmgrad
-                                                                   * old_displacement_symmgrads[q_point]))
-                            );
-
-                    //rhs eqn 4
-                    cell_rhs(i) +=
-                            fe_values.JxW(q_point) *
-                            (lower_slack_multiplier_phi_i
-                             * (old_unfiltered_density_values[q_point] - old_lower_slack_values[q_point])
-                            );
-
-                    //rhs eqn 5
-                    cell_rhs(i) +=
-                            fe_values.JxW(q_point) * (
-                                    upper_slack_multiplier_phi_i
-                                    * (1 - old_unfiltered_density_values[q_point]
-                                       - old_upper_slack_values[q_point]));
-
-                    //rhs eqn 6
-                    cell_rhs(i) +=
-                            fe_values.JxW(q_point) * (
-                                    unfiltered_density_multiplier_phi_i
-                                    * (old_density_values[q_point] - filtered_unfiltered_density_values[q_point])
-                            );
-
-                    //rhs eqn 7
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (lower_slack_phi_i
-                                                           * (old_lower_slack_multiplier_values[q_point] -
-                                                              barrier_size / old_lower_slack_values[q_point])
-                            );
-
-                    //rhs eqn 8
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (upper_slack_phi_i
-                                                           * (old_upper_slack_multiplier_values[q_point] -
-                                                              barrier_size / old_upper_slack_values[q_point]));
-
                 }
 
-            }
-
-
-
-            for (unsigned int face_number = 0;
-                 face_number < GeometryInfo<dim>::faces_per_cell;
-                 ++face_number) {
-                if (cell->face(face_number)->at_boundary() && cell->face(
-                        face_number)->boundary_id() == BoundaryIds::down_force) {
-                    for (unsigned int face_q_point = 0;
-                         face_q_point < n_face_q_points; ++face_q_point) {
-                        for (unsigned int i = 0; i < dofs_per_cell; ++i)
-                        {
-                            if (cell->material_id() == MaterialIds::without_multiplier)
-                            {
-                                fe_nine_face_values.reinit(cell, face_number);
-
-                                cell_rhs(i) += -1
-                                               * traction
-                                               * fe_nine_face_values[displacements].value(i,
-                                                                                         face_q_point)
-                                               * fe_nine_face_values.JxW(face_q_point);
-
-                                cell_rhs(i) += traction
-                                               * fe_nine_face_values[displacement_multipliers].value(
-                                        i, face_q_point)
-                                               * fe_nine_face_values.JxW(face_q_point);
-                            }
-                            else
-                            {
-                                fe_ten_face_values.reinit(cell, face_number);
-
-                                cell_rhs(i) += -1
-                                               * traction
-                                               * fe_ten_face_values[displacements].value(i,
-                                                                                         face_q_point)
-                                               * fe_ten_face_values.JxW(face_q_point);
-
-                                cell_rhs(i) += traction
-                                               * fe_ten_face_values[displacement_multipliers].value(
-                                        i, face_q_point)
-                                               * fe_ten_face_values.JxW(face_q_point);
-                            }
-                        }
-                    }
-                }
             }
 
 
@@ -949,6 +821,8 @@ namespace SAND {
                     cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
         }
+        system_rhs = calculate_rhs(state,barrier_size);
+
         for (const auto &cell : dof_handler.active_cell_iterators())
         {
             const unsigned int i = cell->active_cell_index();
@@ -958,16 +832,15 @@ namespace SAND {
             for (; iter != density_filter.filter_matrix.end(i); iter++) {
                 unsigned int j = iter->column();
                 double value = iter->value() * cell->measure();
-                std::cout << "value:   " << value << std::endl;
 
-//                system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-//                                    SolutionBlocks::unfiltered_density).add(i, j, value);
-//                system_matrix.block(SolutionBlocks::unfiltered_density,
-//                                    SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
+                system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+                                    SolutionBlocks::unfiltered_density).add(i, j, value);
+                system_matrix.block(SolutionBlocks::unfiltered_density,
+                                    SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
             }
 
-            system_matrix.block(SolutionBlocks::density,SolutionBlocks::total_volume_multiplier).add(i,0,cell->measure());
             system_matrix.block(SolutionBlocks::total_volume_multiplier,SolutionBlocks::density).add(0,i,cell->measure());
+            system_matrix.block(SolutionBlocks::density,SolutionBlocks::total_volume_multiplier).add(i,0,cell->measure());
         }
     }
 
@@ -1082,43 +955,44 @@ namespace SAND {
     template<int dim>
     double
     KktSystem<dim>::calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const {
-        BlockVector<double> test_rhs = calculate_test_rhs(state, barrier_size);
+        BlockVector<double> test_rhs = calculate_rhs(state, barrier_size);
         double feasibility = 0;
         feasibility +=
-//                test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_lower_slack).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_upper_slack).l2_norm() +
-                0;
+                test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() +
+                test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm() +
+                test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm() +
+                test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm() +
+                test_rhs.block(SolutionBlocks::density_lower_slack).l2_norm() +
+                test_rhs.block(SolutionBlocks::density_upper_slack).l2_norm() +
+                test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm()+
+                test_rhs.block(SolutionBlocks::density).l2_norm()+
+                test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm()+
+                test_rhs.block(SolutionBlocks::displacement).l2_norm();
         return feasibility;
     }
 
     template<int dim>
     double
     KktSystem<dim>::calculate_convergence(const BlockVector<double> &state) const {
-        BlockVector<double> test_rhs = calculate_test_rhs(state, 0);
+        BlockVector<double> test_rhs = calculate_rhs(state, Input::min_barrier_size);
         std::cout << "test_rhs.l2_norm()   " << test_rhs.l2_norm() << std::endl;
         double norm = 0;
-        norm += test_rhs.block(SolutionBlocks::density).l1_norm();
-        norm += test_rhs.block(SolutionBlocks::displacement).l1_norm();
-        norm += test_rhs.block(SolutionBlocks::unfiltered_density).l1_norm();
+
         norm += test_rhs.block(SolutionBlocks::displacement_multiplier).l1_norm();
         norm += test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l1_norm();
-        norm -= test_rhs.block(SolutionBlocks::density_lower_slack) * state.block(SolutionBlocks::density_lower_slack);
-        norm += test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l1_norm();
-        norm -= test_rhs.block(SolutionBlocks::density_upper_slack) * state.block(SolutionBlocks::density_upper_slack);
-        norm += test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l1_norm();
-        norm += test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l1_norm();
         norm += test_rhs.block(SolutionBlocks::total_volume_multiplier).l1_norm();
-        std::cout << "norm" << norm << std::endl;
+        norm += test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l1_norm();
+        norm += test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l1_norm();
+//        norm += state.block(SolutionBlocks::density_lower_slack) * state.block(SolutionBlocks::density_lower_slack_multiplier);
+//        norm += state.block(SolutionBlocks::density_upper_slack) * state.block(SolutionBlocks::density_upper_slack_multiplier);
+
+        std::cout << "norm: " << norm << std::endl;
         return norm;
     }
 
     template<int dim>
     BlockVector<double>
-    KktSystem<dim>::calculate_test_rhs(const BlockVector<double> &state, const double barrier_size) const {
+    KktSystem<dim>::calculate_rhs(const BlockVector<double> &state, const double barrier_size) const {
         BlockVector<double> test_rhs;
         test_rhs = system_rhs;
         test_rhs = 0;
@@ -1179,7 +1053,7 @@ namespace SAND {
         density_filter.filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density), state.block(SolutionBlocks::unfiltered_density));
         density_filter.filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),
                              state.block(SolutionBlocks::unfiltered_density_multiplier));
-
+        const double old_volume_multiplier = state.block(SolutionBlocks::total_volume_multiplier)[0];
 
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             hp_fe_values.reinit(cell);
@@ -1254,6 +1128,8 @@ namespace SAND {
                     filter_adjoint_unfiltered_density_multiplier_solution,
                     filter_adjoint_unfiltered_density_multiplier_values);
 
+
+
             Tensor<1, dim> traction;
             traction[1] = -1;
 
@@ -1295,7 +1171,6 @@ namespace SAND {
                                                                              q_point);
 
 
-
                     //rhs eqn 0
                     cell_rhs(i) +=
                             -1 * fe_values.JxW(q_point) * (
@@ -1305,7 +1180,9 @@ namespace SAND {
                                        * lambda_values[q_point]
                                        + 2 * mu_values[q_point] * (old_displacement_symmgrads[q_point]
                                                                    * old_displacement_multiplier_symmgrads[q_point]))
-                                    - density_phi_i * old_unfiltered_density_multiplier_values[q_point]);
+                                    - density_phi_i * old_unfiltered_density_multiplier_values[q_point]
+                                    + old_volume_multiplier * density_phi_i
+                                    );
 
                     //rhs eqn 1 - boundary terms counted later
                     cell_rhs(i) +=
@@ -1432,6 +1309,15 @@ namespace SAND {
 
         }
 
+        double total_volume = 0;
+        double goal_volume = 0;
+        for(const auto &cell : dof_handler.active_cell_iterators())
+        {
+            total_volume += cell->measure() * linear_solution.block(SolutionBlocks::density)[cell->active_cell_index()];
+            goal_volume += cell->measure() * Input::volume_percentage;
+        }
+
+        test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
 
         return test_rhs;
 
@@ -1461,10 +1347,35 @@ namespace SAND {
 //        preconditioner.print_stuff(system_matrix);
 //        std::cout << "printed";
 
+//        std::ofstream Mat("full_block_matrix.csv");
+//
+//        for (unsigned int i = 0; i < system_matrix.n(); i++)
+//        {
+//            Mat << system_matrix.el(i, 0);
+//
+//            for (unsigned int j = 1; j < system_matrix.n(); j++)
+//            {
+//                Mat << "," << system_matrix.el(i, j);
+//            }
+//            Mat << "\n";
+//
+//        }
+//        Mat.close();
+
+        std::cout << system_rhs.block(0).l2_norm() << std::endl;
+        std::cout << system_rhs.block(1).l2_norm() << std::endl;
+        std::cout << system_rhs.block(2).l2_norm() << std::endl;
+        std::cout << system_rhs.block(3).l2_norm() << std::endl;
+        std::cout << system_rhs.block(4).l2_norm() << std::endl;
+        std::cout << system_rhs.block(5).l2_norm() << std::endl;
+        std::cout << system_rhs.block(6).l2_norm() << std::endl;
+        std::cout << system_rhs.block(7).l2_norm() << std::endl;
+        std::cout << system_rhs.block(8).l2_norm() << std::endl;
+        std::cout << system_rhs.block(9).l2_norm() << std::endl;
+        std::cout << system_rhs.l2_norm() << std::endl;
+
         SparseDirectUMFPACK A_direct;
-        std::cout << "here";
         A_direct.initialize(system_matrix);
-        std::cout << "there";
         A_direct.vmult(linear_solution, system_rhs);
         constraints.distribute(linear_solution);
 
@@ -1491,29 +1402,21 @@ namespace SAND {
         std::cout << n_p << "  " << n_u << std::endl;
         const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
 
-        BlockVector<double> state(10);
-
-        for (unsigned int j = 0; j < 10; j++) {
-            state.block(j).reinit(block_sizes[j]);
+        BlockVector<double> state(block_sizes);
+        {
+            using namespace SolutionBlocks;
+            state.block(density).add(density_ratio);
+            state.block(unfiltered_density).add(density_ratio);
+            state.block(unfiltered_density_multiplier)
+                    .add(density_ratio);
+            state.block(density_lower_slack).add(density_ratio);
+            state.block(density_lower_slack_multiplier).add(50);
+            state.block(density_upper_slack).add(1 - density_ratio);
+            state.block(density_upper_slack_multiplier).add(50);
+            state.block(total_volume_multiplier).add(1);
+            state.block(displacement).add(0);
+            state.block(displacement_multiplier).add(0);
         }
-
-        state.collect_sizes();
-
-        for (unsigned int k = 0; k < n_u; k++) {
-            state.block(SolutionBlocks::displacement)[k] = 0;
-            state.block(SolutionBlocks::displacement_multiplier)[k] = 0;
-        }
-        for (unsigned int k = 0; k < n_p; k++) {
-            state.block(SolutionBlocks::density)[k] = density_ratio;
-            state.block(SolutionBlocks::unfiltered_density)[k] = density_ratio;
-            state.block(SolutionBlocks::unfiltered_density_multiplier)[k] = density_ratio;
-            state.block(SolutionBlocks::density_lower_slack)[k] = density_ratio;
-            state.block(SolutionBlocks::density_lower_slack_multiplier)[k] = 50;
-            state.block(SolutionBlocks::density_upper_slack)[k] = 1 - density_ratio;
-            state.block(SolutionBlocks::density_upper_slack_multiplier)[k] = 50;
-        }
-        state.block(SolutionBlocks::total_volume_multiplier)[0] = 1;
-
         return state;
 
     }
@@ -1550,6 +1453,9 @@ namespace SAND {
         data_component_interpretation.push_back(
                 DataComponentInterpretation::component_is_scalar);
         solution_names.emplace_back("density");
+        data_component_interpretation.push_back(
+                DataComponentInterpretation::component_is_scalar);
+        solution_names.emplace_back("volume_multiplier");
         data_component_interpretation.push_back(
                 DataComponentInterpretation::component_is_scalar);
         DataOut<dim> data_out;

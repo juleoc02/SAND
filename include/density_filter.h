@@ -49,7 +49,7 @@ namespace SAND {
     class DensityFilter {
     public:
 
-        DensityFilter(const double filter_r_in);
+        DensityFilter()=default;
 
         SparseMatrix<double> filter_matrix;
         SparsityPattern filter_sparsity_pattern;
@@ -57,11 +57,7 @@ namespace SAND {
 
 
     private:
-
-        double filter_r;
-        std::set<typename Triangulation<dim>::cell_iterator> find_relevant_neighbors(Triangulation<dim> &triangulation,
-                                                                                     typename Triangulation<dim>::cell_iterator cell) const;
-
+        std::set<typename Triangulation<dim>::cell_iterator> find_relevant_neighbors(typename Triangulation<dim>::cell_iterator cell) const;
 
     };
 }
