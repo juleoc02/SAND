@@ -177,7 +177,7 @@ namespace SAND {
         loqo_average = (current_state.block(SolutionBlocks::density_lower_slack)*current_state.block(SolutionBlocks::density_lower_slack_multiplier)
                         + current_state.block(SolutionBlocks::density_upper_slack)*current_state.block(SolutionBlocks::density_upper_slack_multiplier)
                         )/(2*vect_size);
-
+        std::cout << "loqo average " << loqo_average << std::endl;
         double loqo_complimentarity_deviation = loqo_min/loqo_average;
         double loqo_multiplier;
         if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
@@ -188,7 +188,7 @@ namespace SAND {
         {
             loqo_multiplier = .8;
         }
-
+        std::cout << "loqo multiplier " << loqo_multiplier << std::endl;
         if (loqo_multiplier<.01)
         {
             barrier_size = .01 * loqo_average;
@@ -201,6 +201,7 @@ namespace SAND {
         {
             barrier_size=Input::min_barrier_size;
         }
+        std::cout << "barrier size " << barrier_size << std::endl;
     }
 
     ///Contains watchdog algorithm
