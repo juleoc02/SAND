@@ -66,8 +66,8 @@ namespace SAND
     template<int dim>
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
-        TopOptSchurPreconditioner();
-        void initialize (BlockSparseMatrix<double> &matrix,  std::map<types::global_dof_index, double> &boundary_values);
+        TopOptSchurPreconditioner(BlockSparseMatrix<double> &matrix_in);
+        void initialize (BlockSparseMatrix<double> &matrix, std::map<types::global_dof_index, double> &boundary_values);
         void vmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const;
@@ -77,9 +77,11 @@ namespace SAND
         unsigned int n() const;
         void get_sparsity_pattern(BlockDynamicSparsityPattern &bdsp);
 
-        void assemble_mass_matrix(const BlockVector<double> &state, const FESystem<dim> &fe, const DoFHandler<dim> &dof_handler, const AffineConstraints<double> &constraints);
+        void assemble_mass_matrix(const BlockVector<double> &state, const hp::FECollection<dim> &fe_system, const DoFHandler<dim> &dof_handler, const AffineConstraints<double> &constraints,   const BlockSparsityPattern &bsp);
 
-        void print_stuff(BlockSparseMatrix<double> &matrix);
+        void print_stuff(const BlockSparseMatrix<double> &matrix);
+
+        BlockSparseMatrix<double> &system_matrix;
 
     private:
         unsigned int n_rows;
@@ -90,41 +92,32 @@ namespace SAND
         void vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const;
-
+        void vmult_step_5(BlockVector<double> &dst, const BlockVector<double> &src) const;
 
         BlockSparsityPattern mass_sparsity;
         BlockSparseMatrix<double> weighted_mass_matrix;
 
-        SparseDirectUMFPACK elastic_direct;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic_inverse;
-        SparseDirectUMFPACK scaled_direct;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_scaled_inverse;
-        SparseDirectUMFPACK diag_sum_direct;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_sum_inverse;
-
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_elastic;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_filter;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_1;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_diag_2;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_density_density;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_displacement_density;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_displacement_multiplier_density;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_scaled_identity;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_fddf_chunk;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_bcaeeac_chunk;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_simplified_fddf_chunk;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_simplified_bcaeeac_chunk;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_lumped_bcaeeac_chunk;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_top_big_inverse;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_bot_big_inverse;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_simplified_top_big_inverse;
-        decltype(linear_operator(std::declval<BlockSparseMatrix<double>>().block(0,0))) op_simplified_bot_big_inverse;
-
         SolverControl diag_solver_control;
-        SolverCG<Vector<double>> diag_cg;
+        mutable SolverCG<Vector<double>> diag_cg;
 
         SolverControl other_solver_control;
-        SolverBicgstab<Vector<double>> other_bicgstab;
+        mutable SolverBicgstab<Vector<double>> other_bicgstab;
+
+        mutable SolverCG<Vector<double>> other_cg;
+
+        SparseMatrix<double> &a_mat;
+        const SparseMatrix<double> &b_mat;
+        const SparseMatrix<double> &c_mat;
+        const SparseMatrix<double> &e_mat;
+        const SparseMatrix<double> &f_mat;
+        const SparseMatrix<double> &d_m_mat;
+        const SparseMatrix<double> &d_1_mat;
+        const SparseMatrix<double> &d_2_mat;
+        const SparseMatrix<double> &m_mat;
+
+        SparseDirectUMFPACK a_inv_direct;
+        SparseDirectUMFPACK d_m_inv_direct;
+        SparseDirectUMFPACK d_1_2_inv_direct;
 
         mutable TimerOutput timer;
 

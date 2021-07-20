@@ -116,7 +116,6 @@ namespace SAND {
 
         std::map<types::global_dof_index, double> boundary_values;
 
-        TopOptSchurPreconditioner<dim> preconditioner;
 
         double initial_rhs_error;
 
