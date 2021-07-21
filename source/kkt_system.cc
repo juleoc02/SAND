@@ -446,7 +446,7 @@ namespace SAND {
             dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i);
         }
 
-//        constraints.condense(dsp);
+        constraints.condense(dsp);
         sparsity_pattern.copy_from(dsp);
 
 //        This also breaks everything
@@ -792,14 +792,17 @@ namespace SAND {
                                         density_phi_j);
 
                         //Equation 7 - complementary slackness
-                        cell_matrix(i, j) += fe_values.JxW(q_point) * lower_slack_phi_i
-                                             * (old_lower_slack_values[q_point] * lower_slack_multiplier_phi_j +
-                                                old_lower_slack_multiplier_values[q_point] * lower_slack_phi_j);
-
+                        cell_matrix(i, j) += fe_values.JxW(q_point) *
+                                             (lower_slack_phi_i * lower_slack_multiplier_phi_j
+                                              + lower_slack_phi_i * lower_slack_phi_j *
+                                                old_lower_slack_multiplier_values[q_point] /
+                                                old_lower_slack_values[q_point]);
                         //Equation 8 - complementary slackness
-                        cell_matrix(i, j) += fe_values.JxW(q_point) * upper_slack_phi_i
-                                               * (old_upper_slack_values[q_point] * upper_slack_multiplier_phi_j
-                                                + old_upper_slack_multiplier_values[q_point] * upper_slack_phi_j);
+                        cell_matrix(i, j) += fe_values.JxW(q_point) *
+                                             (upper_slack_phi_i * upper_slack_multiplier_phi_j
+                                              + upper_slack_phi_i * upper_slack_phi_j *
+                                                old_upper_slack_multiplier_values[q_point] /
+                                                old_upper_slack_values[q_point]);
                     }
 
                 }
@@ -1232,15 +1235,17 @@ namespace SAND {
 
                     //rhs eqn 7
                     cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * lower_slack_phi_i
-                                                           * (old_lower_slack_multiplier_values[q_point] * old_lower_slack_values[q_point] -
-                                                              barrier_size);
+                            -1 * fe_values.JxW(q_point) *
+                            (lower_slack_phi_i *
+                             (old_lower_slack_multiplier_values[q_point] -
+                              barrier_size / old_lower_slack_values[q_point]));
 
                     //rhs eqn 8
                     cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * upper_slack_phi_i
-                                                           * (old_upper_slack_multiplier_values[q_point] * old_upper_slack_values[q_point] -
-                                                              barrier_size);
+                            -1 * fe_values.JxW(q_point) *
+                            (upper_slack_phi_i *
+                             (old_upper_slack_multiplier_values[q_point] -
+                              barrier_size / old_upper_slack_values[q_point]));
 
                 }
 
@@ -1305,7 +1310,7 @@ namespace SAND {
         double goal_volume = 0;
         for(const auto &cell : dof_handler.active_cell_iterators())
         {
-            total_volume += cell->measure() * linear_solution.block(SolutionBlocks::density)[cell->active_cell_index()];
+            total_volume += cell->measure() * state.block(SolutionBlocks::density)[cell->active_cell_index()];
             goal_volume += cell->measure() * Input::volume_percentage;
         }
 
@@ -1366,6 +1371,38 @@ namespace SAND {
             Mat.close();
             PreConMat.close();
             preconditioner.print_stuff(system_matrix);
+            std::cout << "printed" << std::endl;
+
+        }
+
+        if (Input::output_full_matrix) {
+            const unsigned int vec_size = system_matrix.n();
+            FullMatrix<double> full_mat(vec_size, vec_size);
+            for (unsigned int j = 0; j < vec_size; j++)
+            {
+                BlockVector<double> unit_vector;
+                unit_vector = system_rhs;
+                unit_vector = 0;
+                unit_vector[j] = 1;
+                BlockVector<double> transformed_unit_vector = unit_vector;
+                system_matrix.vmult(transformed_unit_vector, unit_vector);
+                for (unsigned int i = 0; i < vec_size; i++)
+                {
+                    full_mat(i, j) = transformed_unit_vector[i];
+                }
+            }
+            std::ofstream Mat("full_block_matrix.csv");
+            std::ofstream PreConMat("preconditioned_full_block_matrix.csv");
+            for (unsigned int i = 0; i < vec_size; i++) {
+                Mat << full_mat(i, 0);
+                for (unsigned int j = 1; j < vec_size; j++) {
+                    Mat << "," << full_mat(i, j);
+                }
+                Mat << "\n";
+                PreConMat << "\n";
+            }
+            Mat.close();
+            PreConMat.close();
             std::cout << "printed" << std::endl;
 
         }
