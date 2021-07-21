@@ -793,13 +793,13 @@ namespace SAND {
 
                         //Equation 7 - complementary slackness
                         cell_matrix(i, j) += fe_values.JxW(q_point) * lower_slack_phi_i
-                                             * ( lower_slack_multiplier_phi_j +
-                                                barrier_size /(old_lower_slack_values[q_point] * old_lower_slack_values[q_point]));
+                                             * (old_lower_slack_values[q_point] * lower_slack_multiplier_phi_j +
+                                                old_lower_slack_multiplier_values[q_point] * lower_slack_phi_j);
 
                         //Equation 8 - complementary slackness
                         cell_matrix(i, j) += fe_values.JxW(q_point) * upper_slack_phi_i
-                                               * (upper_slack_multiplier_phi_j
-                                                + barrier_size /(old_upper_slack_values[q_point] * old_upper_slack_values[q_point]));
+                                               * (old_upper_slack_values[q_point] * upper_slack_multiplier_phi_j
+                                                + old_upper_slack_multiplier_values[q_point] * upper_slack_phi_j);
                     }
 
                 }
@@ -1232,16 +1232,15 @@ namespace SAND {
 
                     //rhs eqn 7
                     cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (lower_slack_phi_i
-                                                           * (old_lower_slack_multiplier_values[q_point] -
-                                                              barrier_size / old_lower_slack_values[q_point])
-                            );
+                            -1 * fe_values.JxW(q_point) * lower_slack_phi_i
+                                                           * (old_lower_slack_multiplier_values[q_point] * old_lower_slack_values[q_point] -
+                                                              barrier_size);
 
                     //rhs eqn 8
                     cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (upper_slack_phi_i
-                                                           * (old_upper_slack_multiplier_values[q_point] -
-                                                              barrier_size / old_upper_slack_values[q_point]));
+                            -1 * fe_values.JxW(q_point) * upper_slack_phi_i
+                                                           * (old_upper_slack_multiplier_values[q_point] * old_upper_slack_values[q_point] -
+                                                              barrier_size);
 
                 }
 
@@ -1323,19 +1322,21 @@ namespace SAND {
     KktSystem<dim>::solve(const BlockVector<double> &state) {
 
         constraints.condense(system_matrix);
-//        std::cout << "start" << std::endl;
-        TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
-//        std::cout << system_matrix.n_block_rows() << std::endl;
-//        preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
-//        std::cout << "matrix assembled" << std::endl;
-//        preconditioner.initialize(system_matrix, boundary_values);
-//        std::cout << "initialized" << std::endl;
+
 
         if (Input::output_full_preconditioned_matrix) {
+            std::cout << "start" << std::endl;
+            TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+            std::cout << system_matrix.n_block_rows() << std::endl;
+            preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
+            std::cout << "matrix assembled" << std::endl;
+            preconditioner.initialize(system_matrix, boundary_values);
+            std::cout << "initialized" << std::endl;
             const unsigned int vec_size = system_matrix.n();
             FullMatrix<double> full_mat(vec_size, vec_size);
             FullMatrix<double> preconditioned_full_mat(vec_size, vec_size);
-            for (unsigned int j = 0; j < vec_size; j++) {
+            for (unsigned int j = 0; j < vec_size; j++)
+            {
                 BlockVector<double> unit_vector;
                 unit_vector = system_rhs;
                 unit_vector = 0;
@@ -1344,7 +1345,8 @@ namespace SAND {
                 BlockVector<double> preconditioned_transformed_unit_vector = unit_vector;
                 system_matrix.vmult(transformed_unit_vector, unit_vector);
                 preconditioner.vmult(preconditioned_transformed_unit_vector, transformed_unit_vector);
-                for (unsigned int i = 0; i < vec_size; i++) {
+                for (unsigned int i = 0; i < vec_size; i++)
+                {
                     full_mat(i, j) = transformed_unit_vector[i];
                     preconditioned_full_mat(i, j) = preconditioned_transformed_unit_vector[i];
                 }
