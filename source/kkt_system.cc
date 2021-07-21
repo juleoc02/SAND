@@ -1273,7 +1273,7 @@ namespace SAND {
                                                                                           face_q_point)
                                                * fe_nine_face_values.JxW(face_q_point);
 
-                                cell_rhs(i) += traction
+                                cell_rhs(i) += -1 * traction
                                                * fe_nine_face_values[displacement_multipliers].value(
                                         i, face_q_point)
                                                * fe_nine_face_values.JxW(face_q_point);
@@ -1287,7 +1287,7 @@ namespace SAND {
                                                                                          face_q_point)
                                                * fe_ten_face_values.JxW(face_q_point);
 
-                                cell_rhs(i) += traction
+                                cell_rhs(i) += -1 * traction
                                                * fe_ten_face_values[displacement_multipliers].value(
                                         i, face_q_point)
                                                * fe_ten_face_values.JxW(face_q_point);
