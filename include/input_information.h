@@ -18,7 +18,7 @@ namespace SAND {
         constexpr unsigned int height = 1;
         constexpr unsigned int width = 6;
         constexpr unsigned int depth = 0;
-        constexpr unsigned int refinements = 4;
+        constexpr unsigned int refinements = 3;
 
         //BC Options
         constexpr double downforce_x = 3;
@@ -40,6 +40,7 @@ namespace SAND {
 
         //output options
         constexpr bool output_full_preconditioned_matrix = false;
+        constexpr bool output_full_matrix = true;
 
     }
 }
