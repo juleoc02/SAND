@@ -1246,12 +1246,8 @@ namespace SAND {
                             (upper_slack_phi_i *
                              (old_upper_slack_multiplier_values[q_point] -
                               barrier_size / old_upper_slack_values[q_point]));
-
                 }
-
             }
-
-
 
             for (unsigned int face_number = 0;
                  face_number < GeometryInfo<dim>::faces_per_cell;
