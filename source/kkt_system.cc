@@ -795,16 +795,14 @@ namespace SAND {
                         cell_matrix(i, j) += fe_values.JxW(q_point)
                                              * (lower_slack_phi_i * lower_slack_multiplier_phi_j
 
-                                                + lower_slack_phi_i * lower_slack_phi_j *
-                                                  old_lower_slack_multiplier_values[q_point] /
-                                                  old_lower_slack_values[q_point]);
+                                                + barrier_size * lower_slack_phi_i * lower_slack_phi_j/
+                                                (old_lower_slack_values[q_point] * old_lower_slack_values[q_point]));
 
                         //Equation 8 - complementary slackness
                         cell_matrix(i, j) += fe_values.JxW(q_point)
                                              * (upper_slack_phi_i * upper_slack_multiplier_phi_j
-                                                + upper_slack_phi_i * upper_slack_phi_j
-                                                  * old_upper_slack_multiplier_values[q_point] /
-                                                  old_upper_slack_values[q_point]);
+                                                + barrier_size * upper_slack_phi_i * upper_slack_phi_j/
+                                                (old_upper_slack_values[q_point]*old_upper_slack_values[q_point]));
                     }
 
                 }
@@ -974,6 +972,19 @@ namespace SAND {
     KktSystem<dim>::calculate_convergence(const BlockVector<double> &state) const {
         BlockVector<double> test_rhs = calculate_rhs(state, Input::min_barrier_size);
         std::cout << "test_rhs.l2_norm()   " << test_rhs.l2_norm() << std::endl;
+
+        std::cout << "test_rhs.l2_norm() 1  " << test_rhs.block(0).l2_norm() << std::endl;
+        std::cout << "test_rhs.l2_norm() 2  " << test_rhs.block(1).l2_norm() << std::endl;
+        std::cout << "test_rhs.l2_norm() 3  " << test_rhs.block(2).l2_norm() << std::endl;
+        std::cout << "test_rhs.l2_norm() 4  " << test_rhs.block(3).l2_norm() << std::endl;
+        std::cout << "test_rhs.l2_norm() 5  " << test_rhs.block(4).l2_norm() << std::endl;
+        std::cout << "test_rhs.l2_norm() 6  " << test_rhs.block(5).l2_norm() << std::endl;
+        std::cout << "test_rhs.l2_norm() 7  " << test_rhs.block(6).l2_norm() << std::endl;
+        std::cout << "test_rhs.l2_norm() 8  " << test_rhs.block(7).l2_norm() << std::endl;
+        std::cout << "test_rhs.l2_norm() 9  " << test_rhs.block(8).l2_norm() << std::endl;
+        std::cout << "test_rhs.l2_norm() 10  " << test_rhs.block(9).l2_norm() << std::endl;
+
+
         double norm = 0;
 
         norm += test_rhs.block(SolutionBlocks::displacement_multiplier).l1_norm();
@@ -1169,7 +1180,7 @@ namespace SAND {
                                                                              q_point);
 
 
-                    //rhs eqn 0
+                    //rhs eqn 0 - partial variation derivative wrt density
                     cell_rhs(i) +=
                             -1 * fe_values.JxW(q_point) * (
                                     density_penalty_exponent *
@@ -1221,7 +1232,7 @@ namespace SAND {
                              * (old_unfiltered_density_values[q_point] - old_lower_slack_values[q_point])
                             );
 
-                    //rhs eqn 5
+                    //rhs eqn 5 wrt upper multiplier
                     cell_rhs(i) +=
                             fe_values.JxW(q_point) * (
                                     upper_slack_multiplier_phi_i
@@ -1237,16 +1248,17 @@ namespace SAND {
 
                     //rhs eqn 7
                     cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (lower_slack_phi_i
-                                                           * (old_lower_slack_multiplier_values[q_point] -
+                            -1 * fe_values.JxW(q_point) *
+                            (lower_slack_phi_i * (old_lower_slack_multiplier_values[q_point] -
                                                               barrier_size / old_lower_slack_values[q_point])
                             );
 
                     //rhs eqn 8
                     cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (upper_slack_phi_i
-                                                           * (old_upper_slack_multiplier_values[q_point] -
-                                                              barrier_size / old_upper_slack_values[q_point]));
+                            -1 * fe_values.JxW(q_point) *
+                            (upper_slack_phi_i * (old_upper_slack_multiplier_values[q_point] -
+                                                              barrier_size / old_upper_slack_values[q_point])
+                            );
 
                 }
 
@@ -1327,14 +1339,14 @@ namespace SAND {
     BlockVector<double>
     KktSystem<dim>::solve(const BlockVector<double> &state) {
 
-        constraints.condense(system_matrix);
-        std::cout << "start" << std::endl;
+//        constraints.condense(system_matrix);
+//        std::cout << "start" << std::endl;
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
-        std::cout << system_matrix.n_block_rows() << std::endl;
-        preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
-        std::cout << "matrix assembled" << std::endl;
-        preconditioner.initialize(system_matrix, boundary_values);
-        std::cout << "initialized" << std::endl;
+//        std::cout << system_matrix.n_block_rows() << std::endl;
+//        preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
+//        std::cout << "matrix assembled" << std::endl;
+//        preconditioner.initialize(system_matrix, boundary_values);
+//        std::cout << "initialized" << std::endl;
 
         if (Input::output_full_preconditioned_matrix) {
             const unsigned int vec_size = system_matrix.n();
@@ -1406,8 +1418,8 @@ namespace SAND {
     KktSystem<dim>::get_initial_state() {
 
         std::vector<unsigned int> block_component(10, 2);
-        block_component[0] = 0;
-        block_component[5] = 1;
+        block_component[SolutionBlocks::density] = 0;
+        block_component[SolutionBlocks::displacement] = 1;
         const std::vector<types::global_dof_index> dofs_per_block =
                 DoFTools::count_dofs_per_fe_block(dof_handler, block_component);
         const unsigned int n_p = dofs_per_block[0];
