@@ -1327,16 +1327,18 @@ namespace SAND {
     KktSystem<dim>::solve(const BlockVector<double> &state) {
 
         constraints.condense(system_matrix);
-
+        std::cout << "start" << std::endl;
+        TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+        std::cout << system_matrix.n_block_rows() << std::endl;
+        preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
+        std::cout << "matrix assembled" << std::endl;
+        preconditioner.initialize(system_matrix, boundary_values);
+        std::cout << "initialized" << std::endl;
+        preconditioner.print_stuff(system_matrix);
+        std::cout << "printed" << std::endl;
 
         if (Input::output_full_preconditioned_matrix) {
-            std::cout << "start" << std::endl;
-            TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
-            std::cout << system_matrix.n_block_rows() << std::endl;
-            preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
-            std::cout << "matrix assembled" << std::endl;
-            preconditioner.initialize(system_matrix, boundary_values);
-            std::cout << "initialized" << std::endl;
+
             const unsigned int vec_size = system_matrix.n();
             FullMatrix<double> full_mat(vec_size, vec_size);
             FullMatrix<double> preconditioned_full_mat(vec_size, vec_size);
@@ -1352,7 +1354,6 @@ namespace SAND {
                 preconditioner.vmult(preconditioned_transformed_unit_vector, transformed_unit_vector);
                 for (unsigned int i = 0; i < vec_size; i++)
                 {
-                    full_mat(i, j) = transformed_unit_vector[i];
                     preconditioned_full_mat(i, j) = preconditioned_transformed_unit_vector[i];
                 }
             }
@@ -1361,8 +1362,8 @@ namespace SAND {
             for (unsigned int i = 0; i < vec_size; i++) {
                 Mat << full_mat(i, 0);
                 PreConMat << preconditioned_full_mat(i, 0);
-                for (unsigned int j = 1; j < vec_size; j++) {
-                    Mat << "," << full_mat(i, j);
+                for (unsigned int j = 1; j < vec_size; j++)
+                {
                     PreConMat << "," << preconditioned_full_mat(i, j);
                 }
                 Mat << "\n";
@@ -1370,8 +1371,7 @@ namespace SAND {
             }
             Mat.close();
             PreConMat.close();
-            preconditioner.print_stuff(system_matrix);
-            std::cout << "printed" << std::endl;
+
 
         }
 
@@ -1412,19 +1412,19 @@ namespace SAND {
                                                         .001 *system_rhs.l2_norm()
                                                         ),
                                                  system_rhs.l2_norm()*1e-12);
-
-//        SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
-//        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
 //
-//        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-//        constraints.distribute(linear_solution);
-//        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+        SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
+        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
 
-
-        SparseDirectUMFPACK A_direct;
-        A_direct.initialize(system_matrix);
-        A_direct.vmult(linear_solution, system_rhs);
+        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
         constraints.distribute(linear_solution);
+        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+
+
+//        SparseDirectUMFPACK A_direct;
+//        A_direct.initialize(system_matrix);
+//        A_direct.vmult(linear_solution, system_rhs);
+//        constraints.distribute(linear_solution);
 
         return linear_solution;
     }

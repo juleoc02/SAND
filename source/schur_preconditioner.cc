@@ -212,7 +212,7 @@ namespace SAND {
         before_bot_tvmult.reinit(src.block(SolutionBlocks::density).size());
         before_top_tvmult.reinit(src.block(SolutionBlocks::density).size());
 
-        before_top_tvmult = op_big_inv * src.block(SolutionBlocks::unfiltered_density_multiplier);
+        before_top_tvmult = op_big_simple_inv * src.block(SolutionBlocks::unfiltered_density_multiplier);
         m_mat.Tvmult_add(dst.block(SolutionBlocks::total_volume_multiplier),before_top_tvmult);
 
 
@@ -220,7 +220,8 @@ namespace SAND {
         f_mat.Tvmult(f_t_d_m_inv_density,d_m_inv_density);
         d_sum_inv_f_t_d_m_inv_density = inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity()) * f_t_d_m_inv_density;
         f_mat.vmult(f_d_sum_inv_f_t_d_m_inv_density,d_sum_inv_f_t_d_m_inv_density);
-        before_bot_tvmult = op_big_inv * f_d_sum_inv_f_t_d_m_inv_density;
+
+        before_bot_tvmult = op_big_simple_inv * f_d_sum_inv_f_t_d_m_inv_density;
         m_mat.Tvmult_add(dst.block(SolutionBlocks::total_volume_multiplier),before_bot_tvmult);
     }
 
@@ -531,21 +532,26 @@ namespace SAND {
 
 
                         //Equation 0
-                        cell_matrix(i, j) +=
-                                fe_values.JxW(q_point) *
-                                (
-                                        -1 * Input::density_penalty_exponent * (Input::density_penalty_exponent + 1)
-                                        *
-                                        std::pow(old_density_values[q_point],
-                                                 Input::density_penalty_exponent - 2)
-                                        *
-                                        (old_displacement_divs[q_point] * old_displacement_multiplier_divs[q_point]
-                                         * lambda_values[q_point]
-                                         +
-                                         2 * mu_values[q_point] * (old_displacement_symmgrads[q_point] *
-                                                                   old_displacement_multiplier_symmgrads[q_point]))
-                                        * unfiltered_density_phi_i * unfiltered_density_phi_j
-                                );
+                        double value =   unfiltered_density_phi_i
+                                       * unfiltered_density_phi_j
+                                       *
+                                       (old_displacement_divs[q_point] * old_displacement_multiplier_divs[q_point]
+                                        * lambda_values[q_point]
+                                        +
+                                        2 * mu_values[q_point] * (old_displacement_symmgrads[q_point] *
+                                                                  old_displacement_multiplier_symmgrads[q_point])) * -1 * Input::density_penalty_exponent * (Input::density_penalty_exponent + 1)
+                                                                                                                     *
+                                                                                                                     std::pow(old_density_values[q_point],
+                                                                                                                              Input::density_penalty_exponent - 2);
+
+                        if (value != 0)
+                        {
+                            cell_matrix(i, j) +=
+                                    fe_values.JxW(q_point) * value ;
+                        }
+
+
+
 //                        //Equation 1
 //
 //                        cell_matrix(i, i) +=
