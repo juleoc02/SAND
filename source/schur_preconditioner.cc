@@ -94,28 +94,31 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult(BlockVector<double> &dst, const BlockVector<double> &src) const {
         BlockVector<double> temp_src;
+        std::cout << "starting part 1"<< std::endl;
         {
             TimerOutput::Scope t(timer, "part 1");
             vmult_step_1(dst, src);
             temp_src = dst;
         }
-
+        std::cout << "starting part 2"<< std::endl;
         {
             TimerOutput::Scope t(timer, "part 2");
             vmult_step_2(dst, temp_src);
             temp_src = dst;
         }
-
+        std::cout << "starting part 3"<< std::endl;
         {
             TimerOutput::Scope t(timer, "part 3");
             vmult_step_3(dst, temp_src);
             temp_src = dst;
         }
+        std::cout << "starting part 4"<< std::endl;
         {
             TimerOutput::Scope t(timer, "part 4");
             vmult_step_4(dst, temp_src);
             temp_src = dst;
         }
+        std::cout << "starting part 5" << std::endl;
         vmult_step_5(dst, temp_src);
 
         timer.print_summary();
@@ -212,15 +215,23 @@ namespace SAND {
         before_bot_tvmult.reinit(src.block(SolutionBlocks::density).size());
         before_top_tvmult.reinit(src.block(SolutionBlocks::density).size());
 
+
         before_top_tvmult = op_big_inv * src.block(SolutionBlocks::unfiltered_density_multiplier);
+
         m_mat.Tvmult_add(dst.block(SolutionBlocks::total_volume_multiplier),before_top_tvmult);
 
 
         diag_cg.solve(d_m_mat,d_m_inv_density,src.block(SolutionBlocks::density),PreconditionIdentity());
         f_mat.Tvmult(f_t_d_m_inv_density,d_m_inv_density);
         d_sum_inv_f_t_d_m_inv_density = inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity()) * f_t_d_m_inv_density;
+        std::cout<< "here" <<std::endl;
         f_mat.vmult(f_d_sum_inv_f_t_d_m_inv_density,d_sum_inv_f_t_d_m_inv_density);
+        std::cout << "there" << std::endl;
+        double scale = f_d_sum_inv_f_t_d_m_inv_density.l2_norm();
+        f_d_sum_inv_f_t_d_m_inv_density = f_d_sum_inv_f_t_d_m_inv_density * (1/scale);
         before_bot_tvmult = op_big_inv * f_d_sum_inv_f_t_d_m_inv_density;
+        before_bot_tvmult = before_bot_tvmult * scale;
+        std::cout << "tthere" << std::endl;
         m_mat.Tvmult_add(dst.block(SolutionBlocks::total_volume_multiplier),before_bot_tvmult);
     }
 
@@ -373,27 +384,12 @@ namespace SAND {
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::get_sparsity_pattern(BlockDynamicSparsityPattern &bdsp) {
-        mass_sparsity.copy_from(bdsp);
-    }
-
-    template<int dim>
     void TopOptSchurPreconditioner<dim>::assemble_mass_matrix(const BlockVector<double> &state,
                                                               const hp::FECollection<dim> &fe_collection,
                                                               const DoFHandler<dim> &dof_handler,
                                                               const AffineConstraints<double> &constraints,
                                                               const BlockSparsityPattern &bsp) {
         timer.reset();
-
-//        std::cout << bsp.n_block_cols() << "  " << bsp.n_block_rows() << std::endl;
-//        mass_sparsity.reinit(10,10);
-//        for(int i=0; i<10; i++)
-//        {
-//            for(int j=0; j<10; j++)
-//            {
-//                mass_sparsity.block(i,j).copy_from(bsp.block(i,j));
-//            }
-//        }
 
         weighted_mass_matrix.reinit(bsp);
 
@@ -578,7 +574,7 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::print_stuff(const BlockSparseMatrix<double> &matrix) {
 
-        const unsigned int vec_size = matrix.block(SolutionBlocks::density, SolutionBlocks::density).n();
+        const unsigned int vec_size = matrix.n();
         FullMatrix<double> orig_mat(vec_size, vec_size);
         FullMatrix<double> est_mass_mat(vec_size, vec_size);
 
@@ -603,23 +599,30 @@ namespace SAND {
             }
         }
 
-        std::ofstream OGMat("original_matrix.csv");
-        std::ofstream MassMat("mass_estimated.csv");
-
-        for (unsigned int i = 0; i < vec_size; i++)
+        for (unsigned int block_row = 1; block_row < system_matrix.n_block_rows(); block_row++)
         {
-            OGMat << orig_mat(i, 0);
-            MassMat << est_mass_mat(i, 0);
-            for (unsigned int j = 1; j < vec_size; j++)
+            for (unsigned int block_col = 0; block_col < system_matrix.n_block_cols(); block_col++)
             {
-                OGMat << "," << orig_mat(i, j);
-                MassMat << "," << est_mass_mat(i, j);
+
+                std::ofstream OGMat("original_matrix"+std::to_string(block_row)+"_"+std::to_string(block_col) +".csv");
+                std::ofstream MassMat("mass_estimated"+std::to_string(block_row)+"_"+std::to_string(block_col) +".csv");
+
+                for (unsigned int i = system_matrix.get_row_indices().block_start(block_row); i < system_matrix.get_row_indices().block_start(block_row+1); i++)
+                {
+                    OGMat << orig_mat(i, 0);
+                    MassMat << est_mass_mat(i, 0);
+                    for (unsigned int j = system_matrix.get_column_indices().block_start(block_col); j < system_matrix.get_column_indices().block_start(block_col+1); j++)
+                    {
+                        OGMat << "," << orig_mat(i, j);
+                        MassMat << "," << est_mass_mat(i, j);
+                    }
+                    OGMat << "\n";
+                    MassMat << "\n";
+                }
+                OGMat.close();
+                MassMat.close();
             }
-            OGMat << "\n";
-            MassMat << "\n";
         }
-    OGMat.close();
-    MassMat.close();
     }
 }
 template class SAND::TopOptSchurPreconditioner<2>;
