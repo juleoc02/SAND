@@ -102,7 +102,7 @@ namespace SAND
 
         SolverControl other_solver_control;
         mutable SolverBicgstab<Vector<double>> other_bicgstab;
-
+        mutable SolverGMRES<Vector<double>> other_gmres;
         mutable SolverCG<Vector<double>> other_cg;
 
         SparseMatrix<double> &a_mat;

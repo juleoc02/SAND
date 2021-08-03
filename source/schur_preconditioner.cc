@@ -20,10 +20,11 @@ namespace SAND {
             n_columns(0),
             n_block_rows(0),
             n_block_columns(0),
-            diag_solver_control(10000, 1e-6),
+            diag_solver_control(100000, 1e-6),
             diag_cg(diag_solver_control),
-            other_solver_control(10000, 1e-6),
+            other_solver_control(100000, 1e-6),
             other_bicgstab(other_solver_control),
+            other_gmres(other_solver_control),
             other_cg(other_solver_control),
             timer(std::cout, TimerOutput::summary,
                   TimerOutput::wall_times),
@@ -151,7 +152,7 @@ namespace SAND {
 
         dst_temp=0;
         diag_cg.solve(d_m_mat,dst_temp.block(SolutionBlocks::unfiltered_density),src.block(SolutionBlocks::density_upper_slack_multiplier),PreconditionIdentity());
-        d_2_mat.template vmult_add(dst.block(SolutionBlocks::unfiltered_density),dst_temp.block(SolutionBlocks::unfiltered_density));
+        d_2_mat.vmult_add(dst.block(SolutionBlocks::unfiltered_density),dst_temp.block(SolutionBlocks::unfiltered_density));
 
     }
 
@@ -189,14 +190,14 @@ namespace SAND {
                 transpose_operator(linear_operator(f_mat)) * linear_operator(d_m_inv_direct) * op_pre_mass -
                 linear_operator(d_m_mat);
 
-        auto op_big_inv = inverse_operator(op_big,other_bicgstab,PreconditionIdentity());
+        auto op_big_inv = inverse_operator(op_big,other_gmres,PreconditionIdentity());
 
-        auto op_big_simple = inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity()) *
+        //auto op_big_simple = inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity()) *
                              linear_operator(d_m_inv_direct) *
                              linear_operator(weighted_mass_matrix.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density)) -
                              linear_operator(d_m_mat);
 
-        auto op_big_simple_inv = inverse_operator(op_big_simple,diag_cg,PreconditionIdentity());
+        //auto op_big_simple_inv = inverse_operator(op_big_simple,diag_cg,PreconditionIdentity());
 
 
         Vector<double> d_m_inv_density;
@@ -212,7 +213,7 @@ namespace SAND {
         before_bot_tvmult.reinit(src.block(SolutionBlocks::density).size());
         before_top_tvmult.reinit(src.block(SolutionBlocks::density).size());
 
-        before_top_tvmult = op_big_simple_inv * src.block(SolutionBlocks::unfiltered_density_multiplier);
+        before_top_tvmult = -1 * op_big_inv * src.block(SolutionBlocks::unfiltered_density_multiplier);
         m_mat.Tvmult_add(dst.block(SolutionBlocks::total_volume_multiplier),before_top_tvmult);
 
 
@@ -221,7 +222,7 @@ namespace SAND {
         d_sum_inv_f_t_d_m_inv_density = inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity()) * f_t_d_m_inv_density;
         f_mat.vmult(f_d_sum_inv_f_t_d_m_inv_density,d_sum_inv_f_t_d_m_inv_density);
 
-        before_bot_tvmult = op_big_simple_inv * f_d_sum_inv_f_t_d_m_inv_density;
+        before_bot_tvmult = op_big_inv * f_d_sum_inv_f_t_d_m_inv_density;
         m_mat.Tvmult_add(dst.block(SolutionBlocks::total_volume_multiplier),before_bot_tvmult);
     }
 
@@ -324,9 +325,16 @@ namespace SAND {
                     op_b_chunk * linear_operator(d_m_inv_direct) * -1 * op_f_chunk -
                     linear_operator(d_m_mat);
 
+            //auto op_simple_big_density_multiplier =
+                    linear_operator(weighted_mass_matrix.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density))
+                    * linear_operator(d_m_inv_direct) * -1
+                    * inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity())
+                    -
+                    linear_operator(d_m_mat);
+
             density_multiplier_pre_vect = op_b_chunk * linear_operator(d_m_inv_direct) * src.block(SolutionBlocks::unfiltered_density_multiplier)
                                             + src.block(SolutionBlocks::density);
-            dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(op_big_density_multiplier,other_bicgstab,PreconditionIdentity()) * density_multiplier_pre_vect;
+            dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(op_big_density_multiplier,other_gmres,PreconditionIdentity()) * density_multiplier_pre_vect;
 //            Vector<double> density_multiplier_pre_vect_simple;
 //            Vector<double> d_m_inv_density_multiplier;
 //            d_m_inv_density_multiplier.reinit(src.block(SolutionBlocks::density));
@@ -350,7 +358,14 @@ namespace SAND {
             auto op_big_density =
                     -1 * op_f_chunk * linear_operator(d_m_inv_direct)
                     * op_b_chunk - linear_operator(d_m_mat);
-            dst.block(SolutionBlocks::density) = inverse_operator(op_big_density,other_bicgstab,PreconditionIdentity()) * density_pre_vect;
+
+            //auto op_big_simple_density =
+            //        -1 * inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity())
+            //        * linear_operator(d_m_inv_direct)
+            //        *  linear_operator(weighted_mass_matrix.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density))
+            //        - linear_operator(d_m_mat);
+
+            dst.block(SolutionBlocks::density) = inverse_operator(op_big_density,other_gmres,PreconditionIdentity()) * density_pre_vect;
 
 
 //            Vector<double> density_pre_vect_simple;
