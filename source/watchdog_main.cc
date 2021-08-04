@@ -96,7 +96,7 @@ namespace SAND {
         std::cout << "finding max step" << std::endl;
         kkt_system.assemble_block_system(state, barrier_size);
         std::cout << "assembled" << std::endl;
-        const BlockVector<double> step = kkt_system.solve(state);
+        const BlockVector<double> step = kkt_system.solve(state,barrier_size);
 
         const auto max_step_sizes= calculate_max_step_size(state,step);
         const double step_size_s = max_step_sizes.first;

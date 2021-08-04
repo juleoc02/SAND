@@ -69,7 +69,7 @@ namespace SAND {
         assemble_block_system(const BlockVector<double> &state, const double barrier_size);
 
         BlockVector<double>
-        solve(const BlockVector<double> &state);
+        solve(const BlockVector<double> &state, double barrier_size);
 
         BlockVector<double>
         get_initial_state();

@@ -1324,7 +1324,7 @@ namespace SAND {
     ///A  direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
     template<int dim>
     BlockVector<double>
-    KktSystem<dim>::solve(const BlockVector<double> &state) {
+    KktSystem<dim>::solve(const BlockVector<double> &state, double barrier_size) {
 
         constraints.condense(system_matrix);
         std::cout << "start" << std::endl;
@@ -1332,7 +1332,7 @@ namespace SAND {
         std::cout << system_matrix.n_block_rows() << std::endl;
         preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
         std::cout << "matrix assembled" << std::endl;
-        preconditioner.initialize(system_matrix, boundary_values);
+        preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
         std::cout << "initialized" << std::endl;
         preconditioner.print_stuff(system_matrix);
         std::cout << "printed" << std::endl;
