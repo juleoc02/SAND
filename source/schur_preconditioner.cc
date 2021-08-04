@@ -20,10 +20,11 @@ namespace SAND {
             n_columns(0),
             n_block_rows(0),
             n_block_columns(0),
-            diag_solver_control(10000, 1e-6),
+            diag_solver_control(100000, 1e-6),
             diag_cg(diag_solver_control),
-            other_solver_control(10000, 1e-6),
+            other_solver_control(100000, 1e-6),
             other_bicgstab(other_solver_control),
+            other_gmres(other_solver_control),
             other_cg(other_solver_control),
             timer(std::cout, TimerOutput::summary,
                   TimerOutput::wall_times),
@@ -42,7 +43,7 @@ namespace SAND {
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::initialize(BlockSparseMatrix<double> &matrix, std::map<types::global_dof_index, double> &boundary_values)
+    void TopOptSchurPreconditioner<dim>::initialize(BlockSparseMatrix<double> &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const double barrier_size, const BlockVector<double> &state)
     {
         TimerOutput::Scope t(timer, "initialize");
         for (auto&[dof_index, boundary_value] : boundary_values) {
@@ -88,37 +89,62 @@ namespace SAND {
         d_m_inv_direct.initialize(d_m_mat);
 //        d_1_2_inv_direct.initialize(linear_operator(d_1_mat) + linear_operator(d_2_mat));
 
+        d_3_mat.reinit(matrix.block(SolutionBlocks::density,SolutionBlocks::density).get_sparsity_pattern());
+        d_4_mat.reinit(matrix.block(SolutionBlocks::density,SolutionBlocks::density).get_sparsity_pattern());
+        d_5_mat.reinit(matrix.block(SolutionBlocks::density,SolutionBlocks::density).get_sparsity_pattern());
+        d_6_mat.reinit(matrix.block(SolutionBlocks::density,SolutionBlocks::density).get_sparsity_pattern());
+        d_7_mat.reinit(matrix.block(SolutionBlocks::density,SolutionBlocks::density).get_sparsity_pattern());
+        d_8_mat.reinit(matrix.block(SolutionBlocks::density,SolutionBlocks::density).get_sparsity_pattern());
+
+        for (const auto cell : dof_handler.active_cell_iterators())
+        {
+            const double i = cell->active_cell_index();
+            const double m = cell->measure();
+            double d_3_value = -1 * state.block(SolutionBlocks::density_lower_slack_multiplier)[i] / (m*state.block(SolutionBlocks::density_lower_slack)[i]);
+            double d_4_value = -1 * state.block(SolutionBlocks::density_upper_slack_multiplier)[i] / (m*state.block(SolutionBlocks::density_upper_slack)[i]);
+            double d_5_value = state.block(SolutionBlocks::density_lower_slack_multiplier)[i] / (state.block(SolutionBlocks::density_lower_slack)[i]);
+            double d_6_value = state.block(SolutionBlocks::density_upper_slack_multiplier)[i] / (state.block(SolutionBlocks::density_upper_slack)[i]);
+            double d_7_value = (m * (state.block(SolutionBlocks::density_lower_slack_multiplier)[i] * state.block(SolutionBlocks::density_upper_slack)[i] + state.block(SolutionBlocks::density_upper_slack_multiplier)[i] * state.block(SolutionBlocks::density_lower_slack)[i]))
+                                /(state.block(SolutionBlocks::density_lower_slack)[i]*state.block(SolutionBlocks::density_upper_slack)[i]);
+            double d_8_value =(state.block(SolutionBlocks::density_lower_slack)[i]*state.block(SolutionBlocks::density_upper_slack)[i])
+                                /(m * (state.block(SolutionBlocks::density_lower_slack_multiplier)[i] * state.block(SolutionBlocks::density_upper_slack)[i] + state.block(SolutionBlocks::density_upper_slack_multiplier)[i] * state.block(SolutionBlocks::density_lower_slack)[i]));
+            d_3_mat.set(i,i,d_3_value);
+            d_4_mat.set(i,i,d_4_value);
+            d_5_mat.set(i,i,d_5_value);
+            d_6_mat.set(i,i,d_6_value);
+            d_7_mat.set(i,i,d_7_value);
+            d_8_mat.set(i,i,d_8_value);
+
+        }
+
     }
 
 
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult(BlockVector<double> &dst, const BlockVector<double> &src) const {
         BlockVector<double> temp_src;
-        std::cout << "starting part 1"<< std::endl;
         {
             TimerOutput::Scope t(timer, "part 1");
             vmult_step_1(dst, src);
             temp_src = dst;
         }
-        std::cout << "starting part 2"<< std::endl;
+
         {
             TimerOutput::Scope t(timer, "part 2");
             vmult_step_2(dst, temp_src);
             temp_src = dst;
         }
-        std::cout << "starting part 3"<< std::endl;
+
         {
             TimerOutput::Scope t(timer, "part 3");
             vmult_step_3(dst, temp_src);
             temp_src = dst;
         }
-        std::cout << "starting part 4"<< std::endl;
         {
             TimerOutput::Scope t(timer, "part 4");
             vmult_step_4(dst, temp_src);
             temp_src = dst;
         }
-        std::cout << "starting part 5" << std::endl;
         vmult_step_5(dst, temp_src);
 
         timer.print_summary();
@@ -144,41 +170,53 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src) const {
         dst = src;
-        dst.block(SolutionBlocks::unfiltered_density) += src.block(SolutionBlocks::density_lower_slack);
-        dst.block(SolutionBlocks::unfiltered_density) -= src.block(SolutionBlocks::density_upper_slack);
+        dst.block(SolutionBlocks::unfiltered_density) += -1 * linear_operator(d_5_mat)*src.block(SolutionBlocks::density_lower_slack_multiplier) +
+                linear_operator(d_6_mat) * src.block(SolutionBlocks::density_upper_slack_multiplier) + src.block(SolutionBlocks::density_lower_slack)
+                - src.block(SolutionBlocks::density_upper_slack);
+//        auto temp = src;
+//
+//        temp.block(SolutionBlocks::density_lower_slack_multiplier) = -1 * temp.block(SolutionBlocks::density_lower_slack_multiplier);
+//
+//        d_5_mat.vmult_add(dst.block(SolutionBlocks::unfiltered_density),temp.block(SolutionBlocks::density_lower_slack_multiplier));
+//        d_6_mat.vmult_add(dst.block(SolutionBlocks::unfiltered_density),temp.block(SolutionBlocks::density_upper_slack_multiplier));
+//        dst.block(SolutionBlocks::unfiltered_density) += src.block(SolutionBlocks::density_lower_slack);
+//        dst.block(SolutionBlocks::unfiltered_density) -= src.block(SolutionBlocks::density_upper_slack);
 
-        BlockVector<double> dst_temp = dst;
-        diag_cg.solve(d_m_mat,dst_temp.block(SolutionBlocks::unfiltered_density),src.block(SolutionBlocks::density_lower_slack_multiplier),PreconditionIdentity());
-        dst_temp.block(SolutionBlocks::unfiltered_density) = -1 * dst_temp.block(SolutionBlocks::unfiltered_density);
-        d_1_mat.vmult_add(dst.block(SolutionBlocks::unfiltered_density),dst_temp.block(SolutionBlocks::unfiltered_density));
-
-        dst_temp=0;
-        diag_cg.solve(d_m_mat,dst_temp.block(SolutionBlocks::unfiltered_density),src.block(SolutionBlocks::density_upper_slack_multiplier),PreconditionIdentity());
-        d_2_mat.template vmult_add(dst.block(SolutionBlocks::unfiltered_density),dst_temp.block(SolutionBlocks::unfiltered_density));
+//        BlockVector<double> dst_temp = dst;
+//        diag_cg.solve(d_m_mat,dst_temp.block(SolutionBlocks::unfiltered_density),src.block(SolutionBlocks::density_lower_slack_multiplier),PreconditionIdentity());
+//        dst_temp.block(SolutionBlocks::unfiltered_density) = -1 * dst_temp.block(SolutionBlocks::unfiltered_density);
+//        d_1_mat.vmult_add(dst.block(SolutionBlocks::unfiltered_density),dst_temp.block(SolutionBlocks::unfiltered_density));
+//
+//        dst_temp=0;
+//        diag_cg.solve(d_m_mat,dst_temp.block(SolutionBlocks::unfiltered_density),src.block(SolutionBlocks::density_upper_slack_multiplier),PreconditionIdentity());
+//        d_2_mat.vmult_add(dst.block(SolutionBlocks::unfiltered_density),dst_temp.block(SolutionBlocks::unfiltered_density));
 
     }
 
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const {
         dst = src;
-        BlockVector<double> dst_temp = dst;
-        dst_temp.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg, PreconditionIdentity()) * src.block(SolutionBlocks::unfiltered_density);
-        dst_temp.block(SolutionBlocks::unfiltered_density_multiplier) = -1 *  dst_temp.block(SolutionBlocks::unfiltered_density_multiplier);
-        f_mat.vmult_add(dst.block(SolutionBlocks::unfiltered_density_multiplier), dst_temp.block(SolutionBlocks::unfiltered_density_multiplier));
+        dst.block(SolutionBlocks::unfiltered_density_multiplier) += -1 * linear_operator(f_mat) * linear_operator(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
+//        dst_temp.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg, PreconditionIdentity()) * src.block(SolutionBlocks::unfiltered_density);
+//        dst_temp.block(SolutionBlocks::unfiltered_density_multiplier) = -1 *  dst_temp.block(SolutionBlocks::unfiltered_density_multiplier);
+//        f_mat.vmult_add(dst.block(SolutionBlocks::unfiltered_density_multiplier), dst_temp.block(SolutionBlocks::unfiltered_density_multiplier));
     }
 
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const {
         dst = src;
-        BlockVector<double> dst_temp = dst;
-        other_cg.solve(a_mat,dst_temp.block(SolutionBlocks::displacement),src.block(SolutionBlocks::displacement),PreconditionIdentity());
-        dst_temp.block(SolutionBlocks::displacement) = -1 * dst_temp.block(SolutionBlocks::displacement);
-        e_mat.Tvmult_add(dst.block(SolutionBlocks::density),dst_temp.block(SolutionBlocks::displacement));
+        dst.block(SolutionBlocks::density)+= -1 * transpose_operator(linear_operator(e_mat)) * linear_operator(a_inv_direct) * src.block(SolutionBlocks::displacement)
+                                                - transpose_operator(linear_operator(c_mat)) * linear_operator(a_inv_direct) * src.block(SolutionBlocks::displacement_multiplier);
 
-        dst_temp = 0;
-        other_cg.solve(a_mat,dst_temp.block(SolutionBlocks::displacement_multiplier),src.block(SolutionBlocks::displacement_multiplier),PreconditionIdentity());
-        dst_temp.block(SolutionBlocks::displacement_multiplier) = -1 * dst_temp.block(SolutionBlocks::displacement_multiplier);
-        c_mat.Tvmult_add(dst.block(SolutionBlocks::density),dst_temp.block(SolutionBlocks::displacement_multiplier));
+//        BlockVector<double> dst_temp = dst;
+//        other_cg.solve(a_mat,dst_temp.block(SolutionBlocks::displacement),src.block(SolutionBlocks::displacement),PreconditionIdentity());
+//        dst_temp.block(SolutionBlocks::displacement) = -1 * dst_temp.block(SolutionBlocks::displacement);
+//        e_mat.Tvmult_add(dst.block(SolutionBlocks::density),dst_temp.block(SolutionBlocks::displacement));
+//
+//        dst_temp = 0;
+//        other_cg.solve(a_mat,dst_temp.block(SolutionBlocks::displacement_multiplier),src.block(SolutionBlocks::displacement_multiplier),PreconditionIdentity());
+//        dst_temp.block(SolutionBlocks::displacement_multiplier) = -1 * dst_temp.block(SolutionBlocks::displacement_multiplier);
+//        c_mat.Tvmult_add(dst.block(SolutionBlocks::density),dst_temp.block(SolutionBlocks::displacement_multiplier));
     }
 
     template<int dim>
@@ -192,14 +230,14 @@ namespace SAND {
                 transpose_operator(linear_operator(f_mat)) * linear_operator(d_m_inv_direct) * op_pre_mass -
                 linear_operator(d_m_mat);
 
-        auto op_big_inv = inverse_operator(op_big,other_bicgstab,PreconditionIdentity());
+        auto op_big_inv = inverse_operator(op_big,other_gmres,PreconditionIdentity());
 
-        auto op_big_simple = inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity()) *
-                             linear_operator(d_m_inv_direct) *
-                             linear_operator(weighted_mass_matrix.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density)) -
-                             linear_operator(d_m_mat);
+        //auto op_big_simple = inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity()) *
+//                             linear_operator(d_m_inv_direct) *
+//                             linear_operator(weighted_mass_matrix.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density)) -
+//                             linear_operator(d_m_mat);
 
-        auto op_big_simple_inv = inverse_operator(op_big_simple,diag_cg,PreconditionIdentity());
+        //auto op_big_simple_inv = inverse_operator(op_big_simple,diag_cg,PreconditionIdentity());
 
 
         Vector<double> d_m_inv_density;
@@ -215,23 +253,16 @@ namespace SAND {
         before_bot_tvmult.reinit(src.block(SolutionBlocks::density).size());
         before_top_tvmult.reinit(src.block(SolutionBlocks::density).size());
 
-
-        before_top_tvmult = op_big_inv * src.block(SolutionBlocks::unfiltered_density_multiplier);
-
+        before_top_tvmult = -1 * op_big_inv * src.block(SolutionBlocks::unfiltered_density_multiplier);
         m_mat.Tvmult_add(dst.block(SolutionBlocks::total_volume_multiplier),before_top_tvmult);
 
 
         diag_cg.solve(d_m_mat,d_m_inv_density,src.block(SolutionBlocks::density),PreconditionIdentity());
         f_mat.Tvmult(f_t_d_m_inv_density,d_m_inv_density);
         d_sum_inv_f_t_d_m_inv_density = inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity()) * f_t_d_m_inv_density;
-        std::cout<< "here" <<std::endl;
         f_mat.vmult(f_d_sum_inv_f_t_d_m_inv_density,d_sum_inv_f_t_d_m_inv_density);
-        std::cout << "there" << std::endl;
-        double scale = f_d_sum_inv_f_t_d_m_inv_density.l2_norm();
-        f_d_sum_inv_f_t_d_m_inv_density = f_d_sum_inv_f_t_d_m_inv_density * (1/scale);
+
         before_bot_tvmult = op_big_inv * f_d_sum_inv_f_t_d_m_inv_density;
-        before_bot_tvmult = before_bot_tvmult * scale;
-        std::cout << "tthere" << std::endl;
         m_mat.Tvmult_add(dst.block(SolutionBlocks::total_volume_multiplier),before_bot_tvmult);
     }
 
@@ -334,9 +365,16 @@ namespace SAND {
                     op_b_chunk * linear_operator(d_m_inv_direct) * -1 * op_f_chunk -
                     linear_operator(d_m_mat);
 
+            //auto op_simple_big_density_multiplier =
+                    linear_operator(weighted_mass_matrix.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density))
+                    * linear_operator(d_m_inv_direct) * -1
+                    * inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity())
+                    -
+                    linear_operator(d_m_mat);
+
             density_multiplier_pre_vect = op_b_chunk * linear_operator(d_m_inv_direct) * src.block(SolutionBlocks::unfiltered_density_multiplier)
                                             + src.block(SolutionBlocks::density);
-            dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(op_big_density_multiplier,other_bicgstab,PreconditionIdentity()) * density_multiplier_pre_vect;
+            dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(op_big_density_multiplier,other_gmres,PreconditionIdentity()) * density_multiplier_pre_vect;
 //            Vector<double> density_multiplier_pre_vect_simple;
 //            Vector<double> d_m_inv_density_multiplier;
 //            d_m_inv_density_multiplier.reinit(src.block(SolutionBlocks::density));
@@ -360,7 +398,14 @@ namespace SAND {
             auto op_big_density =
                     -1 * op_f_chunk * linear_operator(d_m_inv_direct)
                     * op_b_chunk - linear_operator(d_m_mat);
-            dst.block(SolutionBlocks::density) = inverse_operator(op_big_density,other_bicgstab,PreconditionIdentity()) * density_pre_vect;
+
+            //auto op_big_simple_density =
+            //        -1 * inverse_operator(linear_operator(d_1_mat) + linear_operator(d_2_mat),diag_cg,PreconditionIdentity())
+            //        * linear_operator(d_m_inv_direct)
+            //        *  linear_operator(weighted_mass_matrix.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density))
+            //        - linear_operator(d_m_mat);
+
+            dst.block(SolutionBlocks::density) = inverse_operator(op_big_density,other_gmres,PreconditionIdentity()) * density_pre_vect;
 
 
 //            Vector<double> density_pre_vect_simple;
@@ -384,12 +429,27 @@ namespace SAND {
     }
 
     template<int dim>
+    void TopOptSchurPreconditioner<dim>::get_sparsity_pattern(BlockDynamicSparsityPattern &bdsp) {
+        mass_sparsity.copy_from(bdsp);
+    }
+
+    template<int dim>
     void TopOptSchurPreconditioner<dim>::assemble_mass_matrix(const BlockVector<double> &state,
                                                               const hp::FECollection<dim> &fe_collection,
                                                               const DoFHandler<dim> &dof_handler,
                                                               const AffineConstraints<double> &constraints,
                                                               const BlockSparsityPattern &bsp) {
         timer.reset();
+
+//        std::cout << bsp.n_block_cols() << "  " << bsp.n_block_rows() << std::endl;
+//        mass_sparsity.reinit(10,10);
+//        for(int i=0; i<10; i++)
+//        {
+//            for(int j=0; j<10; j++)
+//            {
+//                mass_sparsity.block(i,j).copy_from(bsp.block(i,j));
+//            }
+//        }
 
         weighted_mass_matrix.reinit(bsp);
 
@@ -527,21 +587,26 @@ namespace SAND {
 
 
                         //Equation 0
-                        cell_matrix(i, j) +=
-                                fe_values.JxW(q_point) *
-                                (
-                                        -1 * Input::density_penalty_exponent * (Input::density_penalty_exponent + 1)
-                                        *
-                                        std::pow(old_density_values[q_point],
-                                                 Input::density_penalty_exponent - 2)
-                                        *
-                                        (old_displacement_divs[q_point] * old_displacement_multiplier_divs[q_point]
-                                         * lambda_values[q_point]
-                                         +
-                                         2 * mu_values[q_point] * (old_displacement_symmgrads[q_point] *
-                                                                   old_displacement_multiplier_symmgrads[q_point]))
-                                        * unfiltered_density_phi_i * unfiltered_density_phi_j
-                                );
+                        double value =   unfiltered_density_phi_i
+                                       * unfiltered_density_phi_j
+                                       *
+                                       (old_displacement_divs[q_point] * old_displacement_multiplier_divs[q_point]
+                                        * lambda_values[q_point]
+                                        +
+                                        2 * mu_values[q_point] * (old_displacement_symmgrads[q_point] *
+                                                                  old_displacement_multiplier_symmgrads[q_point])) * -1 * Input::density_penalty_exponent * (Input::density_penalty_exponent + 1)
+                                                                                                                     *
+                                                                                                                     std::pow(old_density_values[q_point],
+                                                                                                                              Input::density_penalty_exponent - 2);
+
+                        if (value != 0)
+                        {
+                            cell_matrix(i, j) +=
+                                    fe_values.JxW(q_point) * value ;
+                        }
+
+
+
 //                        //Equation 1
 //
 //                        cell_matrix(i, i) +=
@@ -574,7 +639,7 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::print_stuff(const BlockSparseMatrix<double> &matrix) {
 
-        const unsigned int vec_size = matrix.n();
+        const unsigned int vec_size = matrix.block(SolutionBlocks::density, SolutionBlocks::density).n();
         FullMatrix<double> orig_mat(vec_size, vec_size);
         FullMatrix<double> est_mass_mat(vec_size, vec_size);
 
@@ -599,30 +664,23 @@ namespace SAND {
             }
         }
 
-        for (unsigned int block_row = 1; block_row < system_matrix.n_block_rows(); block_row++)
+        std::ofstream OGMat("original_matrix.csv");
+        std::ofstream MassMat("mass_estimated.csv");
+
+        for (unsigned int i = 0; i < vec_size; i++)
         {
-            for (unsigned int block_col = 0; block_col < system_matrix.n_block_cols(); block_col++)
+            OGMat << orig_mat(i, 0);
+            MassMat << est_mass_mat(i, 0);
+            for (unsigned int j = 1; j < vec_size; j++)
             {
-
-                std::ofstream OGMat("original_matrix"+std::to_string(block_row)+"_"+std::to_string(block_col) +".csv");
-                std::ofstream MassMat("mass_estimated"+std::to_string(block_row)+"_"+std::to_string(block_col) +".csv");
-
-                for (unsigned int i = system_matrix.get_row_indices().block_start(block_row); i < system_matrix.get_row_indices().block_start(block_row+1); i++)
-                {
-                    OGMat << orig_mat(i, 0);
-                    MassMat << est_mass_mat(i, 0);
-                    for (unsigned int j = system_matrix.get_column_indices().block_start(block_col); j < system_matrix.get_column_indices().block_start(block_col+1); j++)
-                    {
-                        OGMat << "," << orig_mat(i, j);
-                        MassMat << "," << est_mass_mat(i, j);
-                    }
-                    OGMat << "\n";
-                    MassMat << "\n";
-                }
-                OGMat.close();
-                MassMat.close();
+                OGMat << "," << orig_mat(i, j);
+                MassMat << "," << est_mass_mat(i, j);
             }
+            OGMat << "\n";
+            MassMat << "\n";
         }
+    OGMat.close();
+    MassMat.close();
     }
 }
 template class SAND::TopOptSchurPreconditioner<2>;

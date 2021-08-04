@@ -1246,8 +1246,12 @@ namespace SAND {
                             (upper_slack_phi_i *
                              (old_upper_slack_multiplier_values[q_point] -
                               barrier_size / old_upper_slack_values[q_point]));
+
                 }
+
             }
+
+
 
             for (unsigned int face_number = 0;
                  face_number < GeometryInfo<dim>::faces_per_cell;
@@ -1320,7 +1324,7 @@ namespace SAND {
     ///A  direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
     template<int dim>
     BlockVector<double>
-    KktSystem<dim>::solve(const BlockVector<double> &state) {
+    KktSystem<dim>::solve(const BlockVector<double> &state, double barrier_size) {
 
         constraints.condense(system_matrix);
         std::cout << "start" << std::endl;
@@ -1328,11 +1332,48 @@ namespace SAND {
         std::cout << system_matrix.n_block_rows() << std::endl;
         preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
         std::cout << "matrix assembled" << std::endl;
-        preconditioner.initialize(system_matrix, boundary_values);
+        preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
         std::cout << "initialized" << std::endl;
-//        preconditioner.print_stuff(system_matrix);
-//        std::cout << "printed" << std::endl;
+        preconditioner.print_stuff(system_matrix);
+        std::cout << "printed" << std::endl;
 
+        if (Input::output_full_preconditioned_matrix) {
+
+            const unsigned int vec_size = system_matrix.n();
+            FullMatrix<double> full_mat(vec_size, vec_size);
+            FullMatrix<double> preconditioned_full_mat(vec_size, vec_size);
+            for (unsigned int j = 0; j < vec_size; j++)
+            {
+                BlockVector<double> unit_vector;
+                unit_vector = system_rhs;
+                unit_vector = 0;
+                unit_vector[j] = 1;
+                BlockVector<double> transformed_unit_vector = unit_vector;
+                BlockVector<double> preconditioned_transformed_unit_vector = unit_vector;
+                system_matrix.vmult(transformed_unit_vector, unit_vector);
+                preconditioner.vmult(preconditioned_transformed_unit_vector, transformed_unit_vector);
+                for (unsigned int i = 0; i < vec_size; i++)
+                {
+                    preconditioned_full_mat(i, j) = preconditioned_transformed_unit_vector[i];
+                }
+            }
+            std::ofstream Mat("full_block_matrix.csv");
+            std::ofstream PreConMat("preconditioned_full_block_matrix.csv");
+            for (unsigned int i = 0; i < vec_size; i++) {
+                Mat << full_mat(i, 0);
+                PreConMat << preconditioned_full_mat(i, 0);
+                for (unsigned int j = 1; j < vec_size; j++)
+                {
+                    PreConMat << "," << preconditioned_full_mat(i, j);
+                }
+                Mat << "\n";
+                PreConMat << "\n";
+            }
+            Mat.close();
+            PreConMat.close();
+
+
+        }
 
         if (Input::output_full_matrix) {
             const unsigned int vec_size = system_matrix.n();
@@ -1351,15 +1392,19 @@ namespace SAND {
                 }
             }
             std::ofstream Mat("full_block_matrix.csv");
+            std::ofstream PreConMat("preconditioned_full_block_matrix.csv");
             for (unsigned int i = 0; i < vec_size; i++) {
                 Mat << full_mat(i, 0);
                 for (unsigned int j = 1; j < vec_size; j++) {
                     Mat << "," << full_mat(i, j);
                 }
                 Mat << "\n";
+                PreConMat << "\n";
             }
             Mat.close();
-            std::cout << "printed full matrix" << std::endl;
+            PreConMat.close();
+            std::cout << "printed" << std::endl;
+
         }
         const double gmres_tolerance = std::max(
                                                 std::min(
@@ -1367,9 +1412,10 @@ namespace SAND {
                                                         .001 *system_rhs.l2_norm()
                                                         ),
                                                  system_rhs.l2_norm()*1e-12);
-
-        SolverControl solver_control(10000, 1e-12 * system_rhs.l2_norm());
+//
+        SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
         SolverGMRES<BlockVector<double>> A_gmres(solver_control);
+
         A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
         constraints.distribute(linear_solution);
         std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
