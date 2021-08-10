@@ -42,6 +42,9 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+
+/* This object is designed to calculate and form the matrix corresponding to a convolution of the unfiltered density.
+ * Once formed, we have F*\sigma = \rho*/
 namespace SAND {
     using namespace dealii;
 

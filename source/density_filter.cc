@@ -20,6 +20,8 @@
 namespace SAND {
     using namespace dealii;
 
+    /* When initialized, this function takes the current triangulation and creates a matrix corresponding to a
+     * convolution being applied to a piecewise constant function on that triangulation  */
     template<int dim>
     void
     DensityFilter<dim>::initialize(Triangulation<dim> &triangulation) {
@@ -32,7 +34,7 @@ namespace SAND {
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check_temp;
         double distance;
 
-        /*finds neighbors-of-neighbors until it is out to specified radius*/
+        /*finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
         for (const auto &cell : triangulation.active_cell_iterators()) {
             const unsigned int i = cell->active_cell_index();
             for (const auto &neighbor_cell : find_relevant_neighbors(cell)) {
@@ -44,6 +46,7 @@ namespace SAND {
         filter_sparsity_pattern.copy_from(filter_dsp);
         filter_matrix.reinit(filter_sparsity_pattern);
 
+        /*adds values to the matrix corresponding to the max radius - */
         for (const auto &cell : triangulation.active_cell_iterators())
         {
             const unsigned int i = cell->active_cell_index();
@@ -51,13 +54,13 @@ namespace SAND {
                 const unsigned int j = neighbor_cell->active_cell_index();
                 const double d =
                         cell->center().distance(neighbor_cell->center());
-                /*value should be max radius - distance between cells*/
-                double value = Input::filter_r - d;
+                /*value should be (max radius - distance between cells)*cell measure */
+                double value = (Input::filter_r - d)*neighbor_cell->measure();
                 filter_matrix.add(i, j, value);
             }
         }
 
-        //here we normalize the filter
+        //here we normalize the filter so it computes an average. Sum of values in a row should be 1
         for (const auto &cell : triangulation.active_cell_iterators())
         {
             const unsigned int i = cell->active_cell_index();
@@ -76,6 +79,7 @@ namespace SAND {
         }
     }
 
+    /*This function finds which neighbors are within a certain radius of the initial cell.*/
     template<int dim>
     std::set<typename Triangulation<dim>::cell_iterator>
     DensityFilter<dim>::find_relevant_neighbors(typename Triangulation<dim>::cell_iterator cell) const {

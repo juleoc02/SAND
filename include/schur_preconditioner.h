@@ -95,10 +95,7 @@ namespace SAND
         void vmult_step_5(BlockVector<double> &dst, const BlockVector<double> &src) const;
 
         BlockSparsityPattern mass_sparsity;
-        BlockSparseMatrix<double> weighted_mass_matrix;
-
-        SolverControl diag_solver_control;
-        mutable SolverCG<Vector<double>> diag_cg;
+        BlockSparseMatrix<double> approx_h_mat;
 
         SolverControl other_solver_control;
         mutable SolverBicgstab<Vector<double>> other_bicgstab;
@@ -113,7 +110,7 @@ namespace SAND
         const SparseMatrix<double> &d_m_mat;
         const SparseMatrix<double> &d_1_mat;
         const SparseMatrix<double> &d_2_mat;
-        const SparseMatrix<double> &m_mat;
+        const SparseMatrix<double> &m_vect;
 
         SparseMatrix<double> d_3_mat;
         SparseMatrix<double> d_4_mat;
@@ -123,9 +120,12 @@ namespace SAND
         SparseMatrix<double> d_8_mat;
         SparseMatrix<double> d_m_inv_mat;
 
+        mutable Vector<double> pre_j;
+        mutable Vector<double> pre_k;
+        mutable Vector<double> g_d_m_inv_density;
+        mutable Vector<double> k_g_d_m_inv_density;
+
         SparseDirectUMFPACK a_inv_direct;
-        SparseDirectUMFPACK d_m_inv_direct;
-        SparseDirectUMFPACK d_1_2_inv_direct;
 
         mutable TimerOutput timer;
 

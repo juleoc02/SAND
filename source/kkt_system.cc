@@ -42,8 +42,8 @@
 #include <iostream>
 #include <algorithm>
 
-///This problem initializes with a FESystem composed of 2×dim FE_Q(1) elements, and 7 FE_DGQ(0)  elements.
-/// The  piecewise  constant  functions  are  for  density-related  variables,and displacement-related variables are assigned to the FE_Q(1) elements.
+// This problem initializes with a FESystem composed of 2×dim FE_Q(1) elements, and 8 FE_DGQ(0)  elements.
+// The  piecewise  constant  functions  are  for  density-related  variables,and displacement-related variables are assigned to the FE_Q(1) elements.
 namespace SAND {
     template<int dim>
     KktSystem<dim>::KktSystem()
@@ -69,7 +69,7 @@ namespace SAND {
             }
 
 
-///A  function  used  once  at  the  beginning  of  the  program,  this  creates  a  matrix  H  so  that H* unfiltered density = filtered density
+//A  function  used  once  at  the  beginning  of  the  program,  this  creates  a  matrix  H  so  that H* unfiltered density = filtered density
 
     template<int dim>
     void
@@ -78,8 +78,8 @@ namespace SAND {
         density_filter.initialize(triangulation);
     }
 
-    ///This triangulation matches the problem description in the introduction -
-    /// a 6-by-1 rectangle where a force will be applied in the top center.
+    //This triangulation matches the problem description -
+    // a 6-by-1 rectangle where a force will be applied in the top center.
 
     template<int dim>
     void
@@ -128,9 +128,9 @@ namespace SAND {
 
     }
 
-///The  bottom  corners  are  kept  in  place  in  the  y  direction  -  the  bottom  left  also  in  the  x direction.
-/// Because deal.ii is formulated to enforce boundary conditions along regions of the boundary,
-/// we do this to ensure these BCs are only enforced at points.
+// The  bottom  corners  are  kept  in  place  in  the  y  direction  -  the  bottom  left  also  in  the  x direction.
+// Because deal.ii is formulated to enforce boundary conditions along regions of the boundary,
+// we do this to ensure these BCs are only enforced at points.
     template<int dim>
     void
     KktSystem<dim>::setup_boundary_values() {
@@ -185,9 +185,9 @@ namespace SAND {
     }
 
 
-    ///This makes a giant 10-by-10 block matrix, and also sets up the necessary block vectors.  The
-    /// sparsity pattern for this matrix includes the sparsity pattern for the filter matrix. It also initializes
-    /// any block vectors we will use.
+    //This makes a giant 10-by-10 block matrix, and also sets up the necessary block vectors.  The
+    // sparsity pattern for this matrix includes the sparsity pattern for the filter matrix. It also initializes
+    // any block vectors we will use.
     template<int dim>
     void
     KktSystem<dim>::setup_block_system() {
@@ -376,23 +376,6 @@ namespace SAND {
         coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
 
         constraints.clear();
-
-//        const ComponentMask density_mask = fe_collection.component_mask(densities);
-//
-//        const IndexSet density_dofs = DoFTools::extract_dofs(dof_handler,
-//                                                             density_mask);
-//
-//
-//        const unsigned int first_density_dof = density_dofs.nth_index_in_set(0);
-//        constraints.add_line(first_density_dof);
-//        for (unsigned int i = 1;
-//             i < density_dofs.n_elements(); ++i) {
-//            constraints.add_entry(first_density_dof,
-//                                  density_dofs.nth_index_in_set(i), -1);
-//        }
-//
-//        constraints.set_inhomogeneity(first_density_dof, 0);
-
         constraints.close();
 
         DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints);
@@ -401,6 +384,7 @@ namespace SAND {
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check_temp;
         double distance;
+
         for (const auto &cell : dof_handler.active_cell_iterators())
         {
             const unsigned int i = cell->active_cell_index();
@@ -1413,7 +1397,7 @@ namespace SAND {
                                                         ),
                                                  system_rhs.l2_norm()*1e-12);
 //
-        SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
+        SolverControl solver_control(10000, 1e-10 * system_rhs.l2_norm());
         SolverGMRES<BlockVector<double>> A_gmres(solver_control);
 
         A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
