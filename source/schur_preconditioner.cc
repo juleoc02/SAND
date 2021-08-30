@@ -315,7 +315,7 @@ namespace SAND {
 
         approx_h_mat.reinit(bsp);
 
-        std::cout << approx_h_mat.n() << std::endl;
+        std::cout <<"h_size" << approx_h_mat.n() << std::endl;
 
         /*Remove any values from old iterations*/
         QGauss<dim> nine_quadrature(fe_collection[0].degree + 1);
@@ -405,14 +405,16 @@ namespace SAND {
 
                     const double unfiltered_density_phi_i = fe_values[unfiltered_densities].value(i,
                                                                                                   q_point);
+                    const double density_phi_i = fe_values[densities].value(i,q_point);
 
                     for (unsigned int j = 0; j < dofs_per_cell; ++j) {
 
                         const double unfiltered_density_phi_j = fe_values[unfiltered_densities].value(j,
                                                                                                       q_point);
+                        const double density_phi_j = fe_values[densities].value(j,q_point);
 
 
-                        //Equation 0
+
                         double value =   unfiltered_density_phi_i
                                        * unfiltered_density_phi_j
                                        * (-1 * Input::density_penalty_exponent * Input::density_penalty_exponent - Input::density_penalty_exponent)
@@ -423,6 +425,14 @@ namespace SAND {
                                         +
                                         2 * mu_values[q_point] * (old_displacement_symmgrads[q_point] *
                                                                   old_displacement_multiplier_symmgrads[q_point]));
+
+
+                        value +=   density_phi_i
+                                * density_phi_j
+                                * (-2 * Input::density_penalty_exponent * Input::density_penalty_exponent)
+                                * std::pow(old_density_values[q_point],Input::density_penalty_exponent - 2)
+                                * old_displacement_symmgrads[q_point].norm() *
+                                old_displacement_multiplier_symmgrads[q_point].norm();
 
                         if (value != 0)
                         {
@@ -444,48 +454,145 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::print_stuff(const BlockSparseMatrix<double> &matrix) {
 
-        const unsigned int vec_size = matrix.block(SolutionBlocks::density, SolutionBlocks::density).n();
-        FullMatrix<double> orig_mat(vec_size, vec_size);
-        FullMatrix<double> est_mass_mat(vec_size, vec_size);
+        const unsigned int density_vec_size = matrix.block(SolutionBlocks::density, SolutionBlocks::density).n();
+        const unsigned int displacement_vec_size = matrix.block(SolutionBlocks::displacement, SolutionBlocks::displacement).n();
+        FullMatrix<double> orig_A_mat(displacement_vec_size, displacement_vec_size);
+        FullMatrix<double> orig_B_mat(density_vec_size, density_vec_size);
+        FullMatrix<double> orig_C_mat(displacement_vec_size, density_vec_size);
+        FullMatrix<double> orig_E_mat(displacement_vec_size, density_vec_size);
+        FullMatrix<double> orig_F_mat(density_vec_size, density_vec_size);
+        FullMatrix<double> orig_G_mat(density_vec_size, density_vec_size);
+        FullMatrix<double> orig_H_mat(density_vec_size, density_vec_size);
+        FullMatrix<double> est_H_mat(density_vec_size, density_vec_size);
+        FullMatrix<double> est_H_mat_v_2(density_vec_size, density_vec_size);
 
-        for (unsigned int j = 0; j < vec_size; j++) {
-            Vector<double> unit_vector;
-            unit_vector.reinit(vec_size);
-            unit_vector=0;
-            unit_vector[j] = 1;
-            Vector<double> transformed_unit_vector_orig;
-            Vector<double> transformed_unit_vector_mass;
-            transformed_unit_vector_orig = linear_operator(b_mat)* unit_vector
+        for (unsigned int j = 0; j < density_vec_size; j++) {
+            Vector<double> density_unit_vector;
+            density_unit_vector.reinit(density_vec_size);
+            density_unit_vector=0;
+            density_unit_vector[j] = 1;
+            Vector<double> transformed_unit_vector_orig_B;
+            transformed_unit_vector_orig_B.reinit(density_vec_size);
+            Vector<double> transformed_unit_vector_orig_C;
+            transformed_unit_vector_orig_C.reinit(displacement_vec_size);
+            Vector<double> transformed_unit_vector_orig_E;
+            transformed_unit_vector_orig_E.reinit(displacement_vec_size);
+            Vector<double> transformed_unit_vector_orig_F;
+            transformed_unit_vector_orig_F.reinit(density_vec_size);
+            Vector<double> transformed_unit_vector_orig_G;
+            transformed_unit_vector_orig_G.reinit(density_vec_size);
+            Vector<double> transformed_unit_vector_orig_H;
+            transformed_unit_vector_orig_H.reinit(density_vec_size);
+            Vector<double> transformed_unit_vector_est_H;
+            transformed_unit_vector_est_H.reinit(density_vec_size);
+            Vector<double> transformed_unit_vector_est_H_v_2;
+            transformed_unit_vector_est_H_v_2.reinit(density_vec_size);
+            b_mat.vmult(transformed_unit_vector_orig_B,density_unit_vector);
+            c_mat.vmult(transformed_unit_vector_orig_C,density_unit_vector);
+            e_mat.vmult(transformed_unit_vector_orig_E,density_unit_vector);
+            f_mat.vmult(transformed_unit_vector_orig_F,density_unit_vector);
+
+
+            transformed_unit_vector_orig_G = linear_operator(f_mat) * linear_operator(d_8_mat) * transpose_operator((linear_operator(f_mat))) * density_unit_vector;
+
+            transformed_unit_vector_orig_H = linear_operator(b_mat)* density_unit_vector
                     - transpose_operator(linear_operator(c_mat)) * linear_operator(a_inv_direct)
-                    * linear_operator(e_mat) * unit_vector
+                    * linear_operator(e_mat) * density_unit_vector
                     -
                     transpose_operator(linear_operator(e_mat)) * linear_operator(a_inv_direct)  *
-                    linear_operator(c_mat) * unit_vector;
-            transformed_unit_vector_mass = linear_operator(approx_h_mat.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density)) * unit_vector;
+                    linear_operator(c_mat) * density_unit_vector;
 
-            for (unsigned int i = 0; i < vec_size; i++) {
-                orig_mat(i,j) = transformed_unit_vector_orig[i];
-                est_mass_mat(i,j) = transformed_unit_vector_mass[i];
+            transformed_unit_vector_est_H = linear_operator(approx_h_mat.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density)) * density_unit_vector;
+            transformed_unit_vector_est_H_v_2 = linear_operator(approx_h_mat.block(SolutionBlocks::density, SolutionBlocks::density)) * density_unit_vector;
+
+            for (unsigned int i = 0; i < density_vec_size; i++) {
+                orig_B_mat(i,j) = transformed_unit_vector_orig_B[i];
+                orig_F_mat(i,j) = transformed_unit_vector_orig_F[i];
+                orig_G_mat(i,j) = transformed_unit_vector_orig_G[i];
+                orig_H_mat(i,j) = transformed_unit_vector_orig_H[i];
+                est_H_mat(i,j) = transformed_unit_vector_est_H[i];
+                est_H_mat_v_2(i,j) = transformed_unit_vector_est_H_v_2[i];
+            }
+            for (unsigned int i = 0; i < displacement_vec_size; i++) {
+                orig_C_mat(i,j) = transformed_unit_vector_orig_C[i];
+                orig_E_mat(i,j) = transformed_unit_vector_orig_E[i];
             }
         }
 
-        std::ofstream OGMat("original_matrix.csv");
-        std::ofstream MassMat("mass_estimated.csv");
+        for (unsigned int j = 0; j < displacement_vec_size; j++) {
+            Vector<double> displacement_unit_vector;
+            displacement_unit_vector.reinit(displacement_vec_size);
+            displacement_unit_vector=0;
+            displacement_unit_vector[j] = 1;
+            Vector<double> transformed_unit_vector_orig_A;
+            transformed_unit_vector_orig_A.reinit(displacement_vec_size);
 
-        for (unsigned int i = 0; i < vec_size; i++)
+            a_mat.vmult(transformed_unit_vector_orig_A,displacement_unit_vector);
+
+            for (unsigned int i = 0; i < displacement_vec_size; i++) {
+                orig_A_mat(i,j) = transformed_unit_vector_orig_A[i];
+            }
+        }
+        std::ofstream OAmat("OAmat.csv");
+        std::ofstream OBmat("OBmat.csv");
+        std::ofstream OCmat("OCmat.csv");
+        std::ofstream OEmat("OEmat.csv");
+        std::ofstream OFmat("OFmat.csv");
+        std::ofstream OGmat("OGmat.csv");
+        std::ofstream OHmat("OHmat.csv");
+        std::ofstream EHmat("EHmat.csv");
+        std::ofstream EHmatV2("EHmatv2.csv");
+        for (unsigned int i = 0; i < density_vec_size; i++)
         {
-            OGMat << orig_mat(i, 0);
-            MassMat << est_mass_mat(i, 0);
-            for (unsigned int j = 1; j < vec_size; j++)
+            OBmat << orig_B_mat(i, 0);
+            OFmat << orig_F_mat(i, 0);
+            OGmat << orig_G_mat(i, 0);
+            OHmat << orig_H_mat(i, 0);
+            EHmat << est_H_mat(i, 0);
+            EHmatV2 << est_H_mat_v_2(i, 0);
+            for (unsigned int j = 1; j < density_vec_size; j++)
             {
-                OGMat << "," << orig_mat(i, j);
-                MassMat << "," << est_mass_mat(i, j);
+                OBmat << "," << orig_B_mat(i, j);
+                OFmat << "," << orig_F_mat(i, j);
+                OGmat << "," << orig_G_mat(i, j);
+                OHmat << "," << orig_H_mat(i, j);
+                EHmat << "," << est_H_mat(i, j);
+                EHmatV2 << "," << est_H_mat_v_2(i, j);
             }
-            OGMat << "\n";
-            MassMat << "\n";
+            OBmat << "\n";
+            OFmat << "\n";
+            OGmat << "\n";
+            OHmat << "\n";
+            EHmat << "\n";
+            EHmatV2 << "\n";
         }
-    OGMat.close();
-    MassMat.close();
+
+        for (unsigned int i = 0; i < displacement_vec_size; i++)
+        {
+            OAmat << orig_A_mat(i, 0);
+            OCmat << orig_C_mat(i, 0);
+            OEmat << orig_E_mat(i, 0);
+            for (unsigned int j = 1; j < density_vec_size; j++)
+            {
+                OCmat << "," << orig_C_mat(i, j);
+                OEmat << "," << orig_E_mat(i, j);
+            }
+            for (unsigned int j = 1; j < displacement_vec_size; j++)
+            {
+                OAmat << "," << orig_A_mat(i, j);
+            }
+            OAmat << "\n";
+            OCmat << "\n";
+            OEmat << "\n";
+        }
+        OAmat.close();
+        OBmat.close();
+        OCmat.close();
+        OEmat.close();
+        OFmat.close();
+        OGmat.close();
+    OHmat.close();
+    EHmat.close();
     }
 }
 template class SAND::TopOptSchurPreconditioner<2>;

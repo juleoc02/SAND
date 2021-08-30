@@ -380,50 +380,7 @@ namespace SAND {
 
         DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints);
 
-        std::set<unsigned int> neighbor_ids;
-        std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
-        std::set<typename Triangulation<dim>::cell_iterator> cells_to_check_temp;
-        double distance;
-
-        for (const auto &cell : dof_handler.active_cell_iterators())
-        {
-            const unsigned int i = cell->active_cell_index();
-            neighbor_ids.clear();
-            neighbor_ids.insert(i);
-            cells_to_check.clear();
-            cells_to_check.insert(cell);
-            unsigned int n_neighbors = 1;
-            while (true) {
-                cells_to_check_temp.clear();
-                for (auto check_cell : cells_to_check) {
-                    for (unsigned int n = 0;
-                         n < GeometryInfo<dim>::faces_per_cell; ++n) {
-                        if (!(check_cell->face(n)->at_boundary())) {
-                            distance = cell->center().distance(
-                                    check_cell->neighbor(n)->center());
-                            if ((distance < Input::filter_r) &&
-                                !(neighbor_ids.count(check_cell->neighbor(n)->active_cell_index()))) {
-                                cells_to_check_temp.insert(check_cell->neighbor(n));
-                                neighbor_ids.insert(check_cell->neighbor(n)->active_cell_index());
-                            }
-                        }
-                    }
-                }
-
-                if (neighbor_ids.size() == n_neighbors) {
-                    break;
-                } else {
-                    cells_to_check = cells_to_check_temp;
-                    n_neighbors = neighbor_ids.size();
-                }
-            }
-/*add all of these to the sparsity pattern*/
-            for (auto j : neighbor_ids)
-            {
-                dsp.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier).add(i, j);
-                dsp.block(SolutionBlocks::unfiltered_density_multiplier, SolutionBlocks::unfiltered_density).add(i, j);
-            }
-        }
+        //adds the row into the sparsity pattern for the total volume constraint
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             const unsigned int i = cell->active_cell_index();
             dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0);
@@ -433,9 +390,9 @@ namespace SAND {
         constraints.condense(dsp);
         sparsity_pattern.copy_from(dsp);
 
-//        This also breaks everything
-//        sparsity_pattern.block(4,2).copy_from( filter_sparsity_pattern);
-//        sparsity_pattern.block(2,4).copy_from( filter_sparsity_pattern);
+        //adds the row into the sparsity pattern for the total volume constraint
+        sparsity_pattern.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier).copy_from(density_filter.filter_sparsity_pattern);
+        sparsity_pattern.block(SolutionBlocks::unfiltered_density_multiplier, SolutionBlocks::unfiltered_density).copy_from(density_filter.filter_sparsity_pattern);
 
         std::ofstream out("sparsity.plt");
         sparsity_pattern.print_gnuplot(out);
@@ -1318,8 +1275,12 @@ namespace SAND {
         std::cout << "matrix assembled" << std::endl;
         preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
         std::cout << "initialized" << std::endl;
-        preconditioner.print_stuff(system_matrix);
-        std::cout << "printed" << std::endl;
+        if(Input::output_parts_of_matrix)
+        {
+            preconditioner.print_stuff(system_matrix);
+            std::cout << "printed" << std::endl;
+        }
+
 
         if (Input::output_full_preconditioned_matrix) {
 
@@ -1398,9 +1359,9 @@ namespace SAND {
                                                  system_rhs.l2_norm()*1e-12);
 //
         SolverControl solver_control(10000, 1e-10 * system_rhs.l2_norm());
-        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
+        SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
 
-        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+        A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
         constraints.distribute(linear_solution);
         std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
 

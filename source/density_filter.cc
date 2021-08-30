@@ -13,7 +13,6 @@
 
 #include <deal.II/grid/tria.h>
 
-#include <deal.II/grid/grid_refinement.h>
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
 
@@ -32,7 +31,6 @@ namespace SAND {
         std::set<unsigned int> neighbor_ids;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
         std::set<typename Triangulation<dim>::cell_iterator> cells_to_check_temp;
-        double distance;
 
         /*finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
         for (const auto &cell : triangulation.active_cell_iterators()) {

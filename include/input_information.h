@@ -15,9 +15,9 @@ namespace SAND {
 
         //geometry options
         constexpr unsigned int dim = 2;
-        constexpr unsigned int height = 1;
-        constexpr unsigned int width = 6;
-        constexpr unsigned int depth = 0;
+        constexpr int height = 1;
+        constexpr int width = 6;
+        constexpr int depth = 0;
         constexpr unsigned int refinements = 3;
 
         //BC Options
@@ -36,11 +36,12 @@ namespace SAND {
         constexpr double filter_r = .251;
 
         //other options
-        constexpr unsigned int density_penalty_exponent = 3;
+        constexpr double density_penalty_exponent = 3;
 
         //output options
         constexpr bool output_full_preconditioned_matrix = false;
         constexpr bool output_full_matrix = false;
+        constexpr bool output_parts_of_matrix = true;
 
     }
 }
