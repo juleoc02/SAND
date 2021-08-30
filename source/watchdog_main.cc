@@ -96,7 +96,7 @@ namespace SAND {
         std::cout << "finding max step" << std::endl;
         kkt_system.assemble_block_system(state, barrier_size);
         std::cout << "assembled" << std::endl;
-        const BlockVector<double> step = kkt_system.solve(state);
+        const BlockVector<double> step = kkt_system.solve(state,barrier_size);
 
         const auto max_step_sizes= calculate_max_step_size(state,step);
         const double step_size_s = max_step_sizes.first;
@@ -177,7 +177,6 @@ namespace SAND {
         loqo_average = (current_state.block(SolutionBlocks::density_lower_slack)*current_state.block(SolutionBlocks::density_lower_slack_multiplier)
                         + current_state.block(SolutionBlocks::density_upper_slack)*current_state.block(SolutionBlocks::density_upper_slack_multiplier)
                         )/(2*vect_size);
-        std::cout << "loqo average " << loqo_average << std::endl;
         double loqo_complimentarity_deviation = loqo_min/loqo_average;
         double loqo_multiplier;
         if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
@@ -188,7 +187,6 @@ namespace SAND {
         {
             loqo_multiplier = .8;
         }
-        std::cout << "loqo multiplier " << loqo_multiplier << std::endl;
         if (loqo_multiplier<.01)
         {
             barrier_size = .01 * loqo_average;
@@ -201,7 +199,6 @@ namespace SAND {
         {
             barrier_size=Input::min_barrier_size;
         }
-        std::cout << "barrier size " << barrier_size << std::endl;
     }
 
     ///Contains watchdog algorithm
@@ -221,11 +218,11 @@ namespace SAND {
         BlockVector<double> current_step;
         markov_filter.setup(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
 
-        while((barrier_size > Input::min_barrier_size || !check_convergence(current_state)) && iteration_number < 10000)
+        while((barrier_size > Input::min_barrier_size || !check_convergence(current_state)) && iteration_number < 5)
         {
             bool converged = false;
             //while not converged
-            while(!converged && iteration_number < 10000)
+            while(!converged && iteration_number < 5)
             {
                 bool found_step = false;
                 //save current state as watchdog state

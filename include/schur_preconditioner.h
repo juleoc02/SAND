@@ -67,7 +67,7 @@ namespace SAND
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
         TopOptSchurPreconditioner(BlockSparseMatrix<double> &matrix_in);
-        void initialize (BlockSparseMatrix<double> &matrix, std::map<types::global_dof_index, double> &boundary_values);
+        void initialize (BlockSparseMatrix<double> &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const double barrier_size, const BlockVector<double> &state);
         void vmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
         void vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const;
@@ -95,14 +95,11 @@ namespace SAND
         void vmult_step_5(BlockVector<double> &dst, const BlockVector<double> &src) const;
 
         BlockSparsityPattern mass_sparsity;
-        BlockSparseMatrix<double> weighted_mass_matrix;
-
-        SolverControl diag_solver_control;
-        mutable SolverCG<Vector<double>> diag_cg;
+        BlockSparseMatrix<double> approx_h_mat;
 
         SolverControl other_solver_control;
         mutable SolverBicgstab<Vector<double>> other_bicgstab;
-
+        mutable SolverGMRES<Vector<double>> other_gmres;
         mutable SolverCG<Vector<double>> other_cg;
 
         SparseMatrix<double> &a_mat;
@@ -113,11 +110,22 @@ namespace SAND
         const SparseMatrix<double> &d_m_mat;
         const SparseMatrix<double> &d_1_mat;
         const SparseMatrix<double> &d_2_mat;
-        const SparseMatrix<double> &m_mat;
+        const SparseMatrix<double> &m_vect;
+
+        SparseMatrix<double> d_3_mat;
+        SparseMatrix<double> d_4_mat;
+        SparseMatrix<double> d_5_mat;
+        SparseMatrix<double> d_6_mat;
+        SparseMatrix<double> d_7_mat;
+        SparseMatrix<double> d_8_mat;
+        SparseMatrix<double> d_m_inv_mat;
+
+        mutable Vector<double> pre_j;
+        mutable Vector<double> pre_k;
+        mutable Vector<double> g_d_m_inv_density;
+        mutable Vector<double> k_g_d_m_inv_density;
 
         SparseDirectUMFPACK a_inv_direct;
-        SparseDirectUMFPACK d_m_inv_direct;
-        SparseDirectUMFPACK d_1_2_inv_direct;
 
         mutable TimerOutput timer;
 

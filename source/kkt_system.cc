@@ -42,8 +42,8 @@
 #include <iostream>
 #include <algorithm>
 
-///This problem initializes with a FESystem composed of 2×dim FE_Q(1) elements, and 7 FE_DGQ(0)  elements.
-/// The  piecewise  constant  functions  are  for  density-related  variables,and displacement-related variables are assigned to the FE_Q(1) elements.
+// This problem initializes with a FESystem composed of 2×dim FE_Q(1) elements, and 8 FE_DGQ(0)  elements.
+// The  piecewise  constant  functions  are  for  density-related  variables,and displacement-related variables are assigned to the FE_Q(1) elements.
 namespace SAND {
     template<int dim>
     KktSystem<dim>::KktSystem()
@@ -69,7 +69,7 @@ namespace SAND {
             }
 
 
-///A  function  used  once  at  the  beginning  of  the  program,  this  creates  a  matrix  H  so  that H* unfiltered density = filtered density
+//A  function  used  once  at  the  beginning  of  the  program,  this  creates  a  matrix  H  so  that H* unfiltered density = filtered density
 
     template<int dim>
     void
@@ -78,8 +78,8 @@ namespace SAND {
         density_filter.initialize(triangulation);
     }
 
-    ///This triangulation matches the problem description in the introduction -
-    /// a 6-by-1 rectangle where a force will be applied in the top center.
+    //This triangulation matches the problem description -
+    // a 6-by-1 rectangle where a force will be applied in the top center.
 
     template<int dim>
     void
@@ -128,9 +128,9 @@ namespace SAND {
 
     }
 
-///The  bottom  corners  are  kept  in  place  in  the  y  direction  -  the  bottom  left  also  in  the  x direction.
-/// Because deal.ii is formulated to enforce boundary conditions along regions of the boundary,
-/// we do this to ensure these BCs are only enforced at points.
+// The  bottom  corners  are  kept  in  place  in  the  y  direction  -  the  bottom  left  also  in  the  x direction.
+// Because deal.ii is formulated to enforce boundary conditions along regions of the boundary,
+// we do this to ensure these BCs are only enforced at points.
     template<int dim>
     void
     KktSystem<dim>::setup_boundary_values() {
@@ -185,9 +185,9 @@ namespace SAND {
     }
 
 
-    ///This makes a giant 10-by-10 block matrix, and also sets up the necessary block vectors.  The
-    /// sparsity pattern for this matrix includes the sparsity pattern for the filter matrix. It also initializes
-    /// any block vectors we will use.
+    //This makes a giant 10-by-10 block matrix, and also sets up the necessary block vectors.  The
+    // sparsity pattern for this matrix includes the sparsity pattern for the filter matrix. It also initializes
+    // any block vectors we will use.
     template<int dim>
     void
     KktSystem<dim>::setup_block_system() {
@@ -376,70 +376,11 @@ namespace SAND {
         coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
 
         constraints.clear();
-
-//        const ComponentMask density_mask = fe_collection.component_mask(densities);
-//
-//        const IndexSet density_dofs = DoFTools::extract_dofs(dof_handler,
-//                                                             density_mask);
-//
-//
-//        const unsigned int first_density_dof = density_dofs.nth_index_in_set(0);
-//        constraints.add_line(first_density_dof);
-//        for (unsigned int i = 1;
-//             i < density_dofs.n_elements(); ++i) {
-//            constraints.add_entry(first_density_dof,
-//                                  density_dofs.nth_index_in_set(i), -1);
-//        }
-//
-//        constraints.set_inhomogeneity(first_density_dof, 0);
-
         constraints.close();
 
         DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints);
 
-        std::set<unsigned int> neighbor_ids;
-        std::set<typename Triangulation<dim>::cell_iterator> cells_to_check;
-        std::set<typename Triangulation<dim>::cell_iterator> cells_to_check_temp;
-        double distance;
-        for (const auto &cell : dof_handler.active_cell_iterators())
-        {
-            const unsigned int i = cell->active_cell_index();
-            neighbor_ids.clear();
-            neighbor_ids.insert(i);
-            cells_to_check.clear();
-            cells_to_check.insert(cell);
-            unsigned int n_neighbors = 1;
-            while (true) {
-                cells_to_check_temp.clear();
-                for (auto check_cell : cells_to_check) {
-                    for (unsigned int n = 0;
-                         n < GeometryInfo<dim>::faces_per_cell; ++n) {
-                        if (!(check_cell->face(n)->at_boundary())) {
-                            distance = cell->center().distance(
-                                    check_cell->neighbor(n)->center());
-                            if ((distance < Input::filter_r) &&
-                                !(neighbor_ids.count(check_cell->neighbor(n)->active_cell_index()))) {
-                                cells_to_check_temp.insert(check_cell->neighbor(n));
-                                neighbor_ids.insert(check_cell->neighbor(n)->active_cell_index());
-                            }
-                        }
-                    }
-                }
-
-                if (neighbor_ids.size() == n_neighbors) {
-                    break;
-                } else {
-                    cells_to_check = cells_to_check_temp;
-                    n_neighbors = neighbor_ids.size();
-                }
-            }
-/*add all of these to the sparsity pattern*/
-            for (auto j : neighbor_ids)
-            {
-                dsp.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier).add(i, j);
-                dsp.block(SolutionBlocks::unfiltered_density_multiplier, SolutionBlocks::unfiltered_density).add(i, j);
-            }
-        }
+        //adds the row into the sparsity pattern for the total volume constraint
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             const unsigned int i = cell->active_cell_index();
             dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0);
@@ -449,9 +390,9 @@ namespace SAND {
         constraints.condense(dsp);
         sparsity_pattern.copy_from(dsp);
 
-//        This also breaks everything
-//        sparsity_pattern.block(4,2).copy_from( filter_sparsity_pattern);
-//        sparsity_pattern.block(2,4).copy_from( filter_sparsity_pattern);
+        //adds the row into the sparsity pattern for the total volume constraint
+        sparsity_pattern.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier).copy_from(density_filter.filter_sparsity_pattern);
+        sparsity_pattern.block(SolutionBlocks::unfiltered_density_multiplier, SolutionBlocks::unfiltered_density).copy_from(density_filter.filter_sparsity_pattern);
 
         std::ofstream out("sparsity.plt");
         sparsity_pattern.print_gnuplot(out);
@@ -1324,19 +1265,25 @@ namespace SAND {
     ///A  direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
     template<int dim>
     BlockVector<double>
-    KktSystem<dim>::solve(const BlockVector<double> &state) {
+    KktSystem<dim>::solve(const BlockVector<double> &state, double barrier_size) {
 
         constraints.condense(system_matrix);
+        std::cout << "start" << std::endl;
+        TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+        std::cout << system_matrix.n_block_rows() << std::endl;
+        preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
+        std::cout << "matrix assembled" << std::endl;
+        preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+        std::cout << "initialized" << std::endl;
+        if(Input::output_parts_of_matrix)
+        {
+            preconditioner.print_stuff(system_matrix);
+            std::cout << "printed" << std::endl;
+        }
 
 
         if (Input::output_full_preconditioned_matrix) {
-            std::cout << "start" << std::endl;
-            TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
-            std::cout << system_matrix.n_block_rows() << std::endl;
-            preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
-            std::cout << "matrix assembled" << std::endl;
-            preconditioner.initialize(system_matrix, boundary_values);
-            std::cout << "initialized" << std::endl;
+
             const unsigned int vec_size = system_matrix.n();
             FullMatrix<double> full_mat(vec_size, vec_size);
             FullMatrix<double> preconditioned_full_mat(vec_size, vec_size);
@@ -1352,7 +1299,6 @@ namespace SAND {
                 preconditioner.vmult(preconditioned_transformed_unit_vector, transformed_unit_vector);
                 for (unsigned int i = 0; i < vec_size; i++)
                 {
-                    full_mat(i, j) = transformed_unit_vector[i];
                     preconditioned_full_mat(i, j) = preconditioned_transformed_unit_vector[i];
                 }
             }
@@ -1361,8 +1307,8 @@ namespace SAND {
             for (unsigned int i = 0; i < vec_size; i++) {
                 Mat << full_mat(i, 0);
                 PreConMat << preconditioned_full_mat(i, 0);
-                for (unsigned int j = 1; j < vec_size; j++) {
-                    Mat << "," << full_mat(i, j);
+                for (unsigned int j = 1; j < vec_size; j++)
+                {
                     PreConMat << "," << preconditioned_full_mat(i, j);
                 }
                 Mat << "\n";
@@ -1370,8 +1316,7 @@ namespace SAND {
             }
             Mat.close();
             PreConMat.close();
-            preconditioner.print_stuff(system_matrix);
-            std::cout << "printed" << std::endl;
+
 
         }
 
@@ -1412,19 +1357,19 @@ namespace SAND {
                                                         .001 *system_rhs.l2_norm()
                                                         ),
                                                  system_rhs.l2_norm()*1e-12);
-
-//        SolverControl solver_control(10000, 1e-6 * system_rhs.l2_norm());
-//        SolverGMRES<BlockVector<double>> A_gmres(solver_control);
 //
-//        A_gmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-//        constraints.distribute(linear_solution);
-//        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+        SolverControl solver_control(10000, 1e-10 * system_rhs.l2_norm());
+        SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
 
-
-        SparseDirectUMFPACK A_direct;
-        A_direct.initialize(system_matrix);
-        A_direct.vmult(linear_solution, system_rhs);
+        A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
         constraints.distribute(linear_solution);
+        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+
+
+//        SparseDirectUMFPACK A_direct;
+//        A_direct.initialize(system_matrix);
+//        A_direct.vmult(linear_solution, system_rhs);
+//        constraints.distribute(linear_solution);
 
         return linear_solution;
     }
