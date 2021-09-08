@@ -218,11 +218,11 @@ namespace SAND {
         BlockVector<double> current_step;
         markov_filter.setup(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
 
-        while((barrier_size > Input::min_barrier_size || !check_convergence(current_state)) && iteration_number < 5)
+        while((barrier_size > Input::min_barrier_size || !check_convergence(current_state)) && iteration_number < Input::max_steps)
         {
             bool converged = false;
             //while not converged
-            while(!converged && iteration_number < 5)
+            while(!converged && iteration_number < Input::max_steps)
             {
                 bool found_step = false;
                 //save current state as watchdog state

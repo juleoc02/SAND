@@ -7,6 +7,7 @@
 #include <deal.II/base/timer.h>
 #include "../include/schur_preconditioner.h"
 #include "../include/input_information.h"
+#include "../include/sand_tools.h"
 #include <fstream>
 
 namespace SAND {
@@ -120,6 +121,24 @@ namespace SAND {
         g_d_m_inv_density.reinit(matrix.block(SolutionBlocks::density,SolutionBlocks::density).n());
         k_g_d_m_inv_density.reinit(matrix.block(SolutionBlocks::density,SolutionBlocks::density).n());
 
+        auto op_g = linear_operator(f_mat) * linear_operator(d_8_mat) *
+                    transpose_operator(linear_operator(f_mat));
+        g_mat.reinit(b_mat.n(),b_mat.n());
+        build_matrix_element_by_element(op_g,g_mat);
+
+
+        auto op_h = linear_operator(b_mat)
+                    - transpose_operator(linear_operator(c_mat)) * linear_operator(a_inv_direct) * linear_operator(e_mat)
+                    - transpose_operator(linear_operator(e_mat)) * linear_operator(a_inv_direct) * linear_operator(c_mat);
+        h_mat.reinit(b_mat.n(),b_mat.n());
+        build_matrix_element_by_element(op_h,h_mat);
+
+        auto op_k_inv = -1 * op_g * linear_operator(d_m_inv_mat) * op_h -
+                        linear_operator(d_m_mat);
+        k_inv_mat.reinit(b_mat.n(),b_mat.n());
+        build_matrix_element_by_element(op_k_inv,k_inv_mat);
+        k_mat.copy_from(k_inv_mat);
+        k_mat.invert();
     }
 
 
@@ -195,30 +214,18 @@ namespace SAND {
     void TopOptSchurPreconditioner<dim>::vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const {
         dst = src;
 
-        auto op_h = linear_operator(b_mat)
-                    - transpose_operator(linear_operator(c_mat)) * linear_operator(a_inv_direct) * linear_operator(e_mat)
-                    - transpose_operator(linear_operator(e_mat)) * linear_operator(a_inv_direct) * linear_operator(c_mat);
+
 
 //       auto op_h = linear_operator(approx_h_mat.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density));
 
-        auto op_g = linear_operator(f_mat) * linear_operator(d_8_mat) *
-                      transpose_operator(linear_operator(f_mat));
-
-        auto op_k_inv = -1 * op_g * linear_operator(d_m_inv_mat) * op_h -
-                        linear_operator(d_m_mat);
-
-        auto op_k = inverse_operator(op_k_inv, other_gmres, PreconditionIdentity());
-
-
-
-        g_d_m_inv_density = op_g * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density);
-        k_g_d_m_inv_density = op_k * g_d_m_inv_density;
+        g_d_m_inv_density = linear_operator(g_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density);
+        k_g_d_m_inv_density = linear_operator(k_mat) * g_d_m_inv_density;
 
         dst.block(SolutionBlocks::total_volume_multiplier) += transpose_operator(linear_operator(m_vect))*k_g_d_m_inv_density;
 
         Vector<double> k_density_mult;
         k_density_mult.reinit(src.block(SolutionBlocks::density).size());
-        k_density_mult = op_k * src.block(SolutionBlocks::unfiltered_density_multiplier);
+        k_density_mult = linear_operator(k_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
         dst.block(SolutionBlocks::total_volume_multiplier) -= transpose_operator(linear_operator(m_vect))*k_density_mult;
 
     }
@@ -261,37 +268,18 @@ namespace SAND {
             //Fourth (ugly) Block Inverse
             TimerOutput::Scope t(timer, "inverse 4");
 
-            auto op_h = linear_operator(b_mat)
-                    - transpose_operator(linear_operator(c_mat)) * linear_operator(a_inv_direct) * linear_operator(e_mat)
-                    - transpose_operator(linear_operator(e_mat)) * linear_operator(a_inv_direct) * linear_operator(c_mat);
-
-//            auto op_h = linear_operator(approx_h_mat.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density));
-
-            auto op_g = linear_operator(f_mat) * linear_operator(d_8_mat) *
-                      transpose_operator(linear_operator(f_mat));
-
-            auto op_k_inv = -1 * op_g * linear_operator(d_m_inv_mat) * op_h -
-                        linear_operator(d_m_mat);
-
-            auto op_k = inverse_operator(op_k_inv, other_gmres, PreconditionIdentity());
-
-            auto op_j_inv = -1 * op_h * linear_operator(d_m_inv_mat) * op_g -
-                        linear_operator(d_m_mat);
-
-            auto op_j = inverse_operator(op_j_inv, other_gmres, PreconditionIdentity());
             {
                 TimerOutput::Scope t(timer, "inverse 4.0");
 
-                pre_j = src.block(SolutionBlocks::density) + op_h * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
+                pre_j = src.block(SolutionBlocks::density) + linear_operator(h_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
 
-                pre_k = -1*op_g * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density) + src.block(SolutionBlocks::unfiltered_density_multiplier);
+                pre_k = -1* linear_operator(g_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density) + src.block(SolutionBlocks::unfiltered_density_multiplier);
             }
             {
                 TimerOutput::Scope t(timer, "inverse 4.1");
-                dst.block(SolutionBlocks::unfiltered_density_multiplier) = op_j * pre_j;
-                dst.block(SolutionBlocks::density) = op_k * pre_k;
+                dst.block(SolutionBlocks::unfiltered_density_multiplier) = transpose_operator(linear_operator(k_mat)) * pre_j;
+                dst.block(SolutionBlocks::density) = linear_operator(k_mat) * pre_k;
             }
-
         }
         std::cout << "inverse 4" << std::endl;
         {

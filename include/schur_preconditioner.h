@@ -120,6 +120,11 @@ namespace SAND
         SparseMatrix<double> d_8_mat;
         SparseMatrix<double> d_m_inv_mat;
 
+        FullMatrix<double> g_mat;
+        FullMatrix<double> h_mat;
+        FullMatrix<double> k_inv_mat;
+        LAPACKFullMatrix<double> k_mat;
+
         mutable Vector<double> pre_j;
         mutable Vector<double> pre_k;
         mutable Vector<double> g_d_m_inv_density;

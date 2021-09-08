@@ -31,6 +31,7 @@ namespace SAND {
         constexpr double initial_barrier_size = 25;
         constexpr double min_barrier_size = .0000001;
         constexpr double fraction_to_boundary = .8;
+        constexpr unsigned int max_steps=100;
 
         //density filter options
         constexpr double filter_r = .251;
