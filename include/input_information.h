@@ -42,7 +42,7 @@ namespace SAND {
         //output options
         constexpr bool output_full_preconditioned_matrix = false;
         constexpr bool output_full_matrix = false;
-        constexpr bool output_parts_of_matrix = true;
+        constexpr bool output_parts_of_matrix = false;
 
     }
 }
