@@ -3,16 +3,10 @@
 //
 #include "../include/density_filter.h"
 #include "../include/input_information.h"
-
 #include <deal.II/base/tensor.h>
-
 #include <deal.II/lac/block_sparse_matrix.h>
-
 #include <deal.II/lac/precondition.h>
-
-
 #include <deal.II/grid/tria.h>
-
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
 

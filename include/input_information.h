@@ -5,6 +5,7 @@
 #ifndef SAND_INPUT_INFORMATION_H
 #define SAND_INPUT_INFORMATION_H
 #include <deal.II/grid/tria_accessor.h>
+#include "parameters_and_components.h"
 
 namespace SAND {
     using namespace dealii;
@@ -43,6 +44,9 @@ namespace SAND {
         constexpr bool output_full_preconditioned_matrix = false;
         constexpr bool output_full_matrix = false;
         constexpr bool output_parts_of_matrix = true;
+
+        //Linear solver options
+        constexpr unsigned int solver_choice = SolverOptions::direct_solve;
 
     }
 }

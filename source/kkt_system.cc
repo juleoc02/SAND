@@ -1266,6 +1266,22 @@ namespace SAND {
     template<int dim>
     BlockVector<double>
     KktSystem<dim>::solve(const BlockVector<double> &state, double barrier_size) {
+        switch (Input::solver_choice)
+        {
+            case SolverOptions::direct_solve:
+
+
+
+            case SolverOptions::exact_preconditioner_with_gmres:
+
+
+            case SolverOptions::inexact_preconditioner_with_gmres:
+
+            default:
+                throw
+        }
+
+
 
         constraints.condense(system_matrix);
         std::cout << "start" << std::endl;
