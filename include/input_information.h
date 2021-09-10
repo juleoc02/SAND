@@ -5,6 +5,7 @@
 #ifndef SAND_INPUT_INFORMATION_H
 #define SAND_INPUT_INFORMATION_H
 #include <deal.II/grid/tria_accessor.h>
+#include "parameters_and_components.h"
 
 namespace SAND {
     using namespace dealii;
@@ -18,7 +19,7 @@ namespace SAND {
         constexpr int height = 1;
         constexpr int width = 6;
         constexpr int depth = 0;
-        constexpr unsigned int refinements = 3;
+        constexpr unsigned int refinements = 4;
 
         //BC Options
         constexpr double downforce_x = 3;
@@ -42,7 +43,12 @@ namespace SAND {
         //output options
         constexpr bool output_full_preconditioned_matrix = false;
         constexpr bool output_full_matrix = false;
-        constexpr bool output_parts_of_matrix = true;
+        constexpr bool output_parts_of_matrix = false;
+
+        //Linear solver options
+        constexpr unsigned int solver_choice = SolverOptions::inexact_preconditioner_with_gmres;
+        constexpr bool use_eisenstat_walker = false;
+        constexpr double default_gmres_tolerance = 1e-6;
 
     }
 }

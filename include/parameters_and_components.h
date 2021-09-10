@@ -47,5 +47,11 @@ namespace SAND {
         static constexpr types::material_id without_multiplier = 9;
     }
 
+    namespace SolverOptions {
+        static constexpr unsigned int direct_solve = 1;
+        static constexpr unsigned int exact_preconditioner_with_gmres = 2;
+        static constexpr unsigned int inexact_preconditioner_with_gmres = 3;
+    }
+
 }
 #endif //SAND_PARAMETERS_AND_COMPONENTS_H
