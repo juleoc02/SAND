@@ -227,10 +227,41 @@ namespace SAND {
             k_g_d_m_inv_density = linear_operator(k_mat) * g_d_m_inv_density;
             k_density_mult = linear_operator(k_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
         }
+
         else if (Input::solver_choice = SolverOptions::inexact_preconditioner_with_gmres)
         {
+            PreconditionJacobi<FullMatrix<double>> precondition_jacobi_step_4_part_1;
+            precondition_jacobi_step_4_part_1.initialize(k_inv_mat,PreconditionJacobi<FullMatrix<double>>::AdditionalData(.6));
+            SolverControl step_4_gmres_control_1 (10000, g_d_m_inv_density.l2_norm()*1e-6);
+            SolverGMRES<Vector<double>> step_4_gmres_1 (step_4_gmres_control_1);
+            try {
+//            step_4_gmres_1.solve(k_inv_mat,k_g_d_m_inv_density,g_d_m_inv_density,precondition_jacobi_step_4_part_1);
+                k_g_d_m_inv_density = inverse_operator(linear_operator(k_inv_mat), step_4_gmres_1, precondition_jacobi_step_4_part_1) *
+                                      g_d_m_inv_density;
+            } catch (std::exception &exc)
+            {
+                std::cerr << "Failure of linear solver step_4_gmres_1" << std::endl;
+                std::cout << "first residual: " << step_4_gmres_control_1.initial_value() << std::endl;
+                std::cout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
+                throw;
+            }
 
+            PreconditionJacobi<FullMatrix<double>> precondition_jacobi_step_4_part_2;
+            precondition_jacobi_step_4_part_2.initialize(k_inv_mat,PreconditionJacobi<FullMatrix<double>>::AdditionalData(.6));
+            SolverControl step_4_gmres_control_2 (10000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
+            SolverGMRES<Vector<double>> step_4_gmres_2 (step_4_gmres_control_2);
+            try {
+                k_density_mult = inverse_operator(linear_operator(k_inv_mat),step_4_gmres_2, PreconditionIdentity()) *
+                                 src.block(SolutionBlocks::unfiltered_density_multiplier);
+            } catch (std::exception &exc)
+            {
+                std::cerr << "Failure of linear solver step_4_gmres_2" << std::endl;
+                std::cout << "first residual: " << step_4_gmres_control_2.initial_value() << std::endl;
+                std::cout << "last residual: " << step_4_gmres_control_2.last_value() << std::endl;
+                throw;
+            }
         }
+
         else
         {
             std::cout << "shouldn't get here";
@@ -257,42 +288,81 @@ namespace SAND {
                     linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density_upper_slack);
             dst.block(SolutionBlocks::density_lower_slack) = linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density_lower_slack_multiplier);
             dst.block(SolutionBlocks::density_upper_slack) = linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density_upper_slack_multiplier);
-
+            std::cout << "inverse 1 done" << std::endl;
         }
-        std::cout << "inverse 1" << std::endl;
+
 
         {
             //Second Block Inverse
             TimerOutput::Scope t(timer, "inverse 2");
             dst.block(SolutionBlocks::unfiltered_density) =
                     linear_operator(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
+            std::cout << "inverse 2 done" << std::endl;
         }
 
-        std::cout << "inverse 2" << std::endl;
+
         {
             //Third Block Inverse
             TimerOutput::Scope t(timer, "inverse 3");
 
             dst.block(SolutionBlocks::displacement) = linear_operator(a_inv_direct) * src.block(SolutionBlocks::displacement_multiplier);
             dst.block(SolutionBlocks::displacement_multiplier) = linear_operator(a_inv_direct) * src.block(SolutionBlocks::displacement);
+            std::cout << "inverse 3 done" << std::endl;
         }
-        std::cout << "inverse 3" << std::endl;
+
+
         {
             //Fourth (ugly) Block Inverse
             TimerOutput::Scope t(timer, "inverse 4");
 
-            {
-                TimerOutput::Scope t(timer, "inverse 4.0");
+            pre_j = src.block(SolutionBlocks::density) + linear_operator(h_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
+            pre_k = -1* linear_operator(g_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density) + src.block(SolutionBlocks::unfiltered_density_multiplier);
 
-                pre_j = src.block(SolutionBlocks::density) + linear_operator(h_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
-
-                pre_k = -1* linear_operator(g_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density) + src.block(SolutionBlocks::unfiltered_density_multiplier);
-            }
+            if (Input::solver_choice = SolverOptions::exact_preconditioner_with_gmres)
             {
-                TimerOutput::Scope t(timer, "inverse 4.1");
                 dst.block(SolutionBlocks::unfiltered_density_multiplier) = transpose_operator(linear_operator(k_mat)) * pre_j;
                 dst.block(SolutionBlocks::density) = linear_operator(k_mat) * pre_k;
             }
+
+            else if (Input::solver_choice = SolverOptions::inexact_preconditioner_with_gmres)
+            {
+                PreconditionJacobi<FullMatrix<double>> precondition_jacobi_step_5_part_1;
+                precondition_jacobi_step_5_part_1.initialize(k_inv_mat,PreconditionJacobi<FullMatrix<double>>::AdditionalData(.6));
+                SolverControl step_5_gmres_control_1 (10000, g_d_m_inv_density.l2_norm()*1e-6);
+                SolverGMRES<Vector<double>> step_5_gmres_1 (step_5_gmres_control_1);
+                try {
+                    dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator(linear_operator(k_inv_mat)), step_5_gmres_1, precondition_jacobi_step_5_part_1) *
+                                          pre_j;
+                } catch (std::exception &exc)
+                {
+                    std::cerr << "Failure of linear solver step_5_gmres_1" << std::endl;
+                    std::cout << "first residual: " << step_5_gmres_control_1.initial_value() << std::endl;
+                    std::cout << "last residual: " << step_5_gmres_control_1.last_value() << std::endl;
+                    throw;
+                }
+
+                PreconditionJacobi<FullMatrix<double>> precondition_jacobi_step_5_part_2;
+                precondition_jacobi_step_5_part_2.initialize(k_inv_mat,PreconditionJacobi<FullMatrix<double>>::AdditionalData(.6));
+                SolverControl step_5_gmres_control_2 (10000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
+                SolverGMRES<Vector<double>> step_5_gmres_2 (step_5_gmres_control_2);
+                try {
+                    dst.block(SolutionBlocks::density) = inverse_operator(linear_operator(k_inv_mat), step_5_gmres_2, precondition_jacobi_step_5_part_2) *
+                                                                               pre_k;
+                } catch (std::exception &exc)
+                {
+                    std::cerr << "Failure of linear solver step_5_gmres_2" << std::endl;
+                    std::cout << "first residual: " << step_5_gmres_control_2.initial_value() << std::endl;
+                    std::cout << "last residual: " << step_5_gmres_control_2.last_value() << std::endl;
+                    throw;
+                }
+            }
+
+            else
+            {
+                std::cout << "shouldn't get here";
+                throw;
+            }
+
         }
         std::cout << "inverse 4" << std::endl;
         {
