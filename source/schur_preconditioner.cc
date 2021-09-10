@@ -137,7 +137,7 @@ namespace SAND {
                         linear_operator(d_m_mat);
         k_inv_mat.reinit(b_mat.n(),b_mat.n());
         build_matrix_element_by_element(op_k_inv,k_inv_mat);
-        if (Input::solver_choice = SolverOptions::exact_preconditioner_with_gmres)
+        if (Input::solver_choice == SolverOptions::exact_preconditioner_with_gmres)
         {
             k_mat.copy_from(k_inv_mat);
             k_mat.invert();
@@ -172,8 +172,6 @@ namespace SAND {
             temp_src = dst;
         }
         vmult_step_5(dst, temp_src);
-
-        timer.print_summary();
     }
 
     template<int dim>
@@ -222,13 +220,13 @@ namespace SAND {
 
         g_d_m_inv_density = linear_operator(g_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density);
 
-        if (Input::solver_choice = SolverOptions::exact_preconditioner_with_gmres)
+        if (Input::solver_choice == SolverOptions::exact_preconditioner_with_gmres)
         {
             k_g_d_m_inv_density = linear_operator(k_mat) * g_d_m_inv_density;
             k_density_mult = linear_operator(k_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
         }
 
-        else if (Input::solver_choice = SolverOptions::inexact_preconditioner_with_gmres)
+        else if (Input::solver_choice == SolverOptions::inexact_preconditioner_with_gmres)
         {
             PreconditionJacobi<FullMatrix<double>> precondition_jacobi_step_4_part_1;
             precondition_jacobi_step_4_part_1.initialize(k_inv_mat,PreconditionJacobi<FullMatrix<double>>::AdditionalData(.6));
@@ -288,7 +286,6 @@ namespace SAND {
                     linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density_upper_slack);
             dst.block(SolutionBlocks::density_lower_slack) = linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density_lower_slack_multiplier);
             dst.block(SolutionBlocks::density_upper_slack) = linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density_upper_slack_multiplier);
-            std::cout << "inverse 1 done" << std::endl;
         }
 
 
@@ -297,7 +294,6 @@ namespace SAND {
             TimerOutput::Scope t(timer, "inverse 2");
             dst.block(SolutionBlocks::unfiltered_density) =
                     linear_operator(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
-            std::cout << "inverse 2 done" << std::endl;
         }
 
 
@@ -307,7 +303,6 @@ namespace SAND {
 
             dst.block(SolutionBlocks::displacement) = linear_operator(a_inv_direct) * src.block(SolutionBlocks::displacement_multiplier);
             dst.block(SolutionBlocks::displacement_multiplier) = linear_operator(a_inv_direct) * src.block(SolutionBlocks::displacement);
-            std::cout << "inverse 3 done" << std::endl;
         }
 
 
@@ -318,13 +313,13 @@ namespace SAND {
             pre_j = src.block(SolutionBlocks::density) + linear_operator(h_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
             pre_k = -1* linear_operator(g_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density) + src.block(SolutionBlocks::unfiltered_density_multiplier);
 
-            if (Input::solver_choice = SolverOptions::exact_preconditioner_with_gmres)
+            if (Input::solver_choice == SolverOptions::exact_preconditioner_with_gmres)
             {
                 dst.block(SolutionBlocks::unfiltered_density_multiplier) = transpose_operator(linear_operator(k_mat)) * pre_j;
                 dst.block(SolutionBlocks::density) = linear_operator(k_mat) * pre_k;
             }
 
-            else if (Input::solver_choice = SolverOptions::inexact_preconditioner_with_gmres)
+            else if (Input::solver_choice == SolverOptions::inexact_preconditioner_with_gmres)
             {
                 PreconditionJacobi<FullMatrix<double>> precondition_jacobi_step_5_part_1;
                 precondition_jacobi_step_5_part_1.initialize(k_inv_mat,PreconditionJacobi<FullMatrix<double>>::AdditionalData(.6));
@@ -364,11 +359,9 @@ namespace SAND {
             }
 
         }
-        std::cout << "inverse 4" << std::endl;
         {
             dst.block(SolutionBlocks::total_volume_multiplier) = src.block(SolutionBlocks::total_volume_multiplier);
         }
-        std::cout << "inverse 5" << std::endl;
     }
 
     template<int dim>

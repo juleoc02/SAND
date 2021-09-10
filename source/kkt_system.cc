@@ -38,6 +38,7 @@
 #include <deal.II/numerics/error_estimator.h>
 
 #include "../include/input_information.h"
+#include "../include/sand_tools.h"
 
 #include <iostream>
 #include <algorithm>
@@ -205,7 +206,7 @@ namespace SAND {
 
         const unsigned int n_p = dofs_per_block[0];
         const unsigned int n_u = dofs_per_block[1];
-        std::cout << "n_p:  " << n_p << "   n_u   " << n_u << std::endl;
+        std::cout << "n_p:  " << n_p << "   n_u:  " << n_u << std::endl;
         const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
 
         BlockDynamicSparsityPattern dsp(10, 10);
@@ -912,7 +913,6 @@ namespace SAND {
     double
     KktSystem<dim>::calculate_convergence(const BlockVector<double> &state) const {
         BlockVector<double> test_rhs = calculate_rhs(state, Input::min_barrier_size);
-        std::cout << "test_rhs.l2_norm()   " << test_rhs.l2_norm() << std::endl;
         double norm = 0;
 
         norm += test_rhs.block(SolutionBlocks::displacement_multiplier).l1_norm();
@@ -920,8 +920,6 @@ namespace SAND {
         norm += test_rhs.block(SolutionBlocks::total_volume_multiplier).l1_norm();
         norm += test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l1_norm();
         norm += test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l1_norm();
-//        norm += state.block(SolutionBlocks::density_lower_slack) * state.block(SolutionBlocks::density_lower_slack_multiplier);
-//        norm += state.block(SolutionBlocks::density_upper_slack) * state.block(SolutionBlocks::density_upper_slack_multiplier);
 
         std::cout << "norm: " << norm << std::endl;
         return norm;
@@ -1267,7 +1265,7 @@ namespace SAND {
     BlockVector<double>
     KktSystem<dim>::solve(const BlockVector<double> &state, double barrier_size) {
         constraints.condense(system_matrix);
-        const double gmres_tolerance;
+        double gmres_tolerance;
         if (Input::use_eisenstat_walker)
         {
             gmres_tolerance= std::max(
@@ -1286,31 +1284,28 @@ namespace SAND {
 
 
 
-
-        switch (Input::solver_choice)
-        {
-            case SolverOptions::direct_solve:
+        TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+        switch (Input::solver_choice) {
+            case SolverOptions::direct_solve: {
                 SparseDirectUMFPACK A_direct;
                 A_direct.initialize(system_matrix);
                 A_direct.vmult(linear_solution, system_rhs);
-
-
-            case SolverOptions::exact_preconditioner_with_gmres:
-                std::cout << "start" << std::endl;
-                TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+                break;
+            }
+            case SolverOptions::exact_preconditioner_with_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
+                SolverFGMRES <BlockVector<double>> A_fgmres(solver_control);
                 A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-
-            case SolverOptions::inexact_preconditioner_with_gmres:
-                std::cout << "start" << std::endl;
-                TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+                break;
+            }
+            case SolverOptions::inexact_preconditioner_with_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
-                A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+                SolverFGMRES <BlockVector<double>> B_fgmres(solver_control);
+                B_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-
+                break;
+            }
             default:
                 throw;
         }
@@ -1318,53 +1313,42 @@ namespace SAND {
 
         if(Input::output_parts_of_matrix)
         {
-            preconditioner.print_stuff(system_matrix);
-            std::cout << "printed" << std::endl;
+//            preconditioner.print_stuff(system_matrix);
         }
-
 
         if (Input::output_full_preconditioned_matrix) {
-            static_assert(Input::solver_choice != SolverOptions::direct_solve, "no preconditioner built!");
-
-            const unsigned int vec_size = system_matrix.n();
-            const auto op_preconditioned_full_mat = linear_operator(preconditioner) * linear_operator(system_matrix);
-            FullMatrix<double> preconditioned_full_mat(vec_size, vec_size);
-            build_matrix_element_by_element(op_preconditioned_full_mat,preconditioned_full_mat);
-            std::ofstream PreConMat("preconditioned_full_block_matrix.csv");
-            for (unsigned int i = 0; i < vec_size; i++) {
-                Mat << full_mat(i, 0);
-                PreConMat << preconditioned_full_mat(i, 0);
-                for (unsigned int j = 1; j < vec_size; j++)
-                {
-                    PreConMat << "," << preconditioned_full_mat(i, j);
-                }
-                Mat << "\n";
-                PreConMat << "\n";
-            }
-            Mat.close();
-            PreConMat.close();
+//            const unsigned int vec_size = system_matrix.n();
+//            const auto op_preconditioned_full_mat = linear_operator(preconditioner) * linear_operator(system_matrix);
+//            FullMatrix<double> preconditioned_full_mat(vec_size, vec_size);
+//            build_matrix_element_by_element(op_preconditioned_full_mat,preconditioned_full_mat);
+//            std::ofstream PreConMat("preconditioned_full_block_matrix.csv");
+//            for (unsigned int i = 0; i < vec_size; i++) {
+//                PreConMat << preconditioned_full_mat(i, 0);
+//                for (unsigned int j = 1; j < vec_size; j++)
+//                {
+//                    PreConMat << "," << preconditioned_full_mat(i, j);
+//                }
+//                PreConMat << "\n";
+//            }
+//            PreConMat.close();
         }
 
-        if (Input::output_full_matrix) {
-            const unsigned int vec_size = system_matrix.n();
-            FullMatrix<double> full_mat(vec_size, vec_size);
-            build_matrix_element_by_element(system_matrix,full_mat);
-            std::ofstream Mat("full_block_matrix.csv");
-            std::ofstream PreConMat("preconditioned_full_block_matrix.csv");
-            for (unsigned int i = 0; i < vec_size; i++) {
-                Mat << full_mat(i, 0);
-                for (unsigned int j = 1; j < vec_size; j++) {
-                    Mat << "," << full_mat(i, j);
-                }
-                Mat << "\n";
-                PreConMat << "\n";
-            }
-            Mat.close();
-            PreConMat.close();
-            std::cout << "printed" << std::endl;
+        if (Input::output_full_matrix)
+        {
+//            const unsigned int vec_size = system_matrix.n();
+//            FullMatrix<double> full_mat(vec_size, vec_size);
+//            build_matrix_element_by_element(system_matrix,full_mat);
+//            std::ofstream Mat("full_block_matrix.csv");
+//            for (unsigned int i = 0; i < vec_size; i++) {
+//                Mat << full_mat(i, 0);
+//                for (unsigned int j = 1; j < vec_size; j++) {
+//                    Mat << "," << full_mat(i, j);
+//                }
+//                Mat << "\n";
+//            }
+//            Mat.close();
         }
         return linear_solution;
-
     }
 
     template<int dim>
@@ -1384,7 +1368,6 @@ namespace SAND {
                 DoFTools::count_dofs_per_fe_block(dof_handler, block_component);
         const unsigned int n_p = dofs_per_block[0];
         const unsigned int n_u = dofs_per_block[1];
-        std::cout << n_p << "  " << n_u << std::endl;
         const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
 
         BlockVector<double> state(block_sizes);
@@ -1447,8 +1430,6 @@ namespace SAND {
         data_out.attach_dof_handler(dof_handler);
         data_out.add_data_vector(state, solution_names,
                                  DataOut<dim>::type_dof_data, data_component_interpretation);
-//      data_out.add_data_vector (linear_solution, solution_names,
-//          DataOut<dim>::type_dof_data, data_component_interpretation);
         data_out.build_patches();
         std::ofstream output("solution" + std::to_string(j) + ".vtk");
         data_out.write_vtk(output);
