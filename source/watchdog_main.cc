@@ -17,7 +17,7 @@ namespace SAND {
     template<int dim>
     class SANDTopOpt {
     public:
-        SANDTopOpt<dim>()=default;
+        SANDTopOpt();
 
         void
         run();
@@ -42,8 +42,21 @@ namespace SAND {
         KktSystem<dim> kkt_system;
         MarkovFilter markov_filter;
         double barrier_size;
+        TimerOutput overall_timer;
     };
 
+    template<int dim>
+    SANDTopOpt<dim>::SANDTopOpt()
+            :overall_timer(std::cout, TimerOutput::never, TimerOutput::wall_times)
+    {
+    }
+
+    template<int dim>
+    SANDTopOpt<dim>::SANDTopOpt()
+    :overall_timer()
+    {
+
+    }
     ///A binary search figures out the maximum step that meets the dual feasibility - that s>0 and z>0. The fraction to boundary increases as the barrier size decreases.
 
     template<int dim>
@@ -203,7 +216,7 @@ namespace SAND {
     template<int dim>
     void
     SANDTopOpt<dim>::run() {
-
+        overall_timer.enter_subsection("Total Time");
         barrier_size = Input::initial_barrier_size;
         kkt_system.create_triangulation();
         kkt_system.setup_boundary_values();
@@ -308,6 +321,10 @@ namespace SAND {
                 update_barrier_loqo(current_state);
                 markov_filter.update_barrier_value(barrier_size);
                 std::cout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
+
+                overall_timer.leave_subsection();
+                overall_timer.print_summary();
+                overall_timer.enter_subsection("Total Time");
                 //end while
             }
         }
