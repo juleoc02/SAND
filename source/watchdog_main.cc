@@ -51,12 +51,6 @@ namespace SAND {
     {
     }
 
-    template<int dim>
-    SANDTopOpt<dim>::SANDTopOpt()
-    :overall_timer()
-    {
-
-    }
     ///A binary search figures out the maximum step that meets the dual feasibility - that s>0 and z>0. The fraction to boundary increases as the barrier size decreases.
 
     template<int dim>
