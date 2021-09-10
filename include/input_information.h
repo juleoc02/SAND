@@ -47,6 +47,8 @@ namespace SAND {
 
         //Linear solver options
         constexpr unsigned int solver_choice = SolverOptions::direct_solve;
+        constexpr bool use_eisenstatt_walker = false;
+        constexpr double default_gmres_tolerance = 1e-6;
 
     }
 }

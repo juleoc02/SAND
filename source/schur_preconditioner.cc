@@ -137,8 +137,12 @@ namespace SAND {
                         linear_operator(d_m_mat);
         k_inv_mat.reinit(b_mat.n(),b_mat.n());
         build_matrix_element_by_element(op_k_inv,k_inv_mat);
-        k_mat.copy_from(k_inv_mat);
-        k_mat.invert();
+        if (Input::solver_choice = SolverOptions::exact_preconditioner_with_gmres)
+        {
+            k_mat.copy_from(k_inv_mat);
+            k_mat.invert();
+        }
+
     }
 
 
@@ -186,7 +190,7 @@ namespace SAND {
 
     template<int dim>
     void TopOptSchurPreconditioner<dim>::Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const {
-        dst = dst + src;
+        dst = src;
     }
 
     template<int dim>
@@ -213,19 +217,28 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const {
         dst = src;
-
-
-
-//       auto op_h = linear_operator(approx_h_mat.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density));
-
-        g_d_m_inv_density = linear_operator(g_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density);
-        k_g_d_m_inv_density = linear_operator(k_mat) * g_d_m_inv_density;
-
-        dst.block(SolutionBlocks::total_volume_multiplier) += transpose_operator(linear_operator(m_vect))*k_g_d_m_inv_density;
-
         Vector<double> k_density_mult;
         k_density_mult.reinit(src.block(SolutionBlocks::density).size());
-        k_density_mult = linear_operator(k_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
+
+        g_d_m_inv_density = linear_operator(g_mat) * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density);
+
+        if (Input::solver_choice = SolverOptions::exact_preconditioner_with_gmres)
+        {
+            k_g_d_m_inv_density = linear_operator(k_mat) * g_d_m_inv_density;
+            k_density_mult = linear_operator(k_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
+        }
+        else if (Input::solver_choice = SolverOptions::inexact_preconditioner_with_gmres)
+        {
+
+        }
+        else
+        {
+            std::cout << "shouldn't get here";
+            throw;
+        }
+
+
+        dst.block(SolutionBlocks::total_volume_multiplier) += transpose_operator(linear_operator(m_vect))*k_g_d_m_inv_density;
         dst.block(SolutionBlocks::total_volume_multiplier) -= transpose_operator(linear_operator(m_vect))*k_density_mult;
 
     }

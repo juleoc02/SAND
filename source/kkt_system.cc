@@ -1266,31 +1266,56 @@ namespace SAND {
     template<int dim>
     BlockVector<double>
     KktSystem<dim>::solve(const BlockVector<double> &state, double barrier_size) {
+        constraints.condense(system_matrix);
+        const double gmres_tolerance;
+        if (Input::use_eisenstat_walker)
+        {
+            gmres_tolerance= std::max(
+                    std::min(
+                            .1 * system_rhs.l2_norm() * system_rhs.l2_norm()/(initial_rhs_error * initial_rhs_error),
+                            .001 *system_rhs.l2_norm()
+                    ),
+                    system_rhs.l2_norm()*1e-12);
+        }
+        else
+        {
+            gmres_tolerance = Input::default_gmres_tolerance;
+        }
+        SolverControl solver_control(10000, 1e-10 * system_rhs.l2_norm());
+
+
+
+
+
         switch (Input::solver_choice)
         {
             case SolverOptions::direct_solve:
-
+                SparseDirectUMFPACK A_direct;
+                A_direct.initialize(system_matrix);
+                A_direct.vmult(linear_solution, system_rhs);
 
 
             case SolverOptions::exact_preconditioner_with_gmres:
-
+                std::cout << "start" << std::endl;
+                TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+                SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
+                A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
 
             case SolverOptions::inexact_preconditioner_with_gmres:
+                std::cout << "start" << std::endl;
+                TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+                SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
+                A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
 
             default:
-                throw
+                throw;
         }
+        constraints.distribute(linear_solution);
 
-
-
-        constraints.condense(system_matrix);
-        std::cout << "start" << std::endl;
-        TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
-        std::cout << system_matrix.n_block_rows() << std::endl;
-        preconditioner.assemble_mass_matrix(state, fe_collection, dof_handler, constraints, system_matrix.get_sparsity_pattern());
-        std::cout << "matrix assembled" << std::endl;
-        preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-        std::cout << "initialized" << std::endl;
         if(Input::output_parts_of_matrix)
         {
             preconditioner.print_stuff(system_matrix);
@@ -1299,26 +1324,12 @@ namespace SAND {
 
 
         if (Input::output_full_preconditioned_matrix) {
+            static_assert(Input::solver_choice != SolverOptions::direct_solve, "no preconditioner built!");
 
             const unsigned int vec_size = system_matrix.n();
-            FullMatrix<double> full_mat(vec_size, vec_size);
+            const auto op_preconditioned_full_mat = linear_operator(preconditioner) * linear_operator(system_matrix);
             FullMatrix<double> preconditioned_full_mat(vec_size, vec_size);
-            for (unsigned int j = 0; j < vec_size; j++)
-            {
-                BlockVector<double> unit_vector;
-                unit_vector = system_rhs;
-                unit_vector = 0;
-                unit_vector[j] = 1;
-                BlockVector<double> transformed_unit_vector = unit_vector;
-                BlockVector<double> preconditioned_transformed_unit_vector = unit_vector;
-                system_matrix.vmult(transformed_unit_vector, unit_vector);
-                preconditioner.vmult(preconditioned_transformed_unit_vector, transformed_unit_vector);
-                for (unsigned int i = 0; i < vec_size; i++)
-                {
-                    preconditioned_full_mat(i, j) = preconditioned_transformed_unit_vector[i];
-                }
-            }
-            std::ofstream Mat("full_block_matrix.csv");
+            build_matrix_element_by_element(op_preconditioned_full_mat,preconditioned_full_mat);
             std::ofstream PreConMat("preconditioned_full_block_matrix.csv");
             for (unsigned int i = 0; i < vec_size; i++) {
                 Mat << full_mat(i, 0);
@@ -1332,26 +1343,12 @@ namespace SAND {
             }
             Mat.close();
             PreConMat.close();
-
-
         }
 
         if (Input::output_full_matrix) {
             const unsigned int vec_size = system_matrix.n();
             FullMatrix<double> full_mat(vec_size, vec_size);
-            for (unsigned int j = 0; j < vec_size; j++)
-            {
-                BlockVector<double> unit_vector;
-                unit_vector = system_rhs;
-                unit_vector = 0;
-                unit_vector[j] = 1;
-                BlockVector<double> transformed_unit_vector = unit_vector;
-                system_matrix.vmult(transformed_unit_vector, unit_vector);
-                for (unsigned int i = 0; i < vec_size; i++)
-                {
-                    full_mat(i, j) = transformed_unit_vector[i];
-                }
-            }
+            build_matrix_element_by_element(system_matrix,full_mat);
             std::ofstream Mat("full_block_matrix.csv");
             std::ofstream PreConMat("preconditioned_full_block_matrix.csv");
             for (unsigned int i = 0; i < vec_size; i++) {
@@ -1365,29 +1362,9 @@ namespace SAND {
             Mat.close();
             PreConMat.close();
             std::cout << "printed" << std::endl;
-
         }
-        const double gmres_tolerance = std::max(
-                                                std::min(
-                                                        .1 * system_rhs.l2_norm() * system_rhs.l2_norm()/(initial_rhs_error * initial_rhs_error),
-                                                        .001 *system_rhs.l2_norm()
-                                                        ),
-                                                 system_rhs.l2_norm()*1e-12);
-//
-        SolverControl solver_control(10000, 1e-10 * system_rhs.l2_norm());
-        SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
-
-        A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-        constraints.distribute(linear_solution);
-        std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-
-
-//        SparseDirectUMFPACK A_direct;
-//        A_direct.initialize(system_matrix);
-//        A_direct.vmult(linear_solution, system_rhs);
-//        constraints.distribute(linear_solution);
-
         return linear_solution;
+
     }
 
     template<int dim>
