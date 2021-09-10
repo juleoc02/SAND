@@ -1270,16 +1270,16 @@ namespace SAND {
         {
             gmres_tolerance= std::max(
                     std::min(
-                            .1 * system_rhs.l2_norm() * system_rhs.l2_norm()/(initial_rhs_error * initial_rhs_error),
-                            .001 *system_rhs.l2_norm()
+                            .1 * system_rhs.l2_norm()/(initial_rhs_error),
+                            .001
                     ),
-                    system_rhs.l2_norm()*1e-12);
+                    Input::default_gmres_tolerance);
         }
         else
         {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
-        SolverControl solver_control(10000, 1e-10 * system_rhs.l2_norm());
+        SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
 
 
 

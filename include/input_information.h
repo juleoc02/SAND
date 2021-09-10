@@ -19,7 +19,7 @@ namespace SAND {
         constexpr int height = 1;
         constexpr int width = 6;
         constexpr int depth = 0;
-        constexpr unsigned int refinements = 3;
+        constexpr unsigned int refinements = 4;
 
         //BC Options
         constexpr double downforce_x = 3;

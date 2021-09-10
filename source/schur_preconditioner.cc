@@ -323,7 +323,7 @@ namespace SAND {
             {
                 PreconditionJacobi<FullMatrix<double>> precondition_jacobi_step_5_part_1;
                 precondition_jacobi_step_5_part_1.initialize(k_inv_mat,PreconditionJacobi<FullMatrix<double>>::AdditionalData(.6));
-                SolverControl step_5_gmres_control_1 (10000, g_d_m_inv_density.l2_norm()*1e-6);
+                SolverControl step_5_gmres_control_1 (10000, pre_j.l2_norm()*1e-6);
                 SolverGMRES<Vector<double>> step_5_gmres_1 (step_5_gmres_control_1);
                 try {
                     dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator(linear_operator(k_inv_mat)), step_5_gmres_1, precondition_jacobi_step_5_part_1) *
@@ -338,7 +338,7 @@ namespace SAND {
 
                 PreconditionJacobi<FullMatrix<double>> precondition_jacobi_step_5_part_2;
                 precondition_jacobi_step_5_part_2.initialize(k_inv_mat,PreconditionJacobi<FullMatrix<double>>::AdditionalData(.6));
-                SolverControl step_5_gmres_control_2 (10000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
+                SolverControl step_5_gmres_control_2 (10000, pre_k.l2_norm()*1e-6);
                 SolverGMRES<Vector<double>> step_5_gmres_2 (step_5_gmres_control_2);
                 try {
                     dst.block(SolutionBlocks::density) = inverse_operator(linear_operator(k_inv_mat), step_5_gmres_2, precondition_jacobi_step_5_part_2) *
