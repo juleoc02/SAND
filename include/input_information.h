@@ -15,11 +15,11 @@ namespace SAND {
         constexpr double volume_percentage = .5;
 
         //geometry options
-        constexpr unsigned int dim = 2;
+        constexpr unsigned int dim = 3;
         constexpr int height = 1;
         constexpr int width = 6;
-        constexpr int depth = 0;
-        constexpr unsigned int refinements = 4;
+        constexpr int depth = 1;
+        constexpr unsigned int refinements =  3;
 
         //BC Options
         constexpr double downforce_x = 3;
@@ -35,7 +35,7 @@ namespace SAND {
         constexpr unsigned int max_steps=100;
 
         //density filter options
-        constexpr double filter_r = .251;
+        constexpr double filter_r = .15;
 
         //other options
         constexpr double density_penalty_exponent = 3;
