@@ -947,13 +947,21 @@ namespace SAND {
         BlockVector<double> test_rhs = calculate_rhs(state, Input::min_barrier_size);
         double norm = 0;
 
-        norm += test_rhs.block(SolutionBlocks::displacement_multiplier).l1_norm();
-        norm += test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l1_norm();
-        norm += test_rhs.block(SolutionBlocks::total_volume_multiplier).l1_norm();
-        norm += test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l1_norm();
-        norm += test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l1_norm();
+        norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(),2);
+        norm += state.block(SolutionBlocks::density_upper_slack) * state.block(SolutionBlocks::density_upper_slack_multiplier);
+        norm += state.block(SolutionBlocks::density_lower_slack) * state.block(SolutionBlocks::density_lower_slack_multiplier);
+        norm = std::pow(norm,.5);
 
-        std::cout << "KKT norm: " << system_rhs.l2_norm() << std::endl;
+
+        std::cout << "l2 norm: " << system_rhs.l2_norm() << std::endl;
+        std::cout << "KKT norm: " << norm << std::endl;
         return norm;
     }
 
