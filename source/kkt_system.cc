@@ -163,12 +163,15 @@ namespace SAND {
                     if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1))
                     + std::abs(cell->vertex(vertex_number)(2))<1e-10 )
                     {
-                        std::cout << "10 element" << std::endl;
                         cell->set_active_fe_index(1);
                         cell->set_material_id(MaterialIds::with_multiplier);
                     }
                 }
             }
+
+            dof_handler.distribute_dofs(fe_collection);
+
+            DoFRenumbering::component_wise(dof_handler);
 
         }
         else
@@ -255,6 +258,7 @@ namespace SAND {
                                     vert(2) - 0) < 1e-12)||(std::fabs(
                                     vert(2) - 1) < 1e-12)) ) {
 
+
                                 const unsigned int x_displacement =
                                         cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
                                 const unsigned int y_displacement =
@@ -280,7 +284,6 @@ namespace SAND {
                                     vert(1) - 0) < 1e-12 && ((std::fabs(
                                     vert(2) - 0) < 1e-12)||(std::fabs(
                                     vert(2) - 1) < 1e-12)) ) {
-                                std::cout << "here 2" << std::endl;
 //                              const unsigned int x_displacement =
 //                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
                                 const unsigned int y_displacement =
@@ -349,7 +352,7 @@ namespace SAND {
         dsp.collect_sizes();
 
         Table<2, DoFTools::Coupling> coupling(2 * dim + 8, 2 * dim + 8);
-
+//Coupling for density
         coupling[SolutionComponents::density<dim>][SolutionComponents::density<dim>] = DoFTools::always;
 
         for (unsigned int i = 0; i < dim; i++) {
@@ -357,8 +360,8 @@ namespace SAND {
             coupling[SolutionComponents::displacement<dim> + i][SolutionComponents::density<dim>] = DoFTools::always;
         }
 
-        coupling[SolutionComponents::density<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
-        coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::density<dim>] = DoFTools::always;
+        coupling[SolutionComponents::density<dim>][SolutionComponents::unfiltered_density_multiplier<dim>] = DoFTools::always;
+        coupling[SolutionComponents::unfiltered_density_multiplier<dim>][SolutionComponents::density<dim>] = DoFTools::always;
 
         for (unsigned int i = 0; i < dim; i++) {
             coupling[SolutionComponents::density<dim>][SolutionComponents::displacement_multiplier<dim> +
@@ -367,29 +370,8 @@ namespace SAND {
                      i][SolutionComponents::density<dim>] = DoFTools::always;
         }
 
-        coupling[SolutionComponents::density<dim>][SolutionComponents::unfiltered_density_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::unfiltered_density_multiplier<dim>][SolutionComponents::density<dim>] = DoFTools::always;
-
-
-        coupling[SolutionComponents::density<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density<dim>][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density<dim>][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::density<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::density<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::density<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density<dim>] = DoFTools::always;
-
 //Coupling for displacement
         for (unsigned int i = 0; i < dim; i++) {
-            for (unsigned int k = 0; k < dim; k++) {
-                coupling[SolutionComponents::displacement<dim> + i][SolutionComponents::displacement<dim> +
-                                                                    k] = DoFTools::always;
-            }
-            coupling[SolutionComponents::displacement<dim> +
-                     i][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
-            coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::displacement<dim> +
-                                                                  i] = DoFTools::always;
 
             for (unsigned int k = 0; k < dim; k++) {
                 coupling[SolutionComponents::displacement<dim> + i][SolutionComponents::displacement_multiplier<dim> +
@@ -397,106 +379,26 @@ namespace SAND {
                 coupling[SolutionComponents::displacement_multiplier<dim> + k][SolutionComponents::displacement<dim> +
                                                                                i] = DoFTools::always;
             }
-
-            coupling[SolutionComponents::displacement<dim> +
-                     i][SolutionComponents::unfiltered_density_multiplier<dim>] = DoFTools::always;
-            coupling[SolutionComponents::unfiltered_density_multiplier<dim>][SolutionComponents::displacement<dim> +
-                                                                             i] = DoFTools::always;
-
-            coupling[SolutionComponents::displacement<dim> +
-                     i][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
-            coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::displacement<dim> +
-                                                                   i] = DoFTools::always;
-
-            coupling[SolutionComponents::displacement<dim> +
-                     i][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
-            coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::displacement<dim> +
-                                                                              i] = DoFTools::always;
-
-            coupling[SolutionComponents::displacement<dim> +
-                     i][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
-            coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::displacement<dim> +
-                                                                   i] = DoFTools::always;
-
-            coupling[SolutionComponents::displacement<dim> +
-                     i][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
-            coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::displacement<dim> +
-                                                                              i] = DoFTools::always;
-
         }
 
 // coupling for unfiltered density
-        coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
-        for (unsigned int i = 0; i < dim; i++) {
-            coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::displacement_multiplier<dim> +
-                                                                  i] = DoFTools::always;
-            coupling[SolutionComponents::displacement_multiplier<dim> +
-                     i][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
-        }
-
-        coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
-
         coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
         coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
-
-        coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
 
         coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
         coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
 
-//Coupling for equality multipliers
-        for (unsigned int i = 0; i < dim; i++) {
-            for (unsigned int k = 0; i < dim; i++) {
-                coupling[SolutionComponents::displacement_multiplier<dim> + i][
-                        SolutionComponents::displacement_multiplier<dim> + k] = DoFTools::always;
-                coupling[SolutionComponents::displacement_multiplier<dim> + k][
-                        SolutionComponents::displacement_multiplier<dim> + i] = DoFTools::always;
-            }
+        coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::unfiltered_density_multiplier<dim>] = DoFTools::always;
+        coupling[SolutionComponents::unfiltered_density_multiplier<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
 
-            coupling[SolutionComponents::displacement_multiplier<dim> +
-                     i][SolutionComponents::unfiltered_density_multiplier<dim>] = DoFTools::always;
-            coupling[SolutionComponents::unfiltered_density_multiplier<dim>][
-                    SolutionComponents::displacement_multiplier<dim> + i] = DoFTools::always;
 
-            coupling[SolutionComponents::displacement_multiplier<dim> +
-                     i][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
-            coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::displacement_multiplier<dim> +
-                                                                   i] = DoFTools::always;
 
-            coupling[SolutionComponents::displacement_multiplier<dim> +
-                     i][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
-            coupling[SolutionComponents::density_lower_slack_multiplier<dim>][
-                    SolutionComponents::displacement_multiplier<dim> + i] = DoFTools::always;
-
-            coupling[SolutionComponents::displacement_multiplier<dim> +
-                     i][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
-            coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::displacement_multiplier<dim> +
-                                                                   i] = DoFTools::always;
-
-            coupling[SolutionComponents::displacement_multiplier<dim> +
-                     i][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
-            coupling[SolutionComponents::density_upper_slack_multiplier<dim>][
-                    SolutionComponents::displacement_multiplier<dim> + i] = DoFTools::always;
-
-        }
 
 //        Coupling for lower slack
         coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
+
         coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
         coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
-
-//
-        coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
 
 //
         coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
@@ -909,6 +811,7 @@ namespace SAND {
             system_matrix.block(SolutionBlocks::total_volume_multiplier,SolutionBlocks::density).add(0,i,cell->measure());
             system_matrix.block(SolutionBlocks::density,SolutionBlocks::total_volume_multiplier).add(i,0,cell->measure());
         }
+        std::cout << "assembled" << std::endl;
     }
 
     template<int dim>
@@ -1050,7 +953,7 @@ namespace SAND {
         norm += test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l1_norm();
         norm += test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l1_norm();
 
-        std::cout << "norm: " << norm << std::endl;
+        std::cout << "KKT norm: " << system_rhs.l2_norm() << std::endl;
         return norm;
     }
 

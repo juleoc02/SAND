@@ -137,6 +137,41 @@ namespace SAND {
                         linear_operator(d_m_mat);
         k_inv_mat.reinit(b_mat.n(),b_mat.n());
         build_matrix_element_by_element(op_k_inv,k_inv_mat);
+
+        const unsigned int density_vec_size = matrix.block(SolutionBlocks::density, SolutionBlocks::density).n();
+        FullMatrix<double> Test_Precond_Mat(density_vec_size, density_vec_size);
+
+        for (unsigned int j = 0; j < density_vec_size; j++) {
+            Vector<double> density_unit_vector;
+            density_unit_vector.reinit(density_vec_size);
+            density_unit_vector=0;
+            density_unit_vector[j] = 1;
+            Vector<double> transformed_unit_vector_test_pre;
+            transformed_unit_vector_test_pre.reinit(density_vec_size);
+
+            transformed_unit_vector_test_pre = -1 * op_g * linear_operator(d_m_inv_mat) * op_h * linear_operator(d_m_inv_mat) * density_unit_vector;
+
+            for (unsigned int i = 0; i < density_vec_size; i++) {
+                Test_Precond_Mat(i, j) = transformed_unit_vector_test_pre[i];
+            }
+        }
+
+
+        std::ofstream TestPrecondMat("TestPrecondMat.csv");
+
+        for (unsigned int i = 0; i < density_vec_size; i++)
+        {
+            TestPrecondMat << Test_Precond_Mat(i, 0);
+            for (unsigned int j = 1; j < density_vec_size; j++)
+            {
+                TestPrecondMat << "," << Test_Precond_Mat(i, j);
+            }
+
+            TestPrecondMat << "\n";
+        }
+        TestPrecondMat.close();
+
+
         if (Input::solver_choice == SolverOptions::exact_preconditioner_with_gmres)
         {
             k_mat.copy_from(k_inv_mat);
