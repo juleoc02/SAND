@@ -15,18 +15,9 @@ namespace SAND {
         constexpr double volume_percentage = .5;
 
         //geometry options
-        constexpr unsigned int dim = 3;
-        constexpr int height = 1;
-        constexpr int width = 6;
-        constexpr int depth = 1;
-        constexpr unsigned int refinements =  3;
-
-        //BC Options
-        constexpr double downforce_x = 3;
-        constexpr double downforce_y = 1;
-        constexpr double downforce_size = .3;
-        /* NEED SOME WAY FOR CORNER BCs */
-
+        constexpr unsigned int geometry_base = GeometryOptions::l_shape;
+        constexpr unsigned int dim = 2;
+        constexpr unsigned int refinements =  5;
 
         //nonlinear algorithm options
         constexpr double initial_barrier_size = 25;

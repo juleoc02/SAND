@@ -53,5 +53,10 @@ namespace SAND {
         static constexpr unsigned int inexact_preconditioner_with_gmres = 3;
     }
 
+    namespace GeometryOptions {
+        static constexpr unsigned int mbb = 1;
+        static constexpr unsigned int l_shape = 2;
+    }
+
 }
 #endif //SAND_PARAMETERS_AND_COMPONENTS_H
