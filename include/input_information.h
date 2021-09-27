@@ -15,10 +15,8 @@ namespace SAND {
         constexpr double volume_percentage = .5;
 
         //geometry options
+        constexpr unsigned int geometry_base = GeometryOptions::mbb;
         constexpr unsigned int dim = 3;
-        constexpr int height = 1;
-        constexpr int width = 6;
-        constexpr int depth = 1;
         constexpr unsigned int refinements =  3;
 
         //BC Options
