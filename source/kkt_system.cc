@@ -87,12 +87,16 @@ namespace SAND {
     KktSystem<dim>::create_triangulation() {
         if(Input::geometry_base == GeometryOptions::mbb)
         {
-            const unsigned double width = 6;
+            const double width = 6;
             const unsigned int width_refine = 6;
-            const unsigned double height = 1;
+            const double height = 1;
             const unsigned int height_refine = 1;
-            const unsigned double depth = 1;
+            const double depth = 1;
             const unsigned int depth_refine = 1;
+            const double downforce_y = 1;
+            const double downforce_x = 1;
+            const double downforce_size = .3;
+
             if(dim ==2)
             {
                 GridGenerator::subdivided_hyper_rectangle(triangulation,
@@ -112,8 +116,8 @@ namespace SAND {
                         if (cell->face(face_number)->at_boundary()) {
                             const auto center = cell->face(face_number)->center();
 
-                            if (std::fabs(center(1) - Input::downforce_y) < 1e-12) {
-                                if (std::fabs(center(0) - Input::downforce_x) < Input::downforce_size) {
+                            if (std::fabs(center(1) - downforce_y) < 1e-12) {
+                                if (std::fabs(center(0) - downforce_x) < downforce_size) {
                                     cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
                                 } else {
                                     cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
@@ -156,8 +160,8 @@ namespace SAND {
                         if (cell->face(face_number)->at_boundary()) {
                             const auto center = cell->face(face_number)->center();
 
-                            if (std::fabs(center(1) - Input::downforce_y) < 1e-12) {
-                                if (std::fabs(center(0) - Input::downforce_x) < Input::downforce_size) {
+                            if (std::fabs(center(1) - downforce_y) < 1e-12) {
+                                if (std::fabs(center(0) - downforce_x) < downforce_size) {
                                     cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
                                 } else {
                                     cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
@@ -188,22 +192,26 @@ namespace SAND {
                 throw;
             }
         }
-        else if (Input::geometry_base = GeometryOptions::l_shape)
+        else if (Input::geometry_base == GeometryOptions::l_shape)
         {
-            const unsigned double width = 2;
+            const double width = 2;
             const unsigned int width_refine = 2;
-            const unsigned double height = 2;
+            const double height = 2;
             const unsigned int height_refine = 2;
-            const unsigned double depth = 1;
+            const double depth = 1;
             const unsigned int depth_refine = 1;
+            const double downforce_x = 2;
+            const double downforce_y = 1;
+            const double downforce_z = .5;
+            const double downforce_size = .3;
 
             if (dim==2)
             {
-                GridGenerator::hyper_L(triangulation,
+                GridGenerator::subdivided_hyper_L(triangulation,
                                        {width_refine, height_refine},
                                        Point<dim>(0, 0),
                                        Point<dim>(width, height),
-                                       {1,1});
+                                       {-1,-1});
 
                 triangulation.refine_global(Input::refinements);
 
@@ -217,8 +225,8 @@ namespace SAND {
                         if (cell->face(face_number)->at_boundary()) {
                             const auto center = cell->face(face_number)->center();
 
-                            if (std::fabs(center(1) - Input::downforce_y) < 1e-12) {
-                                if (std::fabs(center(0) - Input::downforce_x) < Input::downforce_size) {
+                            if (std::fabs(center(0) - downforce_x) < 1e-12) {
+                                if (std::fabs(center(1) - downforce_y) < downforce_size) {
                                     cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
                                 } else {
                                     cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
@@ -245,7 +253,58 @@ namespace SAND {
             }
             else if (dim ==3)
             {
+                GridGenerator::subdivided_hyper_L(triangulation,
+                                       {width_refine, height_refine, depth_refine},
+                                       Point<dim>(0, 0, 0),
+                                       Point<dim>(width, height, depth),
+                                       {-1,-1, depth_refine});
 
+                triangulation.refine_global(Input::refinements);
+
+                /*Set BCIDs   */
+                for (const auto &cell : dof_handler.active_cell_iterators()) {
+                    cell->set_active_fe_index(0);
+                    cell->set_material_id(MaterialIds::without_multiplier);
+                    for (unsigned int face_number = 0;
+                         face_number < GeometryInfo<dim>::faces_per_cell;
+                         ++face_number) {
+                        if (cell->face(face_number)->at_boundary()) {
+                            const auto center = cell->face(face_number)->center();
+
+                            if (std::fabs(center(0) - downforce_x) < 1e-12) {
+                                if (std::fabs(center(1) - downforce_y) < downforce_size)
+                                {
+                                    cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
+                                    if (std::fabs(center(2) - downforce_z) < downforce_size) {
+                                        cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
+                                    }
+                                    else
+                                    {
+                                        cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                                    }
+                                }
+                                else
+                                {
+                                    cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                                }
+                            }
+                        }
+                    }
+                    for (unsigned int vertex_number = 0;
+                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                         ++vertex_number)
+                    {
+                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1))<1e-10 )
+                        {
+                            cell->set_active_fe_index(1);
+                            cell->set_material_id(MaterialIds::with_multiplier);
+                        }
+                    }
+                }
+
+                dof_handler.distribute_dofs(fe_collection);
+
+                DoFRenumbering::component_wise(dof_handler);
             }
             else
             {
@@ -265,131 +324,264 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::setup_boundary_values() {
-        if (dim == 2)
+        if (Input::geometry_base == GeometryOptions::mbb)
         {
-            for (const auto &cell : dof_handler.active_cell_iterators()) {
+            if (dim == 2)
+            {
+                for (const auto &cell : dof_handler.active_cell_iterators()) {
 
-                for (unsigned int face_number = 0;
-                     face_number < GeometryInfo<dim>::faces_per_cell;
-                     ++face_number) {
-                    if (cell->face(face_number)->at_boundary()) {
-                        for (unsigned int vertex_number = 0;
-                             vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                             ++vertex_number) {
-                            const auto vert = cell->vertex(vertex_number);
-                            /*Find bottom left corner*/
-                            if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                    vert(1) - 0) < 1e-12) {
+                    for (unsigned int face_number = 0;
+                         face_number < GeometryInfo<dim>::faces_per_cell;
+                         ++face_number) {
+                        if (cell->face(face_number)->at_boundary()) {
+                            for (unsigned int vertex_number = 0;
+                                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                 ++vertex_number) {
+                                const auto vert = cell->vertex(vertex_number);
+                                /*Find bottom left corner*/
+                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                        vert(1) - 0) < 1e-12) {
 
-                                const unsigned int x_displacement =
-                                        cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                const unsigned int y_displacement =
-                                        cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                const unsigned int x_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                                const unsigned int y_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                /*set bottom left BC*/
-                                boundary_values[x_displacement] = 0;
-                                boundary_values[y_displacement] = 0;
-                                boundary_values[x_displacement_multiplier] = 0;
-                                boundary_values[y_displacement_multiplier] = 0;
-                            }
-                            /*Find bottom right corner*/
-                            if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-                                    vert(1) - 0) < 1e-12) {
+                                    const unsigned int x_displacement =
+                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                    const unsigned int y_displacement =
+                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                    const unsigned int x_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                    const unsigned int y_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                    /*set bottom left BC*/
+                                    boundary_values[x_displacement] = 0;
+                                    boundary_values[y_displacement] = 0;
+                                    boundary_values[x_displacement_multiplier] = 0;
+                                    boundary_values[y_displacement_multiplier] = 0;
+                                }
+                                /*Find bottom right corner*/
+                                if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
+                                        vert(1) - 0) < 1e-12) {
 //                            const unsigned int x_displacement =
 //                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                const unsigned int y_displacement =
-                                        cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                    const unsigned int y_displacement =
+                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
 //                            const unsigned int x_displacement_multiplier =
 //                                    cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                                const unsigned int y_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                    const unsigned int y_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
 //                            boundary_values[x_displacement] = 0;
-                                boundary_values[y_displacement] = 0;
+                                    boundary_values[y_displacement] = 0;
 //                            boundary_values[x_displacement_multiplier] = 0;
-                                boundary_values[y_displacement_multiplier] = 0;
+                                    boundary_values[y_displacement_multiplier] = 0;
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-        else if (dim == 3)
-        {
-            for (const auto &cell : dof_handler.active_cell_iterators())
+            else if (dim == 3)
             {
-                for (unsigned int face_number = 0;
-                     face_number < GeometryInfo<dim>::faces_per_cell;
-                     ++face_number)
+                for (const auto &cell : dof_handler.active_cell_iterators())
                 {
-                    if (cell->face(face_number)->at_boundary())
+                    for (unsigned int face_number = 0;
+                         face_number < GeometryInfo<dim>::faces_per_cell;
+                         ++face_number)
                     {
-                        for (unsigned int vertex_number = 0;
-                             vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                             ++vertex_number)
+                        if (cell->face(face_number)->at_boundary())
                         {
-                            const auto vert = cell->vertex(vertex_number);
-                            /*Find bottom left corner*/
-                            if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                    vert(1) - 0) < 1e-12 && ((std::fabs(
-                                    vert(2) - 0) < 1e-12)||(std::fabs(
-                                    vert(2) - 1) < 1e-12)) ) {
+                            for (unsigned int vertex_number = 0;
+                                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                 ++vertex_number)
+                            {
+                                const auto vert = cell->vertex(vertex_number);
+                                /*Find bottom left corner*/
+                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                        vert(1) - 0) < 1e-12 && ((std::fabs(
+                                        vert(2) - 0) < 1e-12)||(std::fabs(
+                                        vert(2) - 1) < 1e-12)) ) {
 
 
-                                const unsigned int x_displacement =
-                                        cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                const unsigned int y_displacement =
-                                        cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                const unsigned int z_displacement =
-                                        cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                                const unsigned int x_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                const unsigned int y_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
-                                const unsigned int z_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
+                                    const unsigned int x_displacement =
+                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                    const unsigned int y_displacement =
+                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                    const unsigned int z_displacement =
+                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                    const unsigned int x_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                    const unsigned int y_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
+                                    const unsigned int z_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
 
-                                boundary_values[x_displacement] = 0;
-                                boundary_values[y_displacement] = 0;
-                                boundary_values[z_displacement] = 0;
-                                boundary_values[x_displacement_multiplier] = 0;
-                                boundary_values[y_displacement_multiplier] = 0;
-                                boundary_values[z_displacement_multiplier] = 0;
-                            }
-                            /*Find bottom right corner*/
-                            if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-                                    vert(1) - 0) < 1e-12 && ((std::fabs(
-                                    vert(2) - 0) < 1e-12)||(std::fabs(
-                                    vert(2) - 1) < 1e-12)) ) {
+                                    boundary_values[x_displacement] = 0;
+                                    boundary_values[y_displacement] = 0;
+                                    boundary_values[z_displacement] = 0;
+                                    boundary_values[x_displacement_multiplier] = 0;
+                                    boundary_values[y_displacement_multiplier] = 0;
+                                    boundary_values[z_displacement_multiplier] = 0;
+                                }
+                                /*Find bottom right corner*/
+                                if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
+                                        vert(1) - 0) < 1e-12 && ((std::fabs(
+                                        vert(2) - 0) < 1e-12)||(std::fabs(
+                                        vert(2) - 1) < 1e-12)) ) {
 //                              const unsigned int x_displacement =
 //                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                const unsigned int y_displacement =
-                                        cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                const unsigned int z_displacement =
-                                        cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                    const unsigned int y_displacement =
+                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                    const unsigned int z_displacement =
+                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
 //                              const unsigned int x_displacement_multiplier =
 //                                    cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                const unsigned int y_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
-                                const unsigned int z_displacement_multiplier =
-                                        cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
+                                    const unsigned int y_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
+                                    const unsigned int z_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
 //                              boundary_values[x_displacement] = 0;
-                                boundary_values[y_displacement] = 0;
-                                boundary_values[z_displacement] = 0;
+                                    boundary_values[y_displacement] = 0;
+                                    boundary_values[z_displacement] = 0;
 //                              boundary_values[x_displacement_multiplier] = 0;
-                                boundary_values[y_displacement_multiplier] = 0;
-                                boundary_values[z_displacement_multiplier] = 0;
+                                    boundary_values[y_displacement_multiplier] = 0;
+                                    boundary_values[z_displacement_multiplier] = 0;
+                                }
                             }
                         }
                     }
                 }
             }
+            else
+            {
+                throw;
+            }
         }
-        else
+       else if (Input::geometry_base == GeometryOptions::l_shape)
         {
-            throw;
+            if (dim == 2)
+            {
+                for (const auto &cell : dof_handler.active_cell_iterators()) {
+
+                    for (unsigned int face_number = 0;
+                         face_number < GeometryInfo<dim>::faces_per_cell;
+                         ++face_number) {
+                        if (cell->face(face_number)->at_boundary()) {
+                            for (unsigned int vertex_number = 0;
+                                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                 ++vertex_number) {
+                                const auto vert = cell->vertex(vertex_number);
+                                /*Find top left corner*/
+                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                        vert(1) - 2) < 1e-12) {
+
+                                    const unsigned int x_displacement =
+                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                    const unsigned int y_displacement =
+                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                    const unsigned int x_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                    const unsigned int y_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                    /*set bottom left BC*/
+                                    boundary_values[x_displacement] = 0;
+                                    boundary_values[y_displacement] = 0;
+                                    boundary_values[x_displacement_multiplier] = 0;
+                                    boundary_values[y_displacement_multiplier] = 0;
+                                }
+                                /*Find top right corner*/
+                                if (std::fabs(vert(0) - 1) < 1e-12 && std::fabs(
+                                        vert(1) - 2) < 1e-12)
+                                {
+                                    const unsigned int x_displacement =
+                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                    const unsigned int y_displacement =
+                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                    const unsigned int x_displacement_multiplier =
+                                    cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                    const unsigned int y_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                    boundary_values[x_displacement] = 0;
+                                    boundary_values[y_displacement] = 0;
+                                    boundary_values[x_displacement_multiplier] = 0;
+                                    boundary_values[y_displacement_multiplier] = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else if (dim == 3)
+            {
+                for (const auto &cell : dof_handler.active_cell_iterators())
+                {
+                    for (unsigned int face_number = 0;
+                         face_number < GeometryInfo<dim>::faces_per_cell;
+                         ++face_number)
+                    {
+                        if (cell->face(face_number)->at_boundary())
+                        {
+                            for (unsigned int vertex_number = 0;
+                                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                 ++vertex_number)
+                            {
+                                const auto vert = cell->vertex(vertex_number);
+                                /*Find bottom left corner*/
+                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                        vert(1) - 2) < 1e-12 && ((std::fabs(
+                                        vert(2) - 0) < 1e-12)||(std::fabs(
+                                        vert(2) - 1) < 1e-12)) ) {
+
+
+                                    const unsigned int x_displacement =
+                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                    const unsigned int y_displacement =
+                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                    const unsigned int z_displacement =
+                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                    const unsigned int x_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                    const unsigned int y_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
+                                    const unsigned int z_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
+
+                                    boundary_values[x_displacement] = 0;
+                                    boundary_values[y_displacement] = 0;
+                                    boundary_values[z_displacement] = 0;
+                                    boundary_values[x_displacement_multiplier] = 0;
+                                    boundary_values[y_displacement_multiplier] = 0;
+                                    boundary_values[z_displacement_multiplier] = 0;
+                                }
+                                /*Find bottom right corner*/
+                                if (std::fabs(vert(0) - 1) < 1e-12 && std::fabs(
+                                        vert(1) - 2) < 1e-12 && ((std::fabs(
+                                        vert(2) - 0) < 1e-12)||(std::fabs(
+                                        vert(2) - 1) < 1e-12)) ) {
+                              const unsigned int x_displacement =
+                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                    const unsigned int y_displacement =
+                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                    const unsigned int z_displacement =
+                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                              const unsigned int x_displacement_multiplier =
+                                    cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                    const unsigned int y_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
+                                    const unsigned int z_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
+                                    boundary_values[x_displacement] = 0;
+                                    boundary_values[y_displacement] = 0;
+                                    boundary_values[z_displacement] = 0;
+                                    boundary_values[x_displacement_multiplier] = 0;
+                                    boundary_values[y_displacement_multiplier] = 0;
+                                    boundary_values[z_displacement_multiplier] = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                throw;
+            }
         }
 
 
