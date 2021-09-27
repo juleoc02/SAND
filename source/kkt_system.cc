@@ -140,12 +140,13 @@ namespace SAND {
 
             else if (dim == 3)
             {
-                std::cout << "generating rectangle" << std::endl;
                 GridGenerator::subdivided_hyper_rectangle(triangulation,
                                                           {width_refine, height_refine, depth_refine},
                                                           Point<dim>(0, 0,0),
                                                           Point<dim>(width, height, depth));
+
                 triangulation.refine_global(Input::refinements);
+
                 for (const auto &cell : dof_handler.active_cell_iterators()) {
                     cell->set_active_fe_index(0);
                     cell->set_material_id(MaterialIds::without_multiplier);
@@ -189,8 +190,57 @@ namespace SAND {
         }
         else if (Input::geometry_base = GeometryOptions::l_shape)
         {
+            const unsigned double width = 2;
+            const unsigned int width_refine = 2;
+            const unsigned double height = 2;
+            const unsigned int height_refine = 2;
+            const unsigned double depth = 1;
+            const unsigned int depth_refine = 1;
+
             if (dim==2)
             {
+                GridGenerator::hyper_L(triangulation,
+                                       {width_refine, height_refine},
+                                       Point<dim>(0, 0),
+                                       Point<dim>(width, height),
+                                       {1,1});
+
+                triangulation.refine_global(Input::refinements);
+
+                /*Set BCIDs   */
+                for (const auto &cell : dof_handler.active_cell_iterators()) {
+                    cell->set_active_fe_index(0);
+                    cell->set_material_id(MaterialIds::without_multiplier);
+                    for (unsigned int face_number = 0;
+                         face_number < GeometryInfo<dim>::faces_per_cell;
+                         ++face_number) {
+                        if (cell->face(face_number)->at_boundary()) {
+                            const auto center = cell->face(face_number)->center();
+
+                            if (std::fabs(center(1) - Input::downforce_y) < 1e-12) {
+                                if (std::fabs(center(0) - Input::downforce_x) < Input::downforce_size) {
+                                    cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
+                                } else {
+                                    cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                                }
+                            }
+                        }
+                    }
+                    for (unsigned int vertex_number = 0;
+                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                         ++vertex_number)
+                    {
+                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1))<1e-10 )
+                        {
+                            cell->set_active_fe_index(1);
+                            cell->set_material_id(MaterialIds::with_multiplier);
+                        }
+                    }
+                }
+
+                dof_handler.distribute_dofs(fe_collection);
+
+                DoFRenumbering::component_wise(dof_handler);
 
             }
             else if (dim ==3)
