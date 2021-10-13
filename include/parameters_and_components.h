@@ -50,9 +50,15 @@ namespace SAND {
     namespace SolverOptions {
         static constexpr unsigned int direct_solve = 1;
         static constexpr unsigned int exact_preconditioner_with_gmres = 2;
-        static constexpr unsigned int inexact_preconditioner_with_gmres = 3;
+        static constexpr unsigned int inexact_K_with_exact_A_gmres = 3;
+        static constexpr unsigned int inexact_K_with_inexact_A_gmres = 4;
     }
 
+    namespace BarrierOptions {
+        static constexpr unsigned int loqo = 1;
+        static constexpr unsigned int monotone = 2;
+        static constexpr unsigned int mixed = 3;
+    }
     namespace GeometryOptions {
         static constexpr unsigned int mbb = 1;
         static constexpr unsigned int l_shape = 2;

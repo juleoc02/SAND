@@ -94,7 +94,7 @@ namespace SAND {
             const double depth = 1;
             const unsigned int depth_refine = 1;
             const double downforce_y = 1;
-            const double downforce_x = 1;
+            const double downforce_x = 3;
             const double downforce_size = .3;
 
             if(dim ==2)
@@ -1191,25 +1191,53 @@ namespace SAND {
         return barrier_distance_log_sum;
     }
 
+    template<int dim>
+    double
+    KktSystem<dim>::calculate_rhs_norm(const BlockVector<double> &state, const double barrier_size) const
+    {
+        return calculate_rhs(state,barrier_size).l2_norm();
+    }
+
 
     //Feasibility conditions appear on the RHS of the linear system, so I compute the RHS to find it. Could probably be combined with the objective value finding part to make it faster.
     template<int dim>
     double
     KktSystem<dim>::calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const {
         BlockVector<double> test_rhs = calculate_rhs(state, barrier_size);
-        double feasibility = 0;
-        feasibility +=
-                test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() +
-                test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm() +
-                test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm() +
-                test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm() +
-                test_rhs.block(SolutionBlocks::density_lower_slack).l2_norm() +
-                test_rhs.block(SolutionBlocks::density_upper_slack).l2_norm() +
-                test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm()+
-                test_rhs.block(SolutionBlocks::density).l2_norm()+
-                test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm()+
-                test_rhs.block(SolutionBlocks::displacement).l2_norm();
-        return feasibility;
+//        double feasibility = 0;
+//        feasibility +=
+//                test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() +
+//                test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm() +
+//                test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm() +
+//                test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm() +
+//                test_rhs.block(SolutionBlocks::density_lower_slack).l2_norm() +
+//                test_rhs.block(SolutionBlocks::density_upper_slack).l2_norm() +
+//                test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm()+
+//                test_rhs.block(SolutionBlocks::density).l2_norm()+
+//                test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm()+
+//                test_rhs.block(SolutionBlocks::displacement).l2_norm();
+//        return feasibility;
+
+        double norm = 0;
+        norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(),2);
+        for (unsigned int k=0; k<state.block(SolutionBlocks::density_upper_slack).size(); k++)
+        {
+            norm += state.block(SolutionBlocks::density_upper_slack)[k] * state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
+                    * state.block(SolutionBlocks::density_upper_slack)[k] * state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+        }
+        for (unsigned int k=0; k<state.block(SolutionBlocks::density_lower_slack).size(); k++)
+        {
+            norm += state.block(SolutionBlocks::density_lower_slack)[k] * state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
+                    * state.block(SolutionBlocks::density_lower_slack)[k] * state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+        }
+        return norm;
     }
 
     template<int dim>
@@ -1226,10 +1254,18 @@ namespace SAND {
         norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(),2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(),2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(),2);
-        norm += state.block(SolutionBlocks::density_upper_slack) * state.block(SolutionBlocks::density_upper_slack_multiplier);
-        norm += state.block(SolutionBlocks::density_lower_slack) * state.block(SolutionBlocks::density_lower_slack_multiplier);
-        norm = std::pow(norm,.5);
 
+        for (unsigned int k=0; k<state.block(SolutionBlocks::density_upper_slack).size(); k++)
+        {
+            norm += state.block(SolutionBlocks::density_upper_slack)[k] * state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
+                    * state.block(SolutionBlocks::density_upper_slack)[k] * state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+        }
+        for (unsigned int k=0; k<state.block(SolutionBlocks::density_lower_slack).size(); k++)
+        {
+            norm += state.block(SolutionBlocks::density_lower_slack)[k] * state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
+                    * state.block(SolutionBlocks::density_lower_slack)[k] * state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+        }
+        norm = std::pow(norm,.5);
 
         std::cout << "l2 norm: " << system_rhs.l2_norm() << std::endl;
         std::cout << "KKT norm: " << norm << std::endl;
@@ -1592,9 +1628,6 @@ namespace SAND {
         }
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
 
-
-
-
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
@@ -1610,10 +1643,17 @@ namespace SAND {
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
-            case SolverOptions::inexact_preconditioner_with_gmres: {
+            case SolverOptions::inexact_K_with_exact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
                 SolverFGMRES <BlockVector<double>> B_fgmres(solver_control);
                 B_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+                break;
+            }
+            case SolverOptions::inexact_K_with_inexact_A_gmres: {
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+                SolverFGMRES <BlockVector<double>> C_fgmres(solver_control);
+                C_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
@@ -1624,24 +1664,14 @@ namespace SAND {
 
         if(Input::output_parts_of_matrix)
         {
-//            preconditioner.print_stuff(system_matrix);
+            preconditioner.print_stuff(system_matrix);
         }
 
         if (Input::output_full_preconditioned_matrix) {
-//            const unsigned int vec_size = system_matrix.n();
+//            FullMatrix<double> preconditioned_full_mat(system_matrix.n(), system_matrix.n());
 //            const auto op_preconditioned_full_mat = linear_operator(preconditioner) * linear_operator(system_matrix);
-//            FullMatrix<double> preconditioned_full_mat(vec_size, vec_size);
-//            build_matrix_element_by_element(op_preconditioned_full_mat,preconditioned_full_mat);
-//            std::ofstream PreConMat("preconditioned_full_block_matrix.csv");
-//            for (unsigned int i = 0; i < vec_size; i++) {
-//                PreConMat << preconditioned_full_mat(i, 0);
-//                for (unsigned int j = 1; j < vec_size; j++)
-//                {
-//                    PreConMat << "," << preconditioned_full_mat(i, j);
-//                }
-//                PreConMat << "\n";
-//            }
-//            PreConMat.close();
+//            build_matrix_element_by_element(op_preconditioned_full_mat, preconditioned_full_mat);
+//            print_matrix("preconditioned_full_block_matrix.csv",preconditioned_full_mat);
         }
 
         if (Input::output_full_matrix)
@@ -1744,6 +1774,7 @@ namespace SAND {
         data_out.build_patches();
         std::ofstream output("solution" + std::to_string(j) + ".vtk");
         data_out.write_vtk(output);
+
     }
 }
 

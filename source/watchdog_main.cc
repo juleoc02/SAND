@@ -37,12 +37,13 @@ namespace SAND {
         check_convergence(const BlockVector<double> &state) const;
 
         void
-        update_barrier_loqo(BlockVector<double> &current_state);
+        update_barrier(BlockVector<double> &current_state);
 
         KktSystem<dim> kkt_system;
         MarkovFilter markov_filter;
         double barrier_size;
         TimerOutput overall_timer;
+        bool mixed_barrier_monotone_mode;
     };
 
     template<int dim>
@@ -151,7 +152,7 @@ namespace SAND {
     bool
     SANDTopOpt<dim>::check_convergence(const BlockVector<double> &state) const
     {
-              if (kkt_system.calculate_convergence(state) < 1e-6 * Input::min_barrier_size)
+              if (kkt_system.calculate_convergence(state) < Input::required_norm)
               {
                   return true;
               }
@@ -163,47 +164,120 @@ namespace SAND {
 
     template<int dim>
     void
-    SANDTopOpt<dim>::update_barrier_loqo(BlockVector<double> &current_state)
+    SANDTopOpt<dim>::update_barrier(BlockVector<double> &current_state)
     {
-        double loqo_min = 1000;
-        double loqo_average;
-        unsigned int vect_size = current_state.block(SolutionBlocks::density_lower_slack).size();
-        for(unsigned int k = 0; k < vect_size; k++)
+        if (Input::barrier_reduction == BarrierOptions::loqo)
         {
-            if (current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k] < loqo_min)
+            double loqo_min = 1000;
+            double loqo_average;
+            unsigned int vect_size = current_state.block(SolutionBlocks::density_lower_slack).size();
+            for(unsigned int k = 0; k < vect_size; k++)
             {
-                loqo_min = current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+                if (current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k] < loqo_min)
+                {
+                    loqo_min = current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+                }
+                if (current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k] < loqo_min)
+                {
+                    loqo_min = current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+                }
             }
-            if (current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k] < loqo_min)
+            loqo_average = (current_state.block(SolutionBlocks::density_lower_slack)*current_state.block(SolutionBlocks::density_lower_slack_multiplier)
+                            + current_state.block(SolutionBlocks::density_upper_slack)*current_state.block(SolutionBlocks::density_upper_slack_multiplier)
+                           )/(2*vect_size);
+            double loqo_complimentarity_deviation = loqo_min/loqo_average;
+            double loqo_multiplier;
+            if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
             {
-                loqo_min = current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+                loqo_multiplier = .1*std::pow((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation),3);
+            }
+            else
+            {
+                loqo_multiplier = .8;
+            }
+            if (loqo_multiplier< 0)
+            {
+                barrier_size = .2 * loqo_average;
+            }
+            else
+            {
+                barrier_size = loqo_multiplier * loqo_average;
+            }
+            if (barrier_size < Input::min_barrier_size)
+            {
+                barrier_size=Input::min_barrier_size;
             }
         }
-        loqo_average = (current_state.block(SolutionBlocks::density_lower_slack)*current_state.block(SolutionBlocks::density_lower_slack_multiplier)
-                        + current_state.block(SolutionBlocks::density_upper_slack)*current_state.block(SolutionBlocks::density_upper_slack_multiplier)
-                        )/(2*vect_size);
-        double loqo_complimentarity_deviation = loqo_min/loqo_average;
-        double loqo_multiplier;
-        if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
+
+        if (Input::barrier_reduction == BarrierOptions::monotone)
         {
-            loqo_multiplier = .1*std::pow((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation),3);
+            if (kkt_system.calculate_rhs_norm(current_state,barrier_size) < barrier_size * 1e-3)
+            {
+                barrier_size = barrier_size * .7;
+            }
+            if (barrier_size < Input::min_barrier_size)
+            {
+                barrier_size=Input::min_barrier_size;
+            }
         }
-        else
+
+        if (Input::barrier_reduction == BarrierOptions::mixed)
         {
-            loqo_multiplier = .8;
+            if (mixed_barrier_monotone_mode)
+            {
+                if (kkt_system.calculate_rhs_norm(current_state,barrier_size) < barrier_size)
+                {
+                    barrier_size = barrier_size * .8;
+                    mixed_barrier_monotone_mode=false;
+                    std::cout << "monotone mode turned off" << std::endl;
+                }
+            }
+            else
+            {
+                double loqo_min = 1000;
+                double loqo_average;
+                unsigned int vect_size = current_state.block(SolutionBlocks::density_lower_slack).size();
+                for(unsigned int k = 0; k < vect_size; k++)
+                {
+                    if (current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k] < loqo_min)
+                    {
+                        loqo_min = current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+                    }
+                    if (current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k] < loqo_min)
+                    {
+                        loqo_min = current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+                    }
+                }
+                loqo_average = (current_state.block(SolutionBlocks::density_lower_slack)*current_state.block(SolutionBlocks::density_lower_slack_multiplier)
+                                + current_state.block(SolutionBlocks::density_upper_slack)*current_state.block(SolutionBlocks::density_upper_slack_multiplier)
+                               )/(2*vect_size);
+                double loqo_complimentarity_deviation = loqo_min/loqo_average;
+                double loqo_multiplier;
+                if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
+                {
+                    loqo_multiplier = .1*std::pow((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation),3);
+                }
+                else
+                {
+                    loqo_multiplier = 1/.8;
+                    mixed_barrier_monotone_mode = true;
+                    std::cout << "monotone mode turned on" << std::endl;
+                }
+                if (loqo_multiplier<.01)
+                {
+                    barrier_size = .01 * loqo_average;
+                }
+                else
+                {
+                    barrier_size = loqo_multiplier * loqo_average;
+                }
+                if (barrier_size < Input::min_barrier_size)
+                {
+                    barrier_size=Input::min_barrier_size;
+                }
+            }
         }
-        if (loqo_multiplier<.01)
-        {
-            barrier_size = .01 * loqo_average;
-        }
-        else
-        {
-            barrier_size = loqo_multiplier * loqo_average;
-        }
-        if (barrier_size < Input::min_barrier_size)
-        {
-            barrier_size=Input::min_barrier_size;
-        }
+
     }
 
     ///Contains watchdog algorithm
@@ -216,6 +290,12 @@ namespace SAND {
         kkt_system.setup_boundary_values();
         kkt_system.setup_filter_matrix();
         kkt_system.setup_block_system();
+
+        if (Input::barrier_reduction==BarrierOptions::mixed)
+        {
+            mixed_barrier_monotone_mode = false;
+        }
+
         const unsigned int max_uphill_steps = 8;
         unsigned int iteration_number = 0;
         //while barrier value above minimal value and total iterations under some value
@@ -312,7 +392,7 @@ namespace SAND {
                 kkt_system.output(current_state,iteration_number);
 
                 converged = check_convergence(current_state);
-                update_barrier_loqo(current_state);
+                update_barrier(current_state);
                 markov_filter.update_barrier_value(barrier_size);
                 std::cout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
 

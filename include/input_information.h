@@ -15,18 +15,20 @@ namespace SAND {
         constexpr double volume_percentage = .5;
 
         //geometry options
-        constexpr unsigned int geometry_base = GeometryOptions::l_shape;
-        constexpr unsigned int dim = 2;
-        constexpr unsigned int refinements =  5;
+        constexpr unsigned int geometry_base = GeometryOptions::mbb;
+        constexpr unsigned int dim = 3;
+        constexpr unsigned int refinements =  3;
 
         //nonlinear algorithm options
         constexpr double initial_barrier_size = 25;
-        constexpr double min_barrier_size = .0000001;
-        constexpr double fraction_to_boundary = .8;
-        constexpr unsigned int max_steps=100;
+        constexpr double min_barrier_size = .00000;
+        constexpr double fraction_to_boundary = .9;
+        constexpr unsigned int max_steps=250;
+        constexpr unsigned int barrier_reduction=BarrierOptions::loqo;
+        constexpr double required_norm = .0001;
 
         //density filter options
-        constexpr double filter_r = .15;
+        constexpr double filter_r = .251;
 
         //other options
         constexpr double density_penalty_exponent = 3;
@@ -37,9 +39,10 @@ namespace SAND {
         constexpr bool output_parts_of_matrix = false;
 
         //Linear solver options
-        constexpr unsigned int solver_choice = SolverOptions::exact_preconditioner_with_gmres;
+        constexpr unsigned int solver_choice = SolverOptions::inexact_K_with_exact_A_gmres;
         constexpr bool use_eisenstat_walker = false;
         constexpr double default_gmres_tolerance = 1e-6;
+
 
     }
 }

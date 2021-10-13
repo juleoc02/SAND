@@ -92,7 +92,11 @@ namespace SAND {
         void
         calculate_initial_rhs_error();
 
+        double
+        calculate_rhs_norm(const BlockVector<double> &state, const double barrier_size) const;
 
+        void
+        output_stl(const BlockVector<double> &state);
 
     private:
 

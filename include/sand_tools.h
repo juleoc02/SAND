@@ -12,6 +12,7 @@ namespace SAND{
     void build_matrix_element_by_element (const auto &X,
                                           FullMatrix<double>   &X_matrix)
     {
+
         Threads::TaskGroup<void> tasks;
         for (unsigned int j=0; j<X_matrix.n(); ++j)
             tasks += Threads::new_task ([&X, &X_matrix, j]()
@@ -31,6 +32,39 @@ namespace SAND{
         tasks.join_all();
     }
 
+//    void print_matrix (std::string &name, FullMatrix<double>   &X_matrix)
+//    {
+////        const unsigned int n = X_matrix.n();
+////        const unsigned int m = X_matrix.m();
+////        std::ofstream Xmat(name);
+////        for (unsigned int i = 0; i < m; i++)
+////        {
+////            Xmat << X_matrix(i, 0);
+////            for (unsigned int j = 1; j < n; j++)
+////            {
+////                Xmat << "," << X_matrix(i, j);
+////            }
+////            Xmat << "\n";
+////        }
+////        Xmat.close();
+//    }
+
+//    void print_matrix (std::string &name, SparseMatrix<double>   &X_matrix)
+//    {
+////        const unsigned int n = X_matrix.n();
+////        const unsigned int m = X_matrix.m();
+////        std::ofstream Xmat(name);
+////        for (unsigned int i = 0; i < m; i++)
+////        {
+////            Xmat << X_matrix.el(i, 0);
+////            for (unsigned int j = 1; j < n; j++)
+////            {
+////                Xmat << "," << X_matrix.el(i, j);
+////            }
+////            Xmat << "\n";
+////        }
+////        Xmat.close();
+//    }
 
 }
 
