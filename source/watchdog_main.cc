@@ -401,7 +401,9 @@ namespace SAND {
                 overall_timer.enter_subsection("Total Time");
                 //end while
             }
+
         }
+        kkt_system.output_stl(current_state);
     }
 
 } // namespace SAND

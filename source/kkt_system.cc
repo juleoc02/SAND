@@ -54,20 +54,19 @@ namespace SAND {
              * another dim FE_Q elements for the lagrange multiplier on the FE constraint, and 2 more FE_DGQ<dim>(0)
              * elements for the upper and lower bound constraints */
             fe_nine(FE_DGQ<dim>(0) ^ 5,
-               (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 2,
-               FE_DGQ<dim>(0) ^ 2,
-               FE_Nothing<dim>()^1),
+                    (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 2,
+                    FE_DGQ<dim>(0) ^ 2,
+                    FE_Nothing<dim>() ^ 1),
             fe_ten(FE_DGQ<dim>(0) ^ 5,
                    (FESystem<dim>(FE_Q<dim>(1) ^ dim)) ^ 2,
                    FE_DGQ<dim>(0) ^ 2,
                    FE_DGQ<dim>(0) ^ 1),
             density_ratio(Input::volume_percentage),
             density_penalty_exponent(Input::density_penalty_exponent),
-            density_filter()
-            {
-                fe_collection.push_back(fe_nine);
-                fe_collection.push_back(fe_ten);
-            }
+            density_filter() {
+        fe_collection.push_back(fe_nine);
+        fe_collection.push_back(fe_ten);
+    }
 
 
 //A  function  used  once  at  the  beginning  of  the  program,  this  creates  a  matrix  H  so  that H* unfiltered density = filtered density
@@ -85,8 +84,7 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::create_triangulation() {
-        if(Input::geometry_base == GeometryOptions::mbb)
-        {
+        if (Input::geometry_base == GeometryOptions::mbb) {
             const double width = 6;
             const unsigned int width_refine = 6;
             const double height = 1;
@@ -97,8 +95,7 @@ namespace SAND {
             const double downforce_x = 3;
             const double downforce_size = .3;
 
-            if(dim ==2)
-            {
+            if (dim == 2) {
                 GridGenerator::subdivided_hyper_rectangle(triangulation,
                                                           {width_refine, height_refine},
                                                           Point<dim>(0, 0),
@@ -107,7 +104,7 @@ namespace SAND {
                 triangulation.refine_global(Input::refinements);
 
                 /*Set BCIDs   */
-                for (const auto &cell : dof_handler.active_cell_iterators()) {
+                for (const auto &cell: dof_handler.active_cell_iterators()) {
                     cell->set_active_fe_index(0);
                     cell->set_material_id(MaterialIds::without_multiplier);
                     for (unsigned int face_number = 0;
@@ -127,10 +124,9 @@ namespace SAND {
                     }
                     for (unsigned int vertex_number = 0;
                          vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                         ++vertex_number)
-                    {
-                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1))<1e-10 )
-                        {
+                         ++vertex_number) {
+                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1)) <
+                            1e-10) {
                             cell->set_active_fe_index(1);
                             cell->set_material_id(MaterialIds::with_multiplier);
                         }
@@ -140,18 +136,15 @@ namespace SAND {
                 dof_handler.distribute_dofs(fe_collection);
 
                 DoFRenumbering::component_wise(dof_handler);
-            }
-
-            else if (dim == 3)
-            {
+            } else if (dim == 3) {
                 GridGenerator::subdivided_hyper_rectangle(triangulation,
                                                           {width_refine, height_refine, depth_refine},
-                                                          Point<dim>(0, 0,0),
+                                                          Point<dim>(0, 0, 0),
                                                           Point<dim>(width, height, depth));
 
                 triangulation.refine_global(Input::refinements);
 
-                for (const auto &cell : dof_handler.active_cell_iterators()) {
+                for (const auto &cell: dof_handler.active_cell_iterators()) {
                     cell->set_active_fe_index(0);
                     cell->set_material_id(MaterialIds::without_multiplier);
                     for (unsigned int face_number = 0;
@@ -171,11 +164,9 @@ namespace SAND {
                     }
                     for (unsigned int vertex_number = 0;
                          vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                         ++vertex_number)
-                    {
+                         ++vertex_number) {
                         if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1))
-                            + std::abs(cell->vertex(vertex_number)(2))<1e-10 )
-                        {
+                            + std::abs(cell->vertex(vertex_number)(2)) < 1e-10) {
                             cell->set_active_fe_index(1);
                             cell->set_material_id(MaterialIds::with_multiplier);
                         }
@@ -186,14 +177,10 @@ namespace SAND {
 
                 DoFRenumbering::component_wise(dof_handler);
 
-            }
-            else
-            {
+            } else {
                 throw;
             }
-        }
-        else if (Input::geometry_base == GeometryOptions::l_shape)
-        {
+        } else if (Input::geometry_base == GeometryOptions::l_shape) {
             const double width = 2;
             const unsigned int width_refine = 2;
             const double height = 2;
@@ -205,18 +192,17 @@ namespace SAND {
             const double downforce_z = .5;
             const double downforce_size = .3;
 
-            if (dim==2)
-            {
+            if (dim == 2) {
                 GridGenerator::subdivided_hyper_L(triangulation,
-                                       {width_refine, height_refine},
-                                       Point<dim>(0, 0),
-                                       Point<dim>(width, height),
-                                       {-1,-1});
+                                                  {width_refine, height_refine},
+                                                  Point<dim>(0, 0),
+                                                  Point<dim>(width, height),
+                                                  {-1, -1});
 
                 triangulation.refine_global(Input::refinements);
 
                 /*Set BCIDs   */
-                for (const auto &cell : dof_handler.active_cell_iterators()) {
+                for (const auto &cell: dof_handler.active_cell_iterators()) {
                     cell->set_active_fe_index(0);
                     cell->set_material_id(MaterialIds::without_multiplier);
                     for (unsigned int face_number = 0;
@@ -236,10 +222,9 @@ namespace SAND {
                     }
                     for (unsigned int vertex_number = 0;
                          vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                         ++vertex_number)
-                    {
-                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1))<1e-10 )
-                        {
+                         ++vertex_number) {
+                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1)) <
+                            1e-10) {
                             cell->set_active_fe_index(1);
                             cell->set_material_id(MaterialIds::with_multiplier);
                         }
@@ -250,19 +235,17 @@ namespace SAND {
 
                 DoFRenumbering::component_wise(dof_handler);
 
-            }
-            else if (dim ==3)
-            {
+            } else if (dim == 3) {
                 GridGenerator::subdivided_hyper_L(triangulation,
-                                       {width_refine, height_refine, depth_refine},
-                                       Point<dim>(0, 0, 0),
-                                       Point<dim>(width, height, depth),
-                                       {-1,-1, depth_refine});
+                                                  {width_refine, height_refine, depth_refine},
+                                                  Point<dim>(0, 0, 0),
+                                                  Point<dim>(width, height, depth),
+                                                  {-1, -1, depth_refine});
 
                 triangulation.refine_global(Input::refinements);
 
                 /*Set BCIDs   */
-                for (const auto &cell : dof_handler.active_cell_iterators()) {
+                for (const auto &cell: dof_handler.active_cell_iterators()) {
                     cell->set_active_fe_index(0);
                     cell->set_material_id(MaterialIds::without_multiplier);
                     for (unsigned int face_number = 0;
@@ -272,19 +255,14 @@ namespace SAND {
                             const auto center = cell->face(face_number)->center();
 
                             if (std::fabs(center(0) - downforce_x) < 1e-12) {
-                                if (std::fabs(center(1) - downforce_y) < downforce_size)
-                                {
+                                if (std::fabs(center(1) - downforce_y) < downforce_size) {
                                     cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
                                     if (std::fabs(center(2) - downforce_z) < downforce_size) {
                                         cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
-                                    }
-                                    else
-                                    {
+                                    } else {
                                         cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
                                     }
-                                }
-                                else
-                                {
+                                } else {
                                     cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
                                 }
                             }
@@ -292,10 +270,9 @@ namespace SAND {
                     }
                     for (unsigned int vertex_number = 0;
                          vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                         ++vertex_number)
-                    {
-                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1))<1e-10 )
-                        {
+                         ++vertex_number) {
+                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1)) <
+                            1e-10) {
                             cell->set_active_fe_index(1);
                             cell->set_material_id(MaterialIds::with_multiplier);
                         }
@@ -305,14 +282,10 @@ namespace SAND {
                 dof_handler.distribute_dofs(fe_collection);
 
                 DoFRenumbering::component_wise(dof_handler);
-            }
-            else
-            {
+            } else {
                 throw;
             }
-        }
-        else
-        {
+        } else {
             throw;
         }
 
@@ -324,11 +297,9 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::setup_boundary_values() {
-        if (Input::geometry_base == GeometryOptions::mbb)
-        {
-            if (dim == 2)
-            {
-                for (const auto &cell : dof_handler.active_cell_iterators()) {
+        if (Input::geometry_base == GeometryOptions::mbb) {
+            if (dim == 2) {
+                for (const auto &cell: dof_handler.active_cell_iterators()) {
 
                     for (unsigned int face_number = 0;
                          face_number < GeometryInfo<dim>::faces_per_cell;
@@ -376,27 +347,21 @@ namespace SAND {
                         }
                     }
                 }
-            }
-            else if (dim == 3)
-            {
-                for (const auto &cell : dof_handler.active_cell_iterators())
-                {
+            } else if (dim == 3) {
+                for (const auto &cell: dof_handler.active_cell_iterators()) {
                     for (unsigned int face_number = 0;
                          face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number)
-                    {
-                        if (cell->face(face_number)->at_boundary())
-                        {
+                         ++face_number) {
+                        if (cell->face(face_number)->at_boundary()) {
                             for (unsigned int vertex_number = 0;
                                  vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                                 ++vertex_number)
-                            {
+                                 ++vertex_number) {
                                 const auto vert = cell->vertex(vertex_number);
                                 /*Find bottom left corner*/
                                 if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
                                         vert(1) - 0) < 1e-12 && ((std::fabs(
-                                        vert(2) - 0) < 1e-12)||(std::fabs(
-                                        vert(2) - 1) < 1e-12)) ) {
+                                        vert(2) - 0) < 1e-12) || (std::fabs(
+                                        vert(2) - 1) < 1e-12))) {
 
 
                                     const unsigned int x_displacement =
@@ -422,8 +387,8 @@ namespace SAND {
                                 /*Find bottom right corner*/
                                 if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
                                         vert(1) - 0) < 1e-12 && ((std::fabs(
-                                        vert(2) - 0) < 1e-12)||(std::fabs(
-                                        vert(2) - 1) < 1e-12)) ) {
+                                        vert(2) - 0) < 1e-12) || (std::fabs(
+                                        vert(2) - 1) < 1e-12))) {
 //                              const unsigned int x_displacement =
 //                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
                                     const unsigned int y_displacement =
@@ -447,17 +412,12 @@ namespace SAND {
                         }
                     }
                 }
-            }
-            else
-            {
+            } else {
                 throw;
             }
-        }
-       else if (Input::geometry_base == GeometryOptions::l_shape)
-        {
-            if (dim == 2)
-            {
-                for (const auto &cell : dof_handler.active_cell_iterators()) {
+        } else if (Input::geometry_base == GeometryOptions::l_shape) {
+            if (dim == 2) {
+                for (const auto &cell: dof_handler.active_cell_iterators()) {
 
                     for (unsigned int face_number = 0;
                          face_number < GeometryInfo<dim>::faces_per_cell;
@@ -487,14 +447,13 @@ namespace SAND {
                                 }
                                 /*Find top right corner*/
                                 if (std::fabs(vert(0) - 1) < 1e-12 && std::fabs(
-                                        vert(1) - 2) < 1e-12)
-                                {
+                                        vert(1) - 2) < 1e-12) {
                                     const unsigned int x_displacement =
-                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
                                     const unsigned int y_displacement =
                                             cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
                                     const unsigned int x_displacement_multiplier =
-                                    cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
                                     const unsigned int y_displacement_multiplier =
                                             cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
                                     boundary_values[x_displacement] = 0;
@@ -506,27 +465,21 @@ namespace SAND {
                         }
                     }
                 }
-            }
-            else if (dim == 3)
-            {
-                for (const auto &cell : dof_handler.active_cell_iterators())
-                {
+            } else if (dim == 3) {
+                for (const auto &cell: dof_handler.active_cell_iterators()) {
                     for (unsigned int face_number = 0;
                          face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number)
-                    {
-                        if (cell->face(face_number)->at_boundary())
-                        {
+                         ++face_number) {
+                        if (cell->face(face_number)->at_boundary()) {
                             for (unsigned int vertex_number = 0;
                                  vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                                 ++vertex_number)
-                            {
+                                 ++vertex_number) {
                                 const auto vert = cell->vertex(vertex_number);
                                 /*Find bottom left corner*/
                                 if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
                                         vert(1) - 2) < 1e-12 && ((std::fabs(
-                                        vert(2) - 0) < 1e-12)||(std::fabs(
-                                        vert(2) - 1) < 1e-12)) ) {
+                                        vert(2) - 0) < 1e-12) || (std::fabs(
+                                        vert(2) - 1) < 1e-12))) {
 
 
                                     const unsigned int x_displacement =
@@ -552,16 +505,16 @@ namespace SAND {
                                 /*Find bottom right corner*/
                                 if (std::fabs(vert(0) - 1) < 1e-12 && std::fabs(
                                         vert(1) - 2) < 1e-12 && ((std::fabs(
-                                        vert(2) - 0) < 1e-12)||(std::fabs(
-                                        vert(2) - 1) < 1e-12)) ) {
-                              const unsigned int x_displacement =
-                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                        vert(2) - 0) < 1e-12) || (std::fabs(
+                                        vert(2) - 1) < 1e-12))) {
+                                    const unsigned int x_displacement =
+                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
                                     const unsigned int y_displacement =
                                             cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
                                     const unsigned int z_displacement =
                                             cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                              const unsigned int x_displacement_multiplier =
-                                    cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                    const unsigned int x_displacement_multiplier =
+                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
                                     const unsigned int y_displacement_multiplier =
                                             cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
                                     const unsigned int z_displacement_multiplier =
@@ -577,13 +530,10 @@ namespace SAND {
                         }
                     }
                 }
-            }
-            else
-            {
+            } else {
                 throw;
             }
         }
-
 
 
     }
@@ -684,7 +634,7 @@ namespace SAND {
         DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints);
 
         //adds the row into the sparsity pattern for the total volume constraint
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
+        for (const auto &cell: dof_handler.active_cell_iterators()) {
             const unsigned int i = cell->active_cell_index();
             dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0);
             dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i);
@@ -694,8 +644,11 @@ namespace SAND {
         sparsity_pattern.copy_from(dsp);
 
         //adds the row into the sparsity pattern for the total volume constraint
-        sparsity_pattern.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier).copy_from(density_filter.filter_sparsity_pattern);
-        sparsity_pattern.block(SolutionBlocks::unfiltered_density_multiplier, SolutionBlocks::unfiltered_density).copy_from(density_filter.filter_sparsity_pattern);
+        sparsity_pattern.block(SolutionBlocks::unfiltered_density,
+                               SolutionBlocks::unfiltered_density_multiplier).copy_from(
+                density_filter.filter_sparsity_pattern);
+        sparsity_pattern.block(SolutionBlocks::unfiltered_density_multiplier,
+                               SolutionBlocks::unfiltered_density).copy_from(density_filter.filter_sparsity_pattern);
 
         std::ofstream out("sparsity.plt");
         sparsity_pattern.print_gnuplot(out);
@@ -740,17 +693,17 @@ namespace SAND {
 
         QGauss<dim - 1> common_face_quadrature(fe_ten.degree + 1);
 
-        FEFaceValues<dim>    fe_nine_face_values(fe_nine,
-                                                   common_face_quadrature,
-                                                   update_JxW_values |
-                                                   update_gradients | update_values);
-        FEFaceValues<dim>    fe_ten_face_values(fe_ten,
-                                                       common_face_quadrature,
-                                                       update_normal_vectors |
-                                                       update_values);
+        FEFaceValues<dim> fe_nine_face_values(fe_nine,
+                                              common_face_quadrature,
+                                              update_JxW_values |
+                                              update_gradients | update_values);
+        FEFaceValues<dim> fe_ten_face_values(fe_ten,
+                                             common_face_quadrature,
+                                             update_normal_vectors |
+                                             update_values);
 
         FullMatrix<double> cell_matrix;
-        Vector<double>     cell_rhs;
+        Vector<double> cell_rhs;
         std::vector<types::global_dof_index> local_dof_indices;
 
         const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
@@ -775,12 +728,15 @@ namespace SAND {
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
-        density_filter.filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density), state.block(SolutionBlocks::unfiltered_density));
-        density_filter.filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),
-                             state.block(SolutionBlocks::unfiltered_density_multiplier));
+        density_filter.filter_matrix.vmult(
+                filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density),
+                state.block(SolutionBlocks::unfiltered_density));
+        density_filter.filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(
+                                                    SolutionBlocks::unfiltered_density_multiplier),
+                                            state.block(SolutionBlocks::unfiltered_density_multiplier));
 
 
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
+        for (const auto &cell: dof_handler.active_cell_iterators()) {
             hp_fe_values.reinit(cell);
             const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
             cell_matrix.reinit(cell->get_fe().n_dofs_per_cell(),
@@ -972,7 +928,7 @@ namespace SAND {
 
                         cell_matrix(i, j) +=
                                 fe_values.JxW(q_point) * (
-                                        - density_penalty_exponent * std::pow(
+                                        -density_penalty_exponent * std::pow(
                                                 old_density_values[q_point],
                                                 density_penalty_exponent - 1)
                                         * density_phi_j
@@ -1013,7 +969,7 @@ namespace SAND {
                                                 displacement_multiplier_phi_i_symmgrad))
 
                                         + -1 * std::pow(old_density_values[q_point],
-                                                   density_penalty_exponent)
+                                                        density_penalty_exponent)
                                           * (displacement_phi_j_div * displacement_multiplier_phi_i_div
                                              * lambda_values[q_point]
                                              + 2 * mu_values[q_point]
@@ -1061,10 +1017,9 @@ namespace SAND {
                     cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
         }
-        system_rhs = calculate_rhs(state,barrier_size);
+        system_rhs = calculate_rhs(state, barrier_size);
 
-        for (const auto &cell : dof_handler.active_cell_iterators())
-        {
+        for (const auto &cell: dof_handler.active_cell_iterators()) {
             const unsigned int i = cell->active_cell_index();
 
             typename SparseMatrix<double>::iterator iter = density_filter.filter_matrix.begin(
@@ -1079,8 +1034,10 @@ namespace SAND {
                                     SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
             }
 
-            system_matrix.block(SolutionBlocks::total_volume_multiplier,SolutionBlocks::density).add(0,i,cell->measure());
-            system_matrix.block(SolutionBlocks::density,SolutionBlocks::total_volume_multiplier).add(i,0,cell->measure());
+            system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i,
+                                                                                                      cell->measure());
+            system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0,
+                                                                                                      cell->measure());
         }
         std::cout << "assembled" << std::endl;
     }
@@ -1104,17 +1061,17 @@ namespace SAND {
 
         QGauss<dim - 1> common_face_quadrature(fe_ten.degree + 1);
 
-        FEFaceValues<dim>    fe_nine_face_values(fe_nine,
-                                                 common_face_quadrature,
-                                                 update_JxW_values |
-                                                 update_gradients | update_values);
-        FEFaceValues<dim>    fe_ten_face_values(fe_ten,
-                                                common_face_quadrature,
-                                                update_normal_vectors |
-                                                update_values);
+        FEFaceValues<dim> fe_nine_face_values(fe_nine,
+                                              common_face_quadrature,
+                                              update_JxW_values |
+                                              update_gradients | update_values);
+        FEFaceValues<dim> fe_ten_face_values(fe_ten,
+                                             common_face_quadrature,
+                                             update_normal_vectors |
+                                             update_values);
 
         FullMatrix<double> cell_matrix;
-        Vector<double>     cell_rhs;
+        Vector<double> cell_rhs;
 
         const FEValuesExtractors::Vector displacements(SolutionComponents::displacement<dim>);
 
@@ -1122,8 +1079,7 @@ namespace SAND {
         traction[1] = -1;
 
         double objective_value = 0;
-        for (const auto &cell : dof_handler.active_cell_iterators())
-        {
+        for (const auto &cell: dof_handler.active_cell_iterators()) {
             hp_fe_values.reinit(cell);
             const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
             const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
@@ -1136,44 +1092,35 @@ namespace SAND {
 
             for (unsigned int face_number = 0;
                  face_number < GeometryInfo<dim>::faces_per_cell;
-                 ++face_number)
-                {
+                 ++face_number) {
                 if (cell->face(face_number)->at_boundary() && cell->face(face_number)->boundary_id()
-                                                              == BoundaryIds::down_force)
-                    {
+                                                              == BoundaryIds::down_force) {
 
 
                     for (unsigned int face_q_point = 0;
-                        face_q_point < n_face_q_points; ++face_q_point)
-                        {
-                        for (unsigned int i = 0; i < dofs_per_cell; ++i)
-                            {
-                            if (cell->material_id() == MaterialIds::without_multiplier)
-                                {
-                                    fe_nine_face_values.reinit(cell,face_number);
-                                    objective_value += traction
+                         face_q_point < n_face_q_points; ++face_q_point) {
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                            if (cell->material_id() == MaterialIds::without_multiplier) {
+                                fe_nine_face_values.reinit(cell, face_number);
+                                objective_value += traction
                                                    * fe_nine_face_values[displacements].value(i,
                                                                                               face_q_point)
                                                    * fe_nine_face_values.JxW(face_q_point);
-                                }
-                            else
-                                {
-                                    fe_ten_face_values.reinit(cell,face_number);
-                                    objective_value += traction
+                            } else {
+                                fe_ten_face_values.reinit(cell, face_number);
+                                objective_value += traction
                                                    * fe_ten_face_values[displacements].value(i,
                                                                                              face_q_point)
                                                    * fe_ten_face_values.JxW(face_q_point);
-                                }
                             }
                         }
                     }
-
                 }
+
             }
-            return objective_value;
         }
-
-
+        return objective_value;
+    }
 
 
     //As the KKT System know which vectors correspond to the slack variables, the sum of the logs of the slacks is computed here for use in the filter.
@@ -1193,9 +1140,8 @@ namespace SAND {
 
     template<int dim>
     double
-    KktSystem<dim>::calculate_rhs_norm(const BlockVector<double> &state, const double barrier_size) const
-    {
-        return calculate_rhs(state,barrier_size).l2_norm();
+    KktSystem<dim>::calculate_rhs_norm(const BlockVector<double> &state, const double barrier_size) const {
+        return calculate_rhs(state, barrier_size).l2_norm();
     }
 
 
@@ -1219,23 +1165,25 @@ namespace SAND {
 //        return feasibility;
 
         double norm = 0;
-        norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(),2);
-        for (unsigned int k=0; k<state.block(SolutionBlocks::density_upper_slack).size(); k++)
-        {
-            norm += state.block(SolutionBlocks::density_upper_slack)[k] * state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
-                    * state.block(SolutionBlocks::density_upper_slack)[k] * state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+        norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(), 2);
+        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++) {
+            norm += state.block(SolutionBlocks::density_upper_slack)[k] *
+                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
+                    * state.block(SolutionBlocks::density_upper_slack)[k] *
+                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
         }
-        for (unsigned int k=0; k<state.block(SolutionBlocks::density_lower_slack).size(); k++)
-        {
-            norm += state.block(SolutionBlocks::density_lower_slack)[k] * state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
-                    * state.block(SolutionBlocks::density_lower_slack)[k] * state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++) {
+            norm += state.block(SolutionBlocks::density_lower_slack)[k] *
+                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
+                    * state.block(SolutionBlocks::density_lower_slack)[k] *
+                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
         }
         return norm;
     }
@@ -1246,26 +1194,28 @@ namespace SAND {
         BlockVector<double> test_rhs = calculate_rhs(state, Input::min_barrier_size);
         double norm = 0;
 
-        norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(),2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(),2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(), 2);
 
-        for (unsigned int k=0; k<state.block(SolutionBlocks::density_upper_slack).size(); k++)
-        {
-            norm += state.block(SolutionBlocks::density_upper_slack)[k] * state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
-                    * state.block(SolutionBlocks::density_upper_slack)[k] * state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++) {
+            norm += state.block(SolutionBlocks::density_upper_slack)[k] *
+                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
+                    * state.block(SolutionBlocks::density_upper_slack)[k] *
+                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
         }
-        for (unsigned int k=0; k<state.block(SolutionBlocks::density_lower_slack).size(); k++)
-        {
-            norm += state.block(SolutionBlocks::density_lower_slack)[k] * state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
-                    * state.block(SolutionBlocks::density_lower_slack)[k] * state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++) {
+            norm += state.block(SolutionBlocks::density_lower_slack)[k] *
+                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
+                    * state.block(SolutionBlocks::density_lower_slack)[k] *
+                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
         }
-        norm = std::pow(norm,.5);
+        norm = std::pow(norm, .5);
 
         std::cout << "l2 norm: " << system_rhs.l2_norm() << std::endl;
         std::cout << "KKT norm: " << norm << std::endl;
@@ -1294,17 +1244,17 @@ namespace SAND {
 
         QGauss<dim - 1> common_face_quadrature(fe_ten.degree + 1);
 
-        FEFaceValues<dim>    fe_nine_face_values(fe_nine,
-                                                 common_face_quadrature,
-                                                 update_JxW_values |
-                                                 update_gradients | update_values);
-        FEFaceValues<dim>    fe_ten_face_values(fe_ten,
-                                                common_face_quadrature,
-                                                update_normal_vectors |
-                                                update_values);
+        FEFaceValues<dim> fe_nine_face_values(fe_nine,
+                                              common_face_quadrature,
+                                              update_JxW_values |
+                                              update_gradients | update_values);
+        FEFaceValues<dim> fe_ten_face_values(fe_ten,
+                                             common_face_quadrature,
+                                             update_normal_vectors |
+                                             update_values);
 
         FullMatrix<double> cell_matrix;
-        Vector<double>     cell_rhs;
+        Vector<double> cell_rhs;
         std::vector<types::global_dof_index> local_dof_indices;
 
         const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
@@ -1332,12 +1282,15 @@ namespace SAND {
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
-        density_filter.filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density), state.block(SolutionBlocks::unfiltered_density));
-        density_filter.filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),
-                             state.block(SolutionBlocks::unfiltered_density_multiplier));
+        density_filter.filter_matrix.vmult(
+                filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density),
+                state.block(SolutionBlocks::unfiltered_density));
+        density_filter.filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(
+                                                    SolutionBlocks::unfiltered_density_multiplier),
+                                            state.block(SolutionBlocks::unfiltered_density_multiplier));
         const double old_volume_multiplier = state.block(SolutionBlocks::total_volume_multiplier)[0];
 
-        for (const auto &cell : dof_handler.active_cell_iterators()) {
+        for (const auto &cell: dof_handler.active_cell_iterators()) {
             hp_fe_values.reinit(cell);
             const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
             cell_matrix.reinit(cell->get_fe().n_dofs_per_cell(),
@@ -1411,7 +1364,6 @@ namespace SAND {
                     filter_adjoint_unfiltered_density_multiplier_values);
 
 
-
             Tensor<1, dim> traction;
             traction[1] = -1;
 
@@ -1464,7 +1416,7 @@ namespace SAND {
                                                                    * old_displacement_multiplier_symmgrads[q_point]))
                                     - density_phi_i * old_unfiltered_density_multiplier_values[q_point]
                                     + old_volume_multiplier * density_phi_i
-                                    );
+                            );
 
                     //rhs eqn 1 - boundary terms counted later
                     cell_rhs(i) +=
@@ -1507,7 +1459,7 @@ namespace SAND {
 
                     //rhs eqn 5
                     cell_rhs(i) +=
-                            -1* fe_values.JxW(q_point) * (
+                            -1 * fe_values.JxW(q_point) * (
                                     -1 * upper_slack_multiplier_phi_i
                                     * (1 - old_unfiltered_density_values[q_point]
                                        - old_upper_slack_values[q_point]));
@@ -1538,21 +1490,16 @@ namespace SAND {
             }
 
 
-
             for (unsigned int face_number = 0;
                  face_number < GeometryInfo<dim>::faces_per_cell;
                  ++face_number) {
                 if (cell->face(face_number)->at_boundary() && cell->face(
-                        face_number)->boundary_id() == BoundaryIds::down_force)
-                {
+                        face_number)->boundary_id() == BoundaryIds::down_force) {
                     for (unsigned int face_q_point = 0;
-                         face_q_point < n_face_q_points; ++face_q_point)
-                    {
-                        for (unsigned int i = 0; i < dofs_per_cell; ++i)
-                        {
-                            if (cell->material_id() == MaterialIds::without_multiplier)
-                            {
-                                fe_nine_face_values.reinit(cell,face_number);
+                         face_q_point < n_face_q_points; ++face_q_point) {
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                            if (cell->material_id() == MaterialIds::without_multiplier) {
+                                fe_nine_face_values.reinit(cell, face_number);
                                 cell_rhs(i) += -1
                                                * traction
                                                * fe_nine_face_values[displacements].value(i,
@@ -1563,10 +1510,8 @@ namespace SAND {
                                                * fe_nine_face_values[displacement_multipliers].value(
                                         i, face_q_point)
                                                * fe_nine_face_values.JxW(face_q_point);
-                            }
-                            else
-                            {
-                                fe_ten_face_values.reinit(cell,face_number);
+                            } else {
+                                fe_ten_face_values.reinit(cell, face_number);
                                 cell_rhs(i) += -1
                                                * traction
                                                * fe_ten_face_values[displacements].value(i,
@@ -1588,14 +1533,13 @@ namespace SAND {
                                                      cell_matrix, cell_rhs, true);
 
             constraints.distribute_local_to_global(
-                     cell_rhs, local_dof_indices, test_rhs);
+                    cell_rhs, local_dof_indices, test_rhs);
 
         }
 
         double total_volume = 0;
         double goal_volume = 0;
-        for(const auto &cell : dof_handler.active_cell_iterators())
-        {
+        for (const auto &cell: dof_handler.active_cell_iterators()) {
             total_volume += cell->measure() * state.block(SolutionBlocks::density)[cell->active_cell_index()];
             goal_volume += cell->measure() * Input::volume_percentage;
         }
@@ -1613,17 +1557,14 @@ namespace SAND {
     KktSystem<dim>::solve(const BlockVector<double> &state, double barrier_size) {
         constraints.condense(system_matrix);
         double gmres_tolerance;
-        if (Input::use_eisenstat_walker)
-        {
-            gmres_tolerance= std::max(
+        if (Input::use_eisenstat_walker) {
+            gmres_tolerance = std::max(
                     std::min(
-                            .1 * system_rhs.l2_norm()/(initial_rhs_error),
+                            .1 * system_rhs.l2_norm() / (initial_rhs_error),
                             .001
                     ),
                     Input::default_gmres_tolerance);
-        }
-        else
-        {
+        } else {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
@@ -1638,21 +1579,21 @@ namespace SAND {
             }
             case SolverOptions::exact_preconditioner_with_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES <BlockVector<double>> A_fgmres(solver_control);
+                SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
                 A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_exact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES <BlockVector<double>> B_fgmres(solver_control);
+                SolverFGMRES<BlockVector<double>> B_fgmres(solver_control);
                 B_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_inexact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES <BlockVector<double>> C_fgmres(solver_control);
+                SolverFGMRES<BlockVector<double>> C_fgmres(solver_control);
                 C_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
@@ -1662,8 +1603,7 @@ namespace SAND {
         }
         constraints.distribute(linear_solution);
 
-        if(Input::output_parts_of_matrix)
-        {
+        if (Input::output_parts_of_matrix) {
             preconditioner.print_stuff(system_matrix);
         }
 
@@ -1674,8 +1614,7 @@ namespace SAND {
 //            print_matrix("preconditioned_full_block_matrix.csv",preconditioned_full_mat);
         }
 
-        if (Input::output_full_matrix)
-        {
+        if (Input::output_full_matrix) {
 //            const unsigned int vec_size = system_matrix.n();
 //            FullMatrix<double> full_mat(vec_size, vec_size);
 //            build_matrix_element_by_element(system_matrix,full_mat);
@@ -1695,8 +1634,8 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::calculate_initial_rhs_error() {
-                initial_rhs_error = system_rhs.l2_norm();
-            }
+        initial_rhs_error = system_rhs.l2_norm();
+    }
 
     template<int dim>
     BlockVector<double>
@@ -1776,6 +1715,347 @@ namespace SAND {
         data_out.write_vtk(output);
 
     }
+
+    template<>
+    void
+    KktSystem<2>::output_stl(const BlockVector<double> &state) {
+        double height = .25;
+        const int dim = 2;
+        std::ofstream stlfile;
+        stlfile.open("bridge.stl");
+        stlfile << "solid bridge\n" << std::scientific;
+
+        for (const auto &cell: dof_handler.active_cell_iterators()) {
+            if (state.block(
+                    SolutionBlocks::density)[cell->active_cell_index()] > 0.5) {
+                const Tensor<1, dim> edge_directions[2] = {cell->vertex(1) -
+                                                           cell->vertex(0),
+                                                           cell->vertex(2) -
+                                                           cell->vertex(0)};
+                const Tensor<2, dim> edge_tensor(
+                        {{edge_directions[0][0], edge_directions[0][1]},
+                         {edge_directions[1][0], edge_directions[1][1]}});
+                const bool is_right_handed_cell = (determinant(edge_tensor) > 0);
+                if (is_right_handed_cell) {
+                    /* Write one side at z = 0. */
+                    stlfile << "   facet normal " << 0.000000e+00 << " "
+                            << 0.000000e+00 << " " << -1.000000e+00 << "\n";
+                    stlfile << "      outer loop\n";
+                    stlfile << "         vertex " << cell->vertex(0)[0] << " "
+                            << cell->vertex(0)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "         vertex " << cell->vertex(2)[0] << " "
+                            << cell->vertex(2)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "         vertex " << cell->vertex(1)[0] << " "
+                            << cell->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "      endloop\n";
+                    stlfile << "   endfacet\n";
+                    stlfile << "   facet normal " << 0.000000e+00 << " "
+                            << 0.000000e+00 << " " << -1.000000e+00 << "\n";
+                    stlfile << "      outer loop\n";
+                    stlfile << "         vertex " << cell->vertex(1)[0] << " "
+                            << cell->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "         vertex " << cell->vertex(2)[0] << " "
+                            << cell->vertex(2)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "         vertex " << cell->vertex(3)[0] << " "
+                            << cell->vertex(3)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "      endloop\n";
+                    stlfile << "   endfacet\n";
+                    /* Write one side at z = height. */
+                    stlfile << "   facet normal " << 0.000000e+00 << " "
+                            << 0.000000e+00 << " " << 1.000000e+00 << "\n";
+                    stlfile << "      outer loop\n";
+                    stlfile << "         vertex " << cell->vertex(0)[0] << " "
+                            << cell->vertex(0)[1] << " " << height << "\n";
+                    stlfile << "         vertex " << cell->vertex(1)[0] << " "
+                            << cell->vertex(1)[1] << " " << height << "\n";
+                    stlfile << "         vertex " << cell->vertex(2)[0] << " "
+                            << cell->vertex(2)[1] << " " << height << "\n";
+                    stlfile << "      endloop\n";
+                    stlfile << "   endfacet\n";
+                    stlfile << "   facet normal " << 0.000000e+00 << " "
+                            << 0.000000e+00 << " " << 1.000000e+00 << "\n";
+                    stlfile << "      outer loop\n";
+                    stlfile << "         vertex " << cell->vertex(1)[0] << " "
+                            << cell->vertex(1)[1] << " " << height << "\n";
+                    stlfile << "         vertex " << cell->vertex(3)[0] << " "
+                            << cell->vertex(3)[1] << " " << height << "\n";
+                    stlfile << "         vertex " << cell->vertex(2)[0] << " "
+                            << cell->vertex(2)[1] << " " << height << "\n";
+                    stlfile << "      endloop\n";
+                    stlfile << "   endfacet\n";
+                } else /* The cell has a left-handed set up */
+                {
+                    /* Write one side at z = 0. */
+                    stlfile << "   facet normal " << 0.000000e+00 << " "
+                            << 0.000000e+00 << " " << -1.000000e+00 << "\n";
+                    stlfile << "      outer loop\n";
+                    stlfile << "         vertex " << cell->vertex(0)[0] << " "
+                            << cell->vertex(0)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "         vertex " << cell->vertex(1)[0] << " "
+                            << cell->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "         vertex " << cell->vertex(2)[0] << " "
+                            << cell->vertex(2)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "      endloop\n";
+                    stlfile << "   endfacet\n";
+                    stlfile << "   facet normal " << 0.000000e+00 << " "
+                            << 0.000000e+00 << " " << -1.000000e+00 << "\n";
+                    stlfile << "      outer loop\n";
+                    stlfile << "         vertex " << cell->vertex(1)[0] << " "
+                            << cell->vertex(1)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "         vertex " << cell->vertex(3)[0] << " "
+                            << cell->vertex(3)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "         vertex " << cell->vertex(2)[0] << " "
+                            << cell->vertex(2)[1] << " " << 0.000000e+00 << "\n";
+                    stlfile << "      endloop\n";
+                    stlfile << "   endfacet\n";
+                    /* Write one side at z = height. */
+                    stlfile << "   facet normal " << 0.000000e+00 << " "
+                            << 0.000000e+00 << " " << 1.000000e+00 << "\n";
+                    stlfile << "      outer loop\n";
+                    stlfile << "         vertex " << cell->vertex(0)[0] << " "
+                            << cell->vertex(0)[1] << " " << height << "\n";
+                    stlfile << "         vertex " << cell->vertex(2)[0] << " "
+                            << cell->vertex(2)[1] << " " << height << "\n";
+                    stlfile << "         vertex " << cell->vertex(1)[0] << " "
+                            << cell->vertex(1)[1] << " " << height << "\n";
+                    stlfile << "      endloop\n";
+                    stlfile << "   endfacet\n";
+                    stlfile << "   facet normal " << 0.000000e+00 << " "
+                            << 0.000000e+00 << " " << 1.000000e+00 << "\n";
+                    stlfile << "      outer loop\n";
+                    stlfile << "         vertex " << cell->vertex(1)[0] << " "
+                            << cell->vertex(1)[1] << " " << height << "\n";
+                    stlfile << "         vertex " << cell->vertex(2)[0] << " "
+                            << cell->vertex(2)[1] << " " << height << "\n";
+                    stlfile << "         vertex " << cell->vertex(3)[0] << " "
+                            << cell->vertex(3)[1] << " " << height << "\n";
+                    stlfile << "      endloop\n";
+                    stlfile << "   endfacet\n";
+                }
+                for (unsigned int face_number = 0;
+                     face_number < GeometryInfo<dim>::faces_per_cell;
+                     ++face_number) {
+                    const typename DoFHandler<dim>::face_iterator face =
+                            cell->face(face_number);
+                    if ((face->at_boundary()) ||
+                        (!face->at_boundary() &&
+                         (state.block(
+                                 SolutionBlocks::density)[cell->neighbor(face_number)->active_cell_index()] <
+                          0.5))) {
+                        const Tensor<1, dim> normal_vector =
+                                (face->center() - cell->center());
+                        const double normal_norm = normal_vector.norm();
+                        if ((face->vertex(0)[0] - face->vertex(0)[0]) *
+                            (face->vertex(1)[1] - face->vertex(0)[1]) *
+                            0.000000e+00 +
+                            (face->vertex(0)[1] - face->vertex(0)[1]) * (0 - 0) *
+                            normal_vector[0] +
+                            (height - 0) *
+                            (face->vertex(1)[0] - face->vertex(0)[0]) *
+                            normal_vector[1] -
+                            (face->vertex(0)[0] - face->vertex(0)[0]) * (0 - 0) *
+                            normal_vector[1] -
+                            (face->vertex(0)[1] - face->vertex(0)[1]) *
+                            (face->vertex(1)[0] - face->vertex(0)[0]) *
+                            normal_vector[0] -
+                            (height - 0) *
+                            (face->vertex(1)[1] - face->vertex(0)[1]) * 0 >
+                            0) {
+                            stlfile << "   facet normal "
+                                    << normal_vector[0] / normal_norm << " "
+                                    << normal_vector[1] / normal_norm << " "
+                                    << 0.000000e+00 << "\n";
+                            stlfile << "      outer loop\n";
+                            stlfile << "         vertex " << face->vertex(0)[0]
+                                    << " " << face->vertex(0)[1] << " "
+                                    << 0.000000e+00 << "\n";
+                            stlfile << "         vertex " << face->vertex(0)[0]
+                                    << " " << face->vertex(0)[1] << " " << height
+                                    << "\n";
+                            stlfile << "         vertex " << face->vertex(1)[0]
+                                    << " " << face->vertex(1)[1] << " "
+                                    << 0.000000e+00 << "\n";
+                            stlfile << "      endloop\n";
+                            stlfile << "   endfacet\n";
+                            stlfile << "   facet normal "
+                                    << normal_vector[0] / normal_norm << " "
+                                    << normal_vector[1] / normal_norm << " "
+                                    << 0.000000e+00 << "\n";
+                            stlfile << "      outer loop\n";
+                            stlfile << "         vertex " << face->vertex(0)[0]
+                                    << " " << face->vertex(0)[1] << " " << height
+                                    << "\n";
+                            stlfile << "         vertex " << face->vertex(1)[0]
+                                    << " " << face->vertex(1)[1] << " " << height
+                                    << "\n";
+                            stlfile << "         vertex " << face->vertex(1)[0]
+                                    << " " << face->vertex(1)[1] << " "
+                                    << 0.000000e+00 << "\n";
+                            stlfile << "      endloop\n";
+                            stlfile << "   endfacet\n";
+                        } else {
+                            stlfile << "   facet normal "
+                                    << normal_vector[0] / normal_norm << " "
+                                    << normal_vector[1] / normal_norm << " "
+                                    << 0.000000e+00 << "\n";
+                            stlfile << "      outer loop\n";
+                            stlfile << "         vertex " << face->vertex(0)[0]
+                                    << " " << face->vertex(0)[1] << " "
+                                    << 0.000000e+00 << "\n";
+                            stlfile << "         vertex " << face->vertex(1)[0]
+                                    << " " << face->vertex(1)[1] << " "
+                                    << 0.000000e+00 << "\n";
+                            stlfile << "         vertex " << face->vertex(0)[0]
+                                    << " " << face->vertex(0)[1] << " " << height
+                                    << "\n";
+                            stlfile << "      endloop\n";
+                            stlfile << "   endfacet\n";
+                            stlfile << "   facet normal "
+                                    << normal_vector[0] / normal_norm << " "
+                                    << normal_vector[1] / normal_norm << " "
+                                    << 0.000000e+00 << "\n";
+                            stlfile << "      outer loop\n";
+                            stlfile << "         vertex " << face->vertex(0)[0]
+                                    << " " << face->vertex(0)[1] << " " << height
+                                    << "\n";
+                            stlfile << "         vertex " << face->vertex(1)[0]
+                                    << " " << face->vertex(1)[1] << " "
+                                    << 0.000000e+00 << "\n";
+                            stlfile << "         vertex " << face->vertex(1)[0]
+                                    << " " << face->vertex(1)[1] << " " << height
+                                    << "\n";
+                            stlfile << "      endloop\n";
+                            stlfile << "   endfacet\n";
+                        }
+                    }
+                }
+            }
+        }
+        stlfile << "endsolid bridge";
+    }
+
+
+    template<>
+    void
+    KktSystem<3>::output_stl(const BlockVector<double> &state)
+    {
+        std::ofstream stlfile;
+        stlfile.open("bridge.stl");
+        stlfile << "solid bridge\n" << std::scientific;
+        const int dim = 3;
+        for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+            if (state.block(
+                    SolutionBlocks::unfiltered_density)[cell->active_cell_index()] > 0.5)
+            {
+                for (const auto n : cell->face_indices())
+                {
+                    bool create_boundary = false;
+                    if (cell->at_boundary(n))
+                    {
+                        create_boundary = true;
+                    }
+                    else if (state.block(
+                            SolutionBlocks::unfiltered_density)[cell->neighbor(n)->active_cell_index()] <= 0.5)
+                    {
+                        create_boundary = true;
+                    }
+
+                    if (create_boundary)
+                    {
+                        const auto face = cell->face(n);
+                        const Tensor<1,dim> normal_vector = face->center() -
+                                                          cell->center();
+                        double normal_norm = normal_vector.norm();
+                        const Tensor<1,dim> edge_vectors_1 = face->vertex(1) - face->vertex(0);
+                        const Tensor<1,dim> edge_vectors_2 = face->vertex(2) - face->vertex(0);
+
+                        const Tensor<2, dim> edge_tensor (
+                                 {{edge_vectors_1[0], edge_vectors_1[1],edge_vectors_1[2]},
+                                 {edge_vectors_2[0], edge_vectors_2[1],edge_vectors_2[2]},
+                                 {normal_vector[0], normal_vector[1], normal_vector[2]}});
+                        const bool is_right_handed_cell = (determinant(edge_tensor) > 0);
+
+                        if (is_right_handed_cell)
+                        {
+                            stlfile << "   facet normal "
+                                    << normal_vector[0] / normal_norm << " "
+                                    << normal_vector[1] / normal_norm << " "
+                                    << normal_vector[2] / normal_norm << "\n";
+                            stlfile << "      outer loop\n";
+                            stlfile << "         vertex " << face->vertex(0)[0]
+                                    << " " << face->vertex(0)[1] << " "
+                                    << face->vertex(0)[2] << "\n";
+                            stlfile << "         vertex " << face->vertex(1)[0]
+                                    << " " << face->vertex(1)[1] << " "
+                                    << face->vertex(1)[2] << "\n";
+                            stlfile << "         vertex " << face->vertex(2)[0]
+                                    << " " << face->vertex(2)[1] << " "
+                                    << face->vertex(2)[2] << "\n";
+                            stlfile << "      endloop\n";
+                            stlfile << "   endfacet\n";
+                            stlfile << "   facet normal "
+                                    << normal_vector[0] / normal_norm << " "
+                                    << normal_vector[1] / normal_norm << " "
+                                    << normal_vector[2] / normal_norm << "\n";
+                            stlfile << "      outer loop\n";
+                            stlfile << "         vertex " << face->vertex(1)[0]
+                                    << " " << face->vertex(1)[1] << " " << face->vertex(1)[2]
+                                    << "\n";
+                            stlfile << "         vertex " << face->vertex(3)[0]
+                                    << " " << face->vertex(3)[1] << " " << face->vertex(3)[2]
+                                    << "\n";
+                            stlfile << "         vertex " << face->vertex(2)[0]
+                                    << " " << face->vertex(2)[1] << " "
+                                    << face->vertex(2)[2] << "\n";
+                            stlfile << "      endloop\n";
+                            stlfile << "   endfacet\n";
+                        }
+                        else
+                        {
+                            stlfile << "   facet normal "
+                                    << normal_vector[0] / normal_norm << " "
+                                    << normal_vector[1] / normal_norm << " "
+                                    << normal_vector[2] / normal_norm << "\n";
+                            stlfile << "      outer loop\n";
+                            stlfile << "         vertex " << face->vertex(0)[0]
+                                    << " " << face->vertex(0)[1] << " "
+                                    << face->vertex(0)[2] << "\n";
+                            stlfile << "         vertex " << face->vertex(2)[0]
+                                    << " " << face->vertex(2)[1] << " "
+                                    << face->vertex(2)[2] << "\n";
+                            stlfile << "         vertex " << face->vertex(1)[0]
+                                    << " " << face->vertex(1)[1] << " "
+                                    << face->vertex(1)[2] << "\n";
+                            stlfile << "      endloop\n";
+                            stlfile << "   endfacet\n";
+                            stlfile << "   facet normal "
+                                    << normal_vector[0] / normal_norm << " "
+                                    << normal_vector[1] / normal_norm << " "
+                                    << normal_vector[2] / normal_norm << "\n";
+                            stlfile << "      outer loop\n";
+                            stlfile << "         vertex " << face->vertex(1)[0]
+                                    << " " << face->vertex(1)[1] << " " << face->vertex(1)[2]
+                                    << "\n";
+                            stlfile << "         vertex " << face->vertex(2)[0]
+                                    << " " << face->vertex(2)[1] << " " << face->vertex(2)[2]
+                                    << "\n";
+                            stlfile << "         vertex " << face->vertex(3)[0]
+                                    << " " << face->vertex(3)[1] << " "
+                                    << face->vertex(3)[2] << "\n";
+                            stlfile << "      endloop\n";
+                            stlfile << "   endfacet\n";
+                        }
+
+                    }
+
+                }
+            }
+        }
+
+    }
+
+
 }
 
 template class SAND::KktSystem<2>;

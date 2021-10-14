@@ -23,7 +23,7 @@ namespace SAND {
         constexpr double initial_barrier_size = 25;
         constexpr double min_barrier_size = .00000;
         constexpr double fraction_to_boundary = .9;
-        constexpr unsigned int max_steps=250;
+        constexpr unsigned int max_steps=25;
         constexpr unsigned int barrier_reduction=BarrierOptions::loqo;
         constexpr double required_norm = .0001;
 
