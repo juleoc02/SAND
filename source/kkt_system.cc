@@ -2052,10 +2052,7 @@ namespace SAND {
                 }
             }
         }
-
     }
-
-
 }
 
 template class SAND::KktSystem<2>;
