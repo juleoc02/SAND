@@ -32,19 +32,19 @@ namespace SAND {
     private:
 
         std::pair<double,double>
-        calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const;
+        calculate_max_step_size(const LA::MPI::BlockVector &state, const LA::MPI::BlockVector &step) const;
 
-        const BlockVector<double>
-        find_max_step(const BlockVector<double> &state);
+        const LA::MPI::BlockVector
+        find_max_step(const LA::MPI::BlockVector &state);
 
-        BlockVector<double>
-        take_scaled_step(const BlockVector<double> &state,const BlockVector<double> &max_step) const;
+        LA::MPI::BlockVector
+        take_scaled_step(const LA::MPI::BlockVector &state,const LA::MPI::BlockVector &max_step) const;
 
         bool
-        check_convergence(const BlockVector<double> &state) const;
+        check_convergence(const LA::MPI::BlockVector &state) const;
 
         void
-        update_barrier(BlockVector<double> &current_state);
+        update_barrier(LA::MPI::BlockVector &current_state);
 
         KktSystem<dim> kkt_system;
         MarkovFilter markov_filter;
@@ -63,7 +63,7 @@ namespace SAND {
 
     template<int dim>
     std::pair<double,double>
-    SANDTopOpt<dim>::calculate_max_step_size(const BlockVector<double> &state, const BlockVector<double> &step) const {
+    SANDTopOpt<dim>::calculate_max_step_size(const LA::MPI::BlockVector &state, const LA::MPI::BlockVector &step) const {
 
         double step_size_s_low = 0;
         double step_size_z_low = 0;
@@ -77,10 +77,10 @@ namespace SAND {
 
             step_size_s = (step_size_s_low + step_size_s_high) / 2;
             step_size_z = (step_size_z_low + step_size_z_high) / 2;
-            const BlockVector<double> state_test_s =
+            const LA::MPI::BlockVector state_test_s =
                     (Input::fraction_to_boundary * state) + (step_size_s * step);
 
-            const BlockVector<double> state_test_z =
+            const LA::MPI::BlockVector state_test_z =
                     (Input::fraction_to_boundary * state) + (step_size_z * step);
 
             const bool accept_s = (state_test_s.block(SolutionBlocks::density_lower_slack).is_non_negative())
@@ -105,16 +105,16 @@ namespace SAND {
 ///Creates a rhs vector that we can use to look at the magnitude of the KKT conditions.  This is then used for testing the convergence before shrinking barrier size, as well as in the calculation of the l1 merit.
 
     template<int dim>
-    const BlockVector<double>
-    SANDTopOpt<dim>::find_max_step(const BlockVector<double> &state)
+    const LA::MPI::BlockVector
+    SANDTopOpt<dim>::find_max_step(const LA::MPI::BlockVector &state)
     {
         kkt_system.assemble_block_system(state, barrier_size);
-        const BlockVector<double> step = kkt_system.solve(state,barrier_size);
+        const LA::MPI::BlockVector step = kkt_system.solve(state,barrier_size);
 
         const auto max_step_sizes= calculate_max_step_size(state,step);
         const double step_size_s = max_step_sizes.first;
         const double step_size_z = max_step_sizes.second;
-        BlockVector<double> max_step(10);
+        LA::MPI::BlockVector max_step(10);
 
         max_step.block(SolutionBlocks::density) = step_size_s * step.block(SolutionBlocks::density);
         max_step.block(SolutionBlocks::displacement) = step_size_s * step.block(SolutionBlocks::displacement);
@@ -133,8 +133,8 @@ namespace SAND {
     ///This is my back-stepping algorithm for a line search - keeps shrinking step size until it finds a step where the merit is decreased.
 
     template<int dim>
-    BlockVector<double>
-    SANDTopOpt<dim>::take_scaled_step(const BlockVector<double> &state,const BlockVector<double> &max_step) const
+    LA::MPI::BlockVector
+    SANDTopOpt<dim>::take_scaled_step(const LA::MPI::BlockVector &state,const LA::MPI::BlockVector &max_step) const
     {
         double step_size = 1;
             for(unsigned int k = 0; k<10; k++)
@@ -157,7 +157,7 @@ namespace SAND {
     ///Checks to see if the KKT conditions are sufficiently met to lower barrier size.
     template<int dim>
     bool
-    SANDTopOpt<dim>::check_convergence(const BlockVector<double> &state) const
+    SANDTopOpt<dim>::check_convergence(const LA::MPI::BlockVector &state) const
     {
               if (kkt_system.calculate_convergence(state) < Input::required_norm)
               {
@@ -171,7 +171,7 @@ namespace SAND {
 
     template<int dim>
     void
-    SANDTopOpt<dim>::update_barrier(BlockVector<double> &current_state)
+    SANDTopOpt<dim>::update_barrier(LA::MPI::BlockVector &current_state)
     {
         if (Input::barrier_reduction == BarrierOptions::loqo)
         {
@@ -306,8 +306,8 @@ namespace SAND {
         const unsigned int max_uphill_steps = 8;
         unsigned int iteration_number = 0;
         //while barrier value above minimal value and total iterations under some value
-        BlockVector<double> current_state = kkt_system.get_initial_state();
-        BlockVector<double> current_step;
+        LA::MPI::BlockVector current_state = kkt_system.get_initial_state();
+        LA::MPI::BlockVector current_step;
         markov_filter.setup(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
 
         while((barrier_size > Input::min_barrier_size || !check_convergence(current_state)) && iteration_number < Input::max_steps)
@@ -319,8 +319,8 @@ namespace SAND {
                 bool found_step = false;
                 //save current state as watchdog state
 
-                const BlockVector<double> watchdog_state = current_state;
-                BlockVector<double> watchdog_step;
+                const LA::MPI::BlockVector watchdog_state = current_state;
+                LA::MPI::BlockVector watchdog_step;
                 //for 1-8 steps - this is the number of steps away we will let it go uphill before demanding downhill
                 for(unsigned int k = 0; k<max_uphill_steps; k++)
                 {
@@ -363,7 +363,7 @@ namespace SAND {
                     current_step = find_max_step(current_state);
                     //find step length so that merit of stretch state - sized step from current length - is less than merit of (current state + descent requirement * linear derivative of merit of current state in direction of current step)
                     //update stretch state with found step length
-                    const BlockVector<double> stretch_state = take_scaled_step(current_state, current_step);
+                    const LA::MPI::BlockVector stretch_state = take_scaled_step(current_state, current_step);
                     //if current merit is less than watchdog merit, or if stretch merit is less than earlier goal merit
                     if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
                     {
@@ -386,7 +386,7 @@ namespace SAND {
                         else
                         {
                             //calculate direction from stretch state
-                            const BlockVector<double> stretch_step = find_max_step(stretch_state);
+                            const LA::MPI::BlockVector stretch_step = find_max_step(stretch_state);
                             //find step length from stretch state that meets descent requirement
                             current_state = take_scaled_step(stretch_state, stretch_step);
                             //update iteration count

@@ -42,7 +42,7 @@ namespace SAND {
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::initialize(BlockSparseMatrix<double> &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const double barrier_size, const BlockVector<double> &state)
+    void TopOptSchurPreconditioner<dim>::initialize(BlockSparseMatrix<double> &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const double barrier_size, const LA::MPI::BlockVector &state)
     {
         TimerOutput::Scope t(timer, "initialize");
         {
@@ -213,8 +213,8 @@ namespace SAND {
 
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::vmult(BlockVector<double> &dst, const BlockVector<double> &src) const {
-        BlockVector<double> temp_src;
+    void TopOptSchurPreconditioner<dim>::vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
+        LA::MPI::BlockVector temp_src;
         {
             TimerOutput::Scope t(timer, "part 1");
             vmult_step_1(dst, src);
@@ -241,24 +241,24 @@ namespace SAND {
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const {
+    void TopOptSchurPreconditioner<dim>::Tvmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const {
-        BlockVector<double> dst_temp = dst;
+    void TopOptSchurPreconditioner<dim>::vmult_add(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
+        LA::MPI::BlockVector dst_temp = dst;
         vmult(dst_temp, src);
         dst += dst_temp;
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const {
+    void TopOptSchurPreconditioner<dim>::Tvmult_add(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src) const {
+    void TopOptSchurPreconditioner<dim>::vmult_step_1(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
         dst.block(SolutionBlocks::unfiltered_density) += -1 * linear_operator(d_5_mat)*src.block(SolutionBlocks::density_lower_slack_multiplier) +
                 linear_operator(d_6_mat) * src.block(SolutionBlocks::density_upper_slack_multiplier) + src.block(SolutionBlocks::density_lower_slack)
@@ -266,13 +266,13 @@ namespace SAND {
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const {
+    void TopOptSchurPreconditioner<dim>::vmult_step_2(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
         dst.block(SolutionBlocks::unfiltered_density_multiplier) += -1 * linear_operator(f_mat) * linear_operator(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const {
+    void TopOptSchurPreconditioner<dim>::vmult_step_3(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
         if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
         {
@@ -293,7 +293,7 @@ namespace SAND {
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const {
+    void TopOptSchurPreconditioner<dim>::vmult_step_4(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
         Vector<double> k_density_mult;
         k_density_mult.reinit(src.block(SolutionBlocks::density).size());
@@ -407,7 +407,7 @@ namespace SAND {
 
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::vmult_step_5(BlockVector<double> &dst, const BlockVector<double> &src) const {
+    void TopOptSchurPreconditioner<dim>::vmult_step_5(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         {
             //First Block Inverse
             TimerOutput::Scope t(timer, "inverse 1");
@@ -567,7 +567,7 @@ namespace SAND {
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::assemble_mass_matrix(const BlockVector<double> &state,
+    void TopOptSchurPreconditioner<dim>::assemble_mass_matrix(const LA::MPI::BlockVector &state,
                                                               const hp::FECollection<dim> &fe_collection,
                                                               const DoFHandler<dim> &dof_handler,
                                                               const AffineConstraints<double> &constraints,
@@ -609,8 +609,8 @@ namespace SAND {
 
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
 
-        BlockVector<double> filtered_unfiltered_density_solution = state;
-        BlockVector<double> filter_adjoint_unfiltered_density_multiplier_solution = state;
+        LA::MPI::BlockVector filtered_unfiltered_density_solution = state;
+        LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = state;
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 

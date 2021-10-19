@@ -560,6 +560,32 @@ namespace SAND {
         const unsigned int n_p = dofs_per_block[0];
         const unsigned int n_u = dofs_per_block[1];
         std::cout << "n_p:  " << n_p << "   n_u:  " << n_u << std::endl;
+
+        owned_partitioning.resize(10);
+        owned_partitioning[0] = dof_handler.locally_owned_dofs().get_view(0, n_p);
+        owned_partitioning[1] = dof_handler.locally_owned_dofs().get_view(n_p, 2*n_p);
+        owned_partitioning[2] = dof_handler.locally_owned_dofs().get_view(2*n_p, 3*n_p);
+        owned_partitioning[3] = dof_handler.locally_owned_dofs().get_view(3*n_p, 4*n_p);
+        owned_partitioning[4] = dof_handler.locally_owned_dofs().get_view(4*n_p, 5*n_p);
+        owned_partitioning[5] = dof_handler.locally_owned_dofs().get_view(5*n_p, 5*n_p+n_u);
+        owned_partitioning[6] = dof_handler.locally_owned_dofs().get_view(5*n_p+n_u, 5*n_p+2*n_u);
+        owned_partitioning[7] = dof_handler.locally_owned_dofs().get_view(5*n_p+2*n_u, 6*n_p+2*n_u);
+        owned_partitioning[8] = dof_handler.locally_owned_dofs().get_view(6*n_p+2*n_u, 7*n_p+2*n_u);
+        owned_partitioning[9] = dof_handler.locally_owned_dofs().get_view(7*n_p+2*n_u, 7*n_p+2*n_u + 1);
+        IndexSet locally_relevant_dofs;
+        DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+        relevant_partitioning.resize(2);
+        relevant_partitioning[0] = locally_relevant_dofs.get_view(0, n_p);
+        relevant_partitioning[1] = locally_relevant_dofs.get_view(n_p, 2*n_p);
+        relevant_partitioning[2] = locally_relevant_dofs.get_view(2*n_p, 3*n_p);
+        relevant_partitioning[3] = locally_relevant_dofs.get_view(3*n_p, 4*n_p);
+        relevant_partitioning[4] = locally_relevant_dofs.get_view(4*n_p, 5*n_p);
+        relevant_partitioning[5] = locally_relevant_dofs.get_view(5*n_p, 5*n_p+n_u);
+        relevant_partitioning[6] = locally_relevant_dofs.get_view(5*n_p+n_u, 5*n_p+2*n_u);
+        relevant_partitioning[7] = locally_relevant_dofs.get_view(5*n_p+2*n_u, 6*n_p+2*n_u);
+        relevant_partitioning[8] = locally_relevant_dofs.get_view(6*n_p+2*n_u, 7*n_p+2*n_u);
+        relevant_partitioning[9] = locally_relevant_dofs.get_view(7*n_p+2*n_u, 7*n_p+2*n_u + 1);
+
         const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
 
         BlockDynamicSparsityPattern dsp(10, 10);
@@ -627,7 +653,7 @@ namespace SAND {
         coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
 
         coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
-
+        constraints.reinit(locally_relevant_dofs);
         constraints.clear();
         constraints.close();
 
@@ -653,15 +679,15 @@ namespace SAND {
         std::ofstream out("sparsity.plt");
         sparsity_pattern.print_gnuplot(out);
 
-        system_matrix.reinit(sparsity_pattern);
+        system_matrix.reinit(owned_partitioning, sparsity_pattern, mpi_communicator);
 
 
-        linear_solution.reinit(block_sizes);
-        system_rhs.reinit(block_sizes);
+        linear_solution.reinit(owned_partitioning, relevant_partitioning, mpi_communicator);
+        system_rhs.reinit(owned_partitioning,mpi_communicator);
 
         for (unsigned int j = 0; j < 10; j++) {
-            linear_solution.block(j).reinit(block_sizes[j]);
-            system_rhs.block(j).reinit(block_sizes[j]);
+            linear_solution.block(j).reinit(block_sizes[j],mpi_communicator);
+            system_rhs.block(j).reinit(block_sizes[j],mpi_communicator);
         }
 
         linear_solution.collect_sizes();
@@ -673,7 +699,7 @@ namespace SAND {
 
     template<int dim>
     void
-    KktSystem<dim>::assemble_block_system(const BlockVector<double> &state, const double barrier_size) {
+    KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &state, const double barrier_size) {
         /*Remove any values from old iterations*/
         system_matrix.reinit(sparsity_pattern);
         linear_solution = 0;
@@ -703,7 +729,7 @@ namespace SAND {
                                              update_values);
 
         FullMatrix<double> cell_matrix;
-        Vector<double> cell_rhs;
+        LA::MPI::Vector cell_rhs;
         std::vector<types::global_dof_index> local_dof_indices;
 
         const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
@@ -723,8 +749,8 @@ namespace SAND {
 
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
 
-        BlockVector<double> filtered_unfiltered_density_solution = state;
-        BlockVector<double> filter_adjoint_unfiltered_density_multiplier_solution = state;
+        LA::MPI::BlockVector filtered_unfiltered_density_solution(state);
+        LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = state;
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
@@ -1044,7 +1070,7 @@ namespace SAND {
 
     template<int dim>
     double
-    KktSystem<dim>::calculate_objective_value(const BlockVector<double> &state) const {
+    KktSystem<dim>::calculate_objective_value(const LA::MPI::BlockVector &state) const {
         /*Remove any values from old iterations*/
 
         QGauss<dim> nine_quadrature(fe_nine.degree + 1);
@@ -1071,7 +1097,7 @@ namespace SAND {
                                              update_values);
 
         FullMatrix<double> cell_matrix;
-        Vector<double> cell_rhs;
+        LA::MPI::Vector cell_rhs;
 
         const FEValuesExtractors::Vector displacements(SolutionComponents::displacement<dim>);
 
@@ -1126,7 +1152,7 @@ namespace SAND {
     //As the KKT System know which vectors correspond to the slack variables, the sum of the logs of the slacks is computed here for use in the filter.
     template<int dim>
     double
-    KktSystem<dim>::calculate_barrier_distance(const BlockVector<double> &state) const {
+    KktSystem<dim>::calculate_barrier_distance(const LA::MPI::BlockVector &state) const {
         double barrier_distance_log_sum = 0;
         unsigned int vect_size = state.block(SolutionBlocks::density_lower_slack).size();
         for (unsigned int k = 0; k < vect_size; k++) {
@@ -1140,7 +1166,7 @@ namespace SAND {
 
     template<int dim>
     double
-    KktSystem<dim>::calculate_rhs_norm(const BlockVector<double> &state, const double barrier_size) const {
+    KktSystem<dim>::calculate_rhs_norm(const LA::MPI::BlockVector &state, const double barrier_size) const {
         return calculate_rhs(state, barrier_size).l2_norm();
     }
 
@@ -1148,8 +1174,8 @@ namespace SAND {
     //Feasibility conditions appear on the RHS of the linear system, so I compute the RHS to find it. Could probably be combined with the objective value finding part to make it faster.
     template<int dim>
     double
-    KktSystem<dim>::calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const {
-        BlockVector<double> test_rhs = calculate_rhs(state, barrier_size);
+    KktSystem<dim>::calculate_feasibility(const LA::MPI::BlockVector &state, const double barrier_size) const {
+        LA::MPI::BlockVector test_rhs = calculate_rhs(state, barrier_size);
 //        double feasibility = 0;
 //        feasibility +=
 //                test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() +
@@ -1190,8 +1216,8 @@ namespace SAND {
 
     template<int dim>
     double
-    KktSystem<dim>::calculate_convergence(const BlockVector<double> &state) const {
-        BlockVector<double> test_rhs = calculate_rhs(state, Input::min_barrier_size);
+    KktSystem<dim>::calculate_convergence(const LA::MPI::BlockVector &state) const {
+        LA::MPI::BlockVector test_rhs = calculate_rhs(state, Input::min_barrier_size);
         double norm = 0;
 
         norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
@@ -1223,9 +1249,9 @@ namespace SAND {
     }
 
     template<int dim>
-    BlockVector<double>
-    KktSystem<dim>::calculate_rhs(const BlockVector<double> &state, const double barrier_size) const {
-        BlockVector<double> test_rhs;
+    LA::MPI::BlockVector
+    KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &state, const double barrier_size) const {
+        LA::MPI::BlockVector test_rhs;
         test_rhs = system_rhs;
         test_rhs = 0;
 
@@ -1254,7 +1280,7 @@ namespace SAND {
                                              update_values);
 
         FullMatrix<double> cell_matrix;
-        Vector<double> cell_rhs;
+        LA::MPI::Vector cell_rhs;
         std::vector<types::global_dof_index> local_dof_indices;
 
         const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
@@ -1277,8 +1303,8 @@ namespace SAND {
 
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
 
-        BlockVector<double> filtered_unfiltered_density_solution = state;
-        BlockVector<double> filter_adjoint_unfiltered_density_multiplier_solution = state;
+        LA::MPI::BlockVector filtered_unfiltered_density_solution = state;
+        LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = state;
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
@@ -1553,8 +1579,8 @@ namespace SAND {
 
     ///A  direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
     template<int dim>
-    BlockVector<double>
-    KktSystem<dim>::solve(const BlockVector<double> &state, double barrier_size) {
+    LA::MPI::BlockVector
+    KktSystem<dim>::solve(const LA::MPI::BlockVector &state, double barrier_size) {
         constraints.condense(system_matrix);
         double gmres_tolerance;
         if (Input::use_eisenstat_walker) {
@@ -1579,21 +1605,21 @@ namespace SAND {
             }
             case SolverOptions::exact_preconditioner_with_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
+                SolverFGMRES<LA::MPI::BlockVector> A_fgmres(solver_control);
                 A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_exact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES<BlockVector<double>> B_fgmres(solver_control);
+                SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
                 B_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_inexact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES<BlockVector<double>> C_fgmres(solver_control);
+                SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
                 C_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
@@ -1638,7 +1664,7 @@ namespace SAND {
     }
 
     template<int dim>
-    BlockVector<double>
+    LA::MPI::BlockVector
     KktSystem<dim>::get_initial_state() {
 
         std::vector<unsigned int> block_component(10, 2);
@@ -1650,7 +1676,7 @@ namespace SAND {
         const unsigned int n_u = dofs_per_block[1];
         const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
 
-        BlockVector<double> state(block_sizes);
+        LA::MPI::BlockVector state(block_sizes);
         {
             using namespace SolutionBlocks;
             state.block(density).add(density_ratio);
@@ -1671,7 +1697,7 @@ namespace SAND {
 
     template<int dim>
     void
-    KktSystem<dim>::output(const BlockVector<double> &state, const unsigned int j) const {
+    KktSystem<dim>::output(const LA::MPI::BlockVector &state, const unsigned int j) const {
         std::vector<std::string> solution_names(1, "low_slack_multiplier");
         std::vector<DataComponentInterpretation::DataComponentInterpretation> data_component_interpretation(
                 1, DataComponentInterpretation::component_is_scalar);
@@ -1718,7 +1744,7 @@ namespace SAND {
 
     template<>
     void
-    KktSystem<2>::output_stl(const BlockVector<double> &state) {
+    KktSystem<2>::output_stl(const LA::MPI::BlockVector &state) {
         double height = .25;
         const int dim = 2;
         std::ofstream stlfile;
@@ -1937,7 +1963,7 @@ namespace SAND {
 
     template<>
     void
-    KktSystem<3>::output_stl(const BlockVector<double> &state)
+    KktSystem<3>::output_stl(const LA::MPI::BlockVector &state)
     {
         std::ofstream stlfile;
         stlfile.open("bridge.stl");

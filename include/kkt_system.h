@@ -18,6 +18,7 @@
 #include <deal.II/lac/packaged_operation.h>
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/affine_constraints.h>
+#include <deal.II/lac/generic_linear_algebra.h>
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
@@ -38,6 +39,9 @@
 #include <deal.II/numerics/error_estimator.h>
 #include <deal.II/hp/fe_collection.h>
 
+#include <deal.II/distributed/tria.h>
+#include <deal.II/distributed/grid_refinement.h>
+
 #include "../include/schur_preconditioner.h"
 #include "../include/density_filter.h"
 
@@ -45,12 +49,21 @@
 #include <fstream>
 #include <algorithm>
 namespace SAND {
+    namespace LA
+    {
+        using namespace dealii::LinearAlgebraPETSc;
+    }
     using namespace dealii;
 
     template<int dim>
     class KktSystem {
 
     public:
+        MPI_Comm mpi_communicator;
+
+        std::vector<IndexSet> owned_partitioning;
+        std::vector<IndexSet> relevant_partitioning;
+
         KktSystem();
 
         void
@@ -66,47 +79,47 @@ namespace SAND {
         setup_block_system();
 
         void
-        assemble_block_system(const BlockVector<double> &state, const double barrier_size);
+        assemble_block_system(const LA::MPI::BlockVector &state, const double barrier_size);
 
-        BlockVector<double>
-        solve(const BlockVector<double> &state, double barrier_size);
+        LA::MPI::BlockVector
+        solve(const LA::MPI::BlockVector &state, double barrier_size);
 
-        BlockVector<double>
+        LA::MPI::BlockVector
         get_initial_state();
 
         double
-        calculate_objective_value(const BlockVector<double> &state) const;
+        calculate_objective_value(const LA::MPI::BlockVector &state) const;
 
         double
-        calculate_barrier_distance(const BlockVector<double> &state) const;
+        calculate_barrier_distance(const LA::MPI::BlockVector &state) const;
 
         double
-        calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const;
+        calculate_feasibility(const LA::MPI::BlockVector &state, const double barrier_size) const;
 
         double
-        calculate_convergence(const BlockVector<double> &state) const;
+        calculate_convergence(const LA::MPI::BlockVector &state) const;
 
         void
-        output(const BlockVector<double> &state, const unsigned int j) const;
+        output(const LA::MPI::BlockVector &state, const unsigned int j) const;
 
         void
         calculate_initial_rhs_error();
 
         double
-        calculate_rhs_norm(const BlockVector<double> &state, const double barrier_size) const;
+        calculate_rhs_norm(const LA::MPI::BlockVector &state, const double barrier_size) const;
 
         void
-        output_stl(const BlockVector<double> &state);
+        output_stl(const LA::MPI::BlockVector &state);
 
     private:
 
-        BlockVector<double>
-        calculate_rhs(const BlockVector<double> &test_solution, const double barrier_size) const;
+        LA::MPI::BlockVector
+        calculate_rhs(const LA::MPI::BlockVector &test_solution, const double barrier_size) const;
 
         BlockSparsityPattern sparsity_pattern;
-        BlockSparseMatrix<double> system_matrix;
-        BlockVector<double> linear_solution;
-        BlockVector<double> system_rhs;
+        LA::MPI::BlockSparseMatrix system_matrix;
+        LA::MPI::BlockVector linear_solution;
+        LA::MPI::BlockVector system_rhs;
         Triangulation<dim> triangulation;
         DoFHandler<dim> dof_handler;
         AffineConstraints<double> constraints;
