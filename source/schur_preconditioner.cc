@@ -5,15 +5,15 @@
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/sparse_matrix.h>
 #include <deal.II/base/timer.h>
+#include <deal.II/lac/generic_linear_algebra.h>
 #include "../include/schur_preconditioner.h"
 #include "../include/input_information.h"
 #include "../include/sand_tools.h"
+#include <deal.II/lac/generic_linear_algebra.h>
 #include <fstream>
 
 namespace SAND {
-
     using namespace dealii;
-
     template<int dim>
     TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(BlockSparseMatrix<double> &matrix_in)
             :

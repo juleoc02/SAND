@@ -6,12 +6,19 @@
 #include "../include/markov_filter.h"
 #include "../include/kkt_system.h"
 #include "../include/input_information.h"
+#include <deal.II/lac/generic_linear_algebra.h>
 
 ///Above are fairly normal files to include.  I also use the sparse direct package, which requiresBLAS/LAPACK
 /// to  perform  a  direct  solve  while  I  work  on  a  fast  iterative  solver  for  this problem.
 /// Below is the main class for this problem.
 
 namespace SAND {
+    namespace LA
+    {
+        using namespace dealii::LinearAlgebraPETSc;
+    }
+
+
     using namespace dealii;
 
     template<int dim>
