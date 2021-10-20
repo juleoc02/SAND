@@ -53,7 +53,7 @@ namespace SAND {
     public:
 
         DensityFilter()=default;
-
+        DynamicSparsityPattern filter_dsp;
         SparseMatrix<double> filter_matrix;
         SparsityPattern filter_sparsity_pattern;
         void initialize(Triangulation<dim> &triangulation);

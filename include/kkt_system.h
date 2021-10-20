@@ -19,6 +19,10 @@
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/lac/generic_linear_algebra.h>
+#include <deal.II/lac/petsc_block_sparse_matrix.h>
+#include <deal.II/lac/petsc_sparse_matrix.h>
+#include <deal.II/lac/petsc_vector.h>
+#include <deal.II/lac/petsc_solver.h>
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
@@ -59,8 +63,7 @@ namespace SAND {
     class KktSystem {
 
     public:
-        MPI_Comm mpi_communicator;
-
+        MPI_Comm  mpi_communicator;
         std::vector<IndexSet> owned_partitioning;
         std::vector<IndexSet> relevant_partitioning;
 
@@ -116,6 +119,7 @@ namespace SAND {
         LA::MPI::BlockVector
         calculate_rhs(const LA::MPI::BlockVector &test_solution, const double barrier_size) const;
 
+        BlockDynamicSparsityPattern dsp;
         BlockSparsityPattern sparsity_pattern;
         LA::MPI::BlockSparseMatrix system_matrix;
         LA::MPI::BlockVector linear_solution;

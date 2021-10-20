@@ -18,7 +18,7 @@ namespace SAND {
     template<int dim>
     void
     DensityFilter<dim>::initialize(Triangulation<dim> &triangulation) {
-        DynamicSparsityPattern filter_dsp;
+
         filter_dsp.reinit(triangulation.n_active_cells(),
                           triangulation.n_active_cells());
 

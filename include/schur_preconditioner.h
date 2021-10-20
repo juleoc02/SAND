@@ -19,6 +19,13 @@
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_bicgstab.h>
+#include <deal.II/lac/generic_linear_algebra.h>
+#include <deal.II/lac/petsc_block_sparse_matrix.h>
+#include <deal.II/lac/petsc_solver.h>
+#include <deal.II/lac/petsc_sparse_matrix.h>
+#include <deal.II/lac/petsc_vector.h>
+#include <deal.II/lac/petsc_solver.h>
+#include <deal.II/lac/matrix_out.h>
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
@@ -62,24 +69,28 @@
 
 namespace SAND
 {
+    namespace LA
+    {
+        using namespace dealii::LinearAlgebraPETSc;
+    }
     using namespace dealii;
     template<int dim>
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
-        TopOptSchurPreconditioner(BlockSparseMatrix<double> &matrix_in);
-        void initialize (BlockSparseMatrix<double> &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const double barrier_size, const BlockVector<double> &state);
-        void vmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
-        void Tvmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
-        void vmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const;
-        void Tvmult_add(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in);
+        void initialize (LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const double barrier_size, const LA::MPI::BlockVector &state);
+        void vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
+        void Tvmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
+        void vmult_add(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
+        void Tvmult_add(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
         void clear();
         unsigned int m() const;
         unsigned int n() const;
         void get_sparsity_pattern(BlockDynamicSparsityPattern &bdsp);
 
-        void assemble_mass_matrix(const BlockVector<double> &state, const hp::FECollection<dim> &fe_system, const DoFHandler<dim> &dof_handler, const AffineConstraints<double> &constraints,   const BlockSparsityPattern &bsp);
+        void assemble_mass_matrix(const LA::MPI::BlockVector &state, const hp::FECollection<dim> &fe_system, const DoFHandler<dim> &dof_handler, const AffineConstraints<double> &constraints,   const BlockSparsityPattern &bsp);
 
-        void print_stuff(const BlockSparseMatrix<double> &matrix);
+        void print_stuff(const LA::MPI::BlockSparseMatrix &matrix);
 
         BlockSparseMatrix<double> &system_matrix;
 
@@ -88,11 +99,11 @@ namespace SAND
         unsigned int n_columns;
         unsigned int n_block_rows;
         unsigned int n_block_columns;
-        void vmult_step_1(BlockVector<double> &dst, const BlockVector<double> &src) const;
-        void vmult_step_2(BlockVector<double> &dst, const BlockVector<double> &src) const;
-        void vmult_step_3(BlockVector<double> &dst, const BlockVector<double> &src) const;
-        void vmult_step_4(BlockVector<double> &dst, const BlockVector<double> &src) const;
-        void vmult_step_5(BlockVector<double> &dst, const BlockVector<double> &src) const;
+        void vmult_step_1(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
+        void vmult_step_2(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
+        void vmult_step_3(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
+        void vmult_step_4(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
+        void vmult_step_5(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
 
         BlockSparsityPattern mass_sparsity;
         BlockSparseMatrix<double> approx_h_mat;
@@ -102,23 +113,23 @@ namespace SAND
         mutable SolverGMRES<Vector<double>> other_gmres;
         mutable SolverCG<Vector<double>> other_cg;
 
-        SparseMatrix<double> &a_mat;
-        const SparseMatrix<double> &b_mat;
-        const SparseMatrix<double> &c_mat;
-        const SparseMatrix<double> &e_mat;
-        const SparseMatrix<double> &f_mat;
-        const SparseMatrix<double> &d_m_mat;
-        const SparseMatrix<double> &d_1_mat;
-        const SparseMatrix<double> &d_2_mat;
-        const SparseMatrix<double> &m_vect;
+        LA::MPI::SparseMatrix &a_mat;
+        const LA::MPI::SparseMatrix &b_mat;
+        const LA::MPI::SparseMatrix &c_mat;
+        const LA::MPI::SparseMatrix &e_mat;
+        const LA::MPI::SparseMatrix &f_mat;
+        const LA::MPI::SparseMatrix &d_m_mat;
+        const LA::MPI::SparseMatrix &d_1_mat;
+        const LA::MPI::SparseMatrix &d_2_mat;
+        const LA::MPI::SparseMatrix &m_vect;
 
-        SparseMatrix<double> d_3_mat;
-        SparseMatrix<double> d_4_mat;
-        SparseMatrix<double> d_5_mat;
-        SparseMatrix<double> d_6_mat;
-        SparseMatrix<double> d_7_mat;
-        SparseMatrix<double> d_8_mat;
-        SparseMatrix<double> d_m_inv_mat;
+        LA::MPI::SparseMatrix d_3_mat;
+        LA::MPI::SparseMatrix d_4_mat;
+        LA::MPI::SparseMatrix d_5_mat;
+        LA::MPI::SparseMatrix d_6_mat;
+        LA::MPI::SparseMatrix d_7_mat;
+        LA::MPI::SparseMatrix d_8_mat;
+        LA::MPI::SparseMatrix d_m_inv_mat;
 
         FullMatrix<double> g_mat;
         FullMatrix<double> h_mat;

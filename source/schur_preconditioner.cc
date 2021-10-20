@@ -6,16 +6,17 @@
 #include <deal.II/lac/sparse_matrix.h>
 #include <deal.II/base/timer.h>
 #include <deal.II/lac/generic_linear_algebra.h>
+#include <deal.II/lac/petsc_solver.h>
+#include <deal.II/lac/petsc_precondition.h>
 #include "../include/schur_preconditioner.h"
 #include "../include/input_information.h"
 #include "../include/sand_tools.h"
-#include <deal.II/lac/generic_linear_algebra.h>
 #include <fstream>
 
 namespace SAND {
     using namespace dealii;
     template<int dim>
-    TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(BlockSparseMatrix<double> &matrix_in)
+    TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in)
             :
             system_matrix(matrix_in),
             n_rows(0),
@@ -42,7 +43,7 @@ namespace SAND {
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::initialize(BlockSparseMatrix<double> &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const double barrier_size, const LA::MPI::BlockVector &state)
+    void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const double barrier_size, const LA::MPI::BlockVector &state)
     {
         TimerOutput::Scope t(timer, "initialize");
         {
@@ -99,13 +100,20 @@ namespace SAND {
         }
         {
             TimerOutput::Scope t(timer, "reinit diag matrices");
-            d_3_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density).get_sparsity_pattern());
-            d_4_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density).get_sparsity_pattern());
-            d_5_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density).get_sparsity_pattern());
-            d_6_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density).get_sparsity_pattern());
-            d_7_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density).get_sparsity_pattern());
-            d_8_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density).get_sparsity_pattern());
-            d_m_inv_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density).get_sparsity_pattern());
+            d_3_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
+            d_4_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
+            d_5_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
+            d_6_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
+            d_7_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
+            d_8_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
+            d_m_inv_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
+            d_3_mat=0;
+            d_4_mat=0;
+            d_5_mat=0;
+            d_6_mat=0;
+            d_7_mat=0;
+            d_8_mat=0;
+            d_m_inv_mat=0;
         }
         {
             TimerOutput::Scope t(timer, "build diag matrices");
@@ -153,11 +161,10 @@ namespace SAND {
                     transpose_operator(linear_operator(f_mat));
 
         auto op_h = op_g;
-        PreconditionSSOR<SparseMatrix<double>> preconditioner;
-        preconditioner.initialize(a_mat, 1.2);
+
         SolverControl            solver_control(1000, 1e-12);
         SolverCG<Vector<double>> a_solver_cg(solver_control);
-        auto a_inv_op = inverse_operator(linear_operator(a_mat),a_solver_cg,preconditioner);
+        auto a_inv_op = inverse_operator(linear_operator(a_mat),a_solver_cg,PreconditionIdentity());
 
         if (Input::solver_choice==SolverOptions::inexact_K_with_inexact_A_gmres)
         {
@@ -260,34 +267,40 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult_step_1(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
-        dst.block(SolutionBlocks::unfiltered_density) += -1 * linear_operator(d_5_mat)*src.block(SolutionBlocks::density_lower_slack_multiplier) +
-                linear_operator(d_6_mat) * src.block(SolutionBlocks::density_upper_slack_multiplier) + src.block(SolutionBlocks::density_lower_slack)
-                - src.block(SolutionBlocks::density_upper_slack);
+        d_5_mat.vmult_add(dst.block(SolutionBlocks::unfiltered_density),-1 * src.block(SolutionBlocks::density_lower_slack_multiplier));
+        d_6_mat.vmult_add(dst.block(SolutionBlocks::unfiltered_density),-1 * src.block(SolutionBlocks::density_upper_slack_multiplier));
+        dst.block(SolutionBlocks::unfiltered_density)+=src.block(SolutionBlocks::density_lower_slack);
+        dst.block(SolutionBlocks::unfiltered_density) -=src.block(SolutionBlocks::density_upper_slack);
     }
 
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult_step_2(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
-        dst.block(SolutionBlocks::unfiltered_density_multiplier) += -1 * linear_operator(f_mat) * linear_operator(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
+        auto dst_temp = dst;
+                d_8_mat.vmult(dst_temp.block(SolutionBlocks::unfiltered_density_multiplier), src.block(SolutionBlocks::unfiltered_density));
+                f_mat.vmult(dst.block(SolutionBlocks::unfiltered_density_multiplier),-1*dst_temp.block(SolutionBlocks::unfiltered_density_multiplier));
     }
 
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult_step_3(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
+        auto dst_temp = dst;
         if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
         {
-            PreconditionSSOR<SparseMatrix<double>> preconditioner;
-            preconditioner.initialize(a_mat, 1.2);
             SolverControl            solver_control(1000, 1e-12);
-            SolverCG<Vector<double>> a_solver_cg(solver_control);
-            auto a_inv_op = inverse_operator(linear_operator(a_mat),a_solver_cg,preconditioner);
-            dst.block(SolutionBlocks::density)+= -1 * transpose_operator(linear_operator(e_mat)) * a_inv_op * src.block(SolutionBlocks::displacement)
-                                                 - transpose_operator(linear_operator(c_mat)) * a_inv_op * src.block(SolutionBlocks::displacement_multiplier);
+            LA::SolverCG a_solver_cg(solver_control);
+            a_solver_cg.solve(a_mat,dst_temp.block(SolutionBlocks::density),src.block(SolutionBlocks::displacement),dealii::PETScWrappers::PreconditionNone);
+            e_mat.Tvmult_add(dst.block(SolutionBlocks::density),-1*dst_temp.block(SolutionBlocks::density));
+
+            a_solver_cg.solve(a_mat,dst_temp.block(SolutionBlocks::density),src.block(SolutionBlocks::displacement_multiplier));
+            c_mat.Tvmult_add(dst.block(SolutionBlocks::density),-1*dst_temp.block(SolutionBlocks::density));
         }
         else
         {
-            dst.block(SolutionBlocks::density)+= -1 * transpose_operator(linear_operator(e_mat)) * linear_operator(a_inv_direct) * src.block(SolutionBlocks::displacement)
-                                                 - transpose_operator(linear_operator(c_mat)) * linear_operator(a_inv_direct) * src.block(SolutionBlocks::displacement_multiplier);
+            a_inv_direct.vmult(dst_temp.block(SolutionBlocks::density),src.block(SolutionBlocks::displacement));
+            e_mat.Tvmult_add(dst.block(SolutionBlocks::density),-1 *dst_temp.block(SolutionBlocks::density));
+            a_inv_direct.vmult(dst_temp.block(SolutionBlocks::density),src.block(SolutionBlocks::displacement_multiplier));
+            e_mat.Tvmult_add(dst.block(SolutionBlocks::density),-1 *dst_temp.block(SolutionBlocks::density));
         }
 
     }

@@ -13,7 +13,13 @@
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/generic_linear_algebra.h>
+#include <deal.II/lac/petsc_block_sparse_matrix.h>
+#include <deal.II/lac/petsc_solver.h>
 
+#include <deal.II/lac/petsc_sparse_matrix.h>
+#include <deal.II/lac/petsc_vector.h>
+#include <deal.II/lac/petsc_solver.h>
 #include <deal.II/lac/matrix_out.h>
 
 #include <deal.II/grid/tria.h>
@@ -63,7 +69,9 @@ namespace SAND {
                    FE_DGQ<dim>(0) ^ 1),
             density_ratio(Input::volume_percentage),
             density_penalty_exponent(Input::density_penalty_exponent),
-            density_filter() {
+            density_filter(),
+            mpi_communicator(MPI_COMM_WORLD)
+    {
         fe_collection.push_back(fe_nine);
         fe_collection.push_back(fe_ten);
     }
@@ -550,7 +558,6 @@ namespace SAND {
         //MAKE n_u and n_P*****************************************************************
 
         /*Setup 10 by 10 block matrix*/
-
         std::vector<unsigned int> block_component(10, 2);
         block_component[0] = 0;
         block_component[5] = 1;
@@ -560,6 +567,8 @@ namespace SAND {
         const unsigned int n_p = dofs_per_block[0];
         const unsigned int n_u = dofs_per_block[1];
         std::cout << "n_p:  " << n_p << "   n_u:  " << n_u << std::endl;
+
+        dsp.reinit(10,10);
 
         owned_partitioning.resize(10);
         owned_partitioning[0] = dof_handler.locally_owned_dofs().get_view(0, n_p);
@@ -587,8 +596,6 @@ namespace SAND {
         relevant_partitioning[9] = locally_relevant_dofs.get_view(7*n_p+2*n_u, 7*n_p+2*n_u + 1);
 
         const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
-
-        BlockDynamicSparsityPattern dsp(10, 10);
 
         for (unsigned int k = 0; k < 10; k++) {
             for (unsigned int j = 0; j < 10; j++) {
@@ -673,22 +680,24 @@ namespace SAND {
         sparsity_pattern.block(SolutionBlocks::unfiltered_density,
                                SolutionBlocks::unfiltered_density_multiplier).copy_from(
                 density_filter.filter_sparsity_pattern);
+        dsp.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier)=density_filter.filter_dsp;
         sparsity_pattern.block(SolutionBlocks::unfiltered_density_multiplier,
                                SolutionBlocks::unfiltered_density).copy_from(density_filter.filter_sparsity_pattern);
+        dsp.block(SolutionBlocks::unfiltered_density_multiplier,SolutionBlocks::unfiltered_density)=density_filter.filter_dsp;
 
         std::ofstream out("sparsity.plt");
         sparsity_pattern.print_gnuplot(out);
-
-        system_matrix.reinit(owned_partitioning, sparsity_pattern, mpi_communicator);
+        SparsityTools::distribute_sparsity_pattern(
+                dsp,
+                Utilities::MPI::all_gather(mpi_communicator,
+                                           dof_handler.locally_owned_dofs()),
+                mpi_communicator,
+                locally_relevant_dofs);
+        system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
 
 
         linear_solution.reinit(owned_partitioning, relevant_partitioning, mpi_communicator);
         system_rhs.reinit(owned_partitioning,mpi_communicator);
-
-        for (unsigned int j = 0; j < 10; j++) {
-            linear_solution.block(j).reinit(block_sizes[j],mpi_communicator);
-            system_rhs.block(j).reinit(block_sizes[j],mpi_communicator);
-        }
 
         linear_solution.collect_sizes();
         system_rhs.collect_sizes();
@@ -701,7 +710,7 @@ namespace SAND {
     void
     KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &state, const double barrier_size) {
         /*Remove any values from old iterations*/
-        system_matrix.reinit(sparsity_pattern);
+        system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
         linear_solution = 0;
         system_rhs = 0;
 
@@ -729,7 +738,7 @@ namespace SAND {
                                              update_values);
 
         FullMatrix<double> cell_matrix;
-        LA::MPI::Vector cell_rhs;
+        Vector<double> cell_rhs;
         std::vector<types::global_dof_index> local_dof_indices;
 
         const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
@@ -1097,7 +1106,7 @@ namespace SAND {
                                              update_values);
 
         FullMatrix<double> cell_matrix;
-        LA::MPI::Vector cell_rhs;
+        Vector<double> cell_rhs;
 
         const FEValuesExtractors::Vector displacements(SolutionComponents::displacement<dim>);
 
@@ -1280,7 +1289,7 @@ namespace SAND {
                                              update_values);
 
         FullMatrix<double> cell_matrix;
-        LA::MPI::Vector cell_rhs;
+        Vector<double> cell_rhs;
         std::vector<types::global_dof_index> local_dof_indices;
 
         const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
@@ -1598,9 +1607,10 @@ namespace SAND {
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
-                SparseDirectUMFPACK A_direct;
-                A_direct.initialize(system_matrix);
-                A_direct.vmult(linear_solution, system_rhs);
+//                SolverControl cn;
+//                PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
+//                solver.set_symmetric_mode(true);
+//                solver.solve(system_matrix, linear_solution, system_rhs);
                 break;
             }
             case SolverOptions::exact_preconditioner_with_gmres: {
@@ -1676,7 +1686,7 @@ namespace SAND {
         const unsigned int n_u = dofs_per_block[1];
         const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
 
-        LA::MPI::BlockVector state(block_sizes);
+        LA::MPI::BlockVector state(owned_partitioning, relevant_partitioning,mpi_communicator);
         {
             using namespace SolutionBlocks;
             state.block(density).add(density_ratio);

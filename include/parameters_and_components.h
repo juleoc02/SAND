@@ -63,6 +63,6 @@ namespace SAND {
         static constexpr unsigned int mbb = 1;
         static constexpr unsigned int l_shape = 2;
     }
-
+    static constexpr unsigned int block_number = 10;
 }
 #endif //SAND_PARAMETERS_AND_COMPONENTS_H
