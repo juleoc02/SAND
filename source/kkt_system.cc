@@ -74,6 +74,7 @@ namespace SAND {
     {
         fe_collection.push_back(fe_nine);
         fe_collection.push_back(fe_ten);
+
     }
 
 
@@ -559,41 +560,44 @@ namespace SAND {
 
         /*Setup 10 by 10 block matrix*/
         std::vector<unsigned int> block_component(10, 2);
+
         block_component[0] = 0;
         block_component[5] = 1;
+
         const std::vector<types::global_dof_index> dofs_per_block =
                 DoFTools::count_dofs_per_fe_block(dof_handler, block_component);
-
         const unsigned int n_p = dofs_per_block[0];
         const unsigned int n_u = dofs_per_block[1];
+
         std::cout << "n_p:  " << n_p << "   n_u:  " << n_u << std::endl;
 
-        dsp.reinit(10,10);
-
-        owned_partitioning.resize(10);
-        owned_partitioning[0] = dof_handler.locally_owned_dofs().get_view(0, n_p);
-        owned_partitioning[1] = dof_handler.locally_owned_dofs().get_view(n_p, 2*n_p);
-        owned_partitioning[2] = dof_handler.locally_owned_dofs().get_view(2*n_p, 3*n_p);
-        owned_partitioning[3] = dof_handler.locally_owned_dofs().get_view(3*n_p, 4*n_p);
-        owned_partitioning[4] = dof_handler.locally_owned_dofs().get_view(4*n_p, 5*n_p);
-        owned_partitioning[5] = dof_handler.locally_owned_dofs().get_view(5*n_p, 5*n_p+n_u);
-        owned_partitioning[6] = dof_handler.locally_owned_dofs().get_view(5*n_p+n_u, 5*n_p+2*n_u);
-        owned_partitioning[7] = dof_handler.locally_owned_dofs().get_view(5*n_p+2*n_u, 6*n_p+2*n_u);
-        owned_partitioning[8] = dof_handler.locally_owned_dofs().get_view(6*n_p+2*n_u, 7*n_p+2*n_u);
-        owned_partitioning[9] = dof_handler.locally_owned_dofs().get_view(7*n_p+2*n_u, 7*n_p+2*n_u + 1);
+        IndexSet locally_owned_dofs = dof_handler.locally_owned_dofs();
         IndexSet locally_relevant_dofs;
         DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
-        relevant_partitioning.resize(2);
+
+        dsp.reinit(10, 10);
+        owned_partitioning.resize(10);
+        owned_partitioning[0] = dof_handler.locally_owned_dofs().get_view(0, n_p);
+        owned_partitioning[1] = dof_handler.locally_owned_dofs().get_view(n_p, 2 * n_p);
+        owned_partitioning[2] = dof_handler.locally_owned_dofs().get_view(2 * n_p, 3 * n_p);
+        owned_partitioning[3] = dof_handler.locally_owned_dofs().get_view(3 * n_p, 4 * n_p);
+        owned_partitioning[4] = dof_handler.locally_owned_dofs().get_view(4 * n_p, 5 * n_p);
+        owned_partitioning[5] = dof_handler.locally_owned_dofs().get_view(5 * n_p, 5 * n_p + n_u);
+        owned_partitioning[6] = dof_handler.locally_owned_dofs().get_view(5 * n_p + n_u, 5 * n_p + 2 * n_u);
+        owned_partitioning[7] = dof_handler.locally_owned_dofs().get_view(5 * n_p + 2 * n_u, 6 * n_p + 2 * n_u);
+        owned_partitioning[8] = dof_handler.locally_owned_dofs().get_view(6 * n_p + 2 * n_u, 7 * n_p + 2 * n_u);
+        owned_partitioning[9] = dof_handler.locally_owned_dofs().get_view(7 * n_p + 2 * n_u, 7 * n_p + 2 * n_u + 1);
+        relevant_partitioning.resize(10);
         relevant_partitioning[0] = locally_relevant_dofs.get_view(0, n_p);
-        relevant_partitioning[1] = locally_relevant_dofs.get_view(n_p, 2*n_p);
-        relevant_partitioning[2] = locally_relevant_dofs.get_view(2*n_p, 3*n_p);
-        relevant_partitioning[3] = locally_relevant_dofs.get_view(3*n_p, 4*n_p);
-        relevant_partitioning[4] = locally_relevant_dofs.get_view(4*n_p, 5*n_p);
-        relevant_partitioning[5] = locally_relevant_dofs.get_view(5*n_p, 5*n_p+n_u);
-        relevant_partitioning[6] = locally_relevant_dofs.get_view(5*n_p+n_u, 5*n_p+2*n_u);
-        relevant_partitioning[7] = locally_relevant_dofs.get_view(5*n_p+2*n_u, 6*n_p+2*n_u);
-        relevant_partitioning[8] = locally_relevant_dofs.get_view(6*n_p+2*n_u, 7*n_p+2*n_u);
-        relevant_partitioning[9] = locally_relevant_dofs.get_view(7*n_p+2*n_u, 7*n_p+2*n_u + 1);
+        relevant_partitioning[1] = locally_relevant_dofs.get_view(n_p, 2 * n_p);
+        relevant_partitioning[2] = locally_relevant_dofs.get_view(2 * n_p, 3 * n_p);
+        relevant_partitioning[3] = locally_relevant_dofs.get_view(3 * n_p, 4 * n_p);
+        relevant_partitioning[4] = locally_relevant_dofs.get_view(4 * n_p, 5 * n_p);
+        relevant_partitioning[5] = locally_relevant_dofs.get_view(5 * n_p, 5 * n_p + n_u);
+        relevant_partitioning[6] = locally_relevant_dofs.get_view(5 * n_p + n_u, 5 * n_p + 2 * n_u);
+        relevant_partitioning[7] = locally_relevant_dofs.get_view(5 * n_p + 2 * n_u, 6 * n_p + 2 * n_u);
+        relevant_partitioning[8] = locally_relevant_dofs.get_view(6 * n_p + 2 * n_u, 7 * n_p + 2 * n_u);
+        relevant_partitioning[9] = locally_relevant_dofs.get_view(7 * n_p + 2 * n_u, 7 * n_p + 2 * n_u + 1);
 
         const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
 
@@ -602,105 +606,108 @@ namespace SAND {
                 dsp.block(j, k).reinit(block_sizes[j], block_sizes[k]);
             }
         }
-
         dsp.collect_sizes();
-
         Table<2, DoFTools::Coupling> coupling(2 * dim + 8, 2 * dim + 8);
 //Coupling for density
-        coupling[SolutionComponents::density<dim>][SolutionComponents::density<dim>] = DoFTools::always;
+            coupling[SolutionComponents::density<dim>][SolutionComponents::density<dim>] = DoFTools::always;
 
-        for (unsigned int i = 0; i < dim; i++) {
-            coupling[SolutionComponents::density<dim>][SolutionComponents::displacement<dim> + i] = DoFTools::always;
-            coupling[SolutionComponents::displacement<dim> + i][SolutionComponents::density<dim>] = DoFTools::always;
-        }
+            for (unsigned int i = 0; i < dim; i++) {
+                coupling[SolutionComponents::density<dim>][SolutionComponents::displacement<dim> +
+                                                           i] = DoFTools::always;
+                coupling[SolutionComponents::displacement<dim> +
+                         i][SolutionComponents::density<dim>] = DoFTools::always;
+            }
 
-        coupling[SolutionComponents::density<dim>][SolutionComponents::unfiltered_density_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::unfiltered_density_multiplier<dim>][SolutionComponents::density<dim>] = DoFTools::always;
+            coupling[SolutionComponents::density<dim>][SolutionComponents::unfiltered_density_multiplier<dim>] = DoFTools::always;
+            coupling[SolutionComponents::unfiltered_density_multiplier<dim>][SolutionComponents::density<dim>] = DoFTools::always;
 
-        for (unsigned int i = 0; i < dim; i++) {
-            coupling[SolutionComponents::density<dim>][SolutionComponents::displacement_multiplier<dim> +
-                                                       i] = DoFTools::always;
-            coupling[SolutionComponents::displacement_multiplier<dim> +
-                     i][SolutionComponents::density<dim>] = DoFTools::always;
-        }
+            for (unsigned int i = 0; i < dim; i++) {
+                coupling[SolutionComponents::density<dim>][SolutionComponents::displacement_multiplier<dim> +
+                                                           i] = DoFTools::always;
+                coupling[SolutionComponents::displacement_multiplier<dim> +
+                         i][SolutionComponents::density<dim>] = DoFTools::always;
+            }
 
 //Coupling for displacement
-        for (unsigned int i = 0; i < dim; i++) {
+            for (unsigned int i = 0; i < dim; i++) {
 
-            for (unsigned int k = 0; k < dim; k++) {
-                coupling[SolutionComponents::displacement<dim> + i][SolutionComponents::displacement_multiplier<dim> +
-                                                                    k] = DoFTools::always;
-                coupling[SolutionComponents::displacement_multiplier<dim> + k][SolutionComponents::displacement<dim> +
-                                                                               i] = DoFTools::always;
+                for (unsigned int k = 0; k < dim; k++) {
+                    coupling[SolutionComponents::displacement<dim> + i][
+                            SolutionComponents::displacement_multiplier<dim> +
+                            k] = DoFTools::always;
+                    coupling[SolutionComponents::displacement_multiplier<dim> + k][
+                            SolutionComponents::displacement<dim> +
+                            i] = DoFTools::always;
+                }
             }
-        }
 
 // coupling for unfiltered density
-        coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
+            coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
+            coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
 
-        coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
+            coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
+            coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
 
-        coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::unfiltered_density_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::unfiltered_density_multiplier<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
+            coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::unfiltered_density_multiplier<dim>] = DoFTools::always;
+            coupling[SolutionComponents::unfiltered_density_multiplier<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
 
 
 
 
 //        Coupling for lower slack
-        coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
+            coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
 
-        coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
+            coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::density_lower_slack_multiplier<dim>] = DoFTools::always;
+            coupling[SolutionComponents::density_lower_slack_multiplier<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
 
 //
-        coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
-        coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
+            coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
+            coupling[SolutionComponents::density_upper_slack<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
+            coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_upper_slack<dim>] = DoFTools::always;
 
-        coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
-        constraints.reinit(locally_relevant_dofs);
-        constraints.clear();
-        constraints.close();
+            coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
+            constraints.reinit(locally_relevant_dofs);
+            constraints.clear();
+            constraints.close();
 
-        DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints);
+            system_matrix.clear();
 
-        //adds the row into the sparsity pattern for the total volume constraint
-        for (const auto &cell: dof_handler.active_cell_iterators()) {
-            const unsigned int i = cell->active_cell_index();
-            dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0);
-            dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i);
-        }
+            DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints, false);
+            SparsityTools::distribute_sparsity_pattern(dsp, dof_handler.locally_owned_dofs(), mpi_communicator,
+                                                       locally_relevant_dofs);
+            //adds the row into the sparsity pattern for the total volume constraint
+            for (const auto &cell: dof_handler.active_cell_iterators())
+            {
+                const unsigned int i = cell->active_cell_index();
+                dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0);
+                dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i);
+            }
 
-        constraints.condense(dsp);
-        sparsity_pattern.copy_from(dsp);
-
-        //adds the row into the sparsity pattern for the total volume constraint
-        sparsity_pattern.block(SolutionBlocks::unfiltered_density,
-                               SolutionBlocks::unfiltered_density_multiplier).copy_from(
-                density_filter.filter_sparsity_pattern);
-        dsp.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier)=density_filter.filter_dsp;
-        sparsity_pattern.block(SolutionBlocks::unfiltered_density_multiplier,
-                               SolutionBlocks::unfiltered_density).copy_from(density_filter.filter_sparsity_pattern);
-        dsp.block(SolutionBlocks::unfiltered_density_multiplier,SolutionBlocks::unfiltered_density)=density_filter.filter_dsp;
-
-        std::ofstream out("sparsity.plt");
-        sparsity_pattern.print_gnuplot(out);
-        SparsityTools::distribute_sparsity_pattern(
-                dsp,
-                Utilities::MPI::all_gather(mpi_communicator,
-                                           dof_handler.locally_owned_dofs()),
-                mpi_communicator,
-                locally_relevant_dofs);
-        system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
+            /*finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
+            for (const auto &cell: triangulation.active_cell_iterators()) {
+                const unsigned int i = cell->active_cell_index();
+                for (const auto &neighbor_cell: density_filter.find_relevant_neighbors(cell))
+                {
+                    const unsigned int j = neighbor_cell->active_cell_index();
+                    dsp.block(SolutionBlocks::unfiltered_density_multiplier, SolutionBlocks::unfiltered_density).add(i,
+                                                                                                                     j);
+                    dsp.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier).add(i,
+                                                                                                                     j);
+                }
+            }
 
 
-        linear_solution.reinit(owned_partitioning, relevant_partitioning, mpi_communicator);
-        system_rhs.reinit(owned_partitioning,mpi_communicator);
+            SparsityTools::distribute_sparsity_pattern(
+                    dsp,
+                    Utilities::MPI::all_gather(mpi_communicator,
+                                               dof_handler.locally_owned_dofs()),
+                    mpi_communicator,
+                    locally_relevant_dofs);
+            DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
+            system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
 
-        linear_solution.collect_sizes();
-        system_rhs.collect_sizes();
+            linear_solution.reinit(owned_partitioning, relevant_partitioning, mpi_communicator);
+            system_rhs.reinit(owned_partitioning, mpi_communicator);
     }
 
     ///This  is  where  the  magic  happens.   The  equations  describing  the newtons method for finding 0s in the KKT conditions are implemented here.
@@ -710,6 +717,7 @@ namespace SAND {
     void
     KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &state, const double barrier_size) {
         /*Remove any values from old iterations*/
+
         system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
         linear_solution = 0;
         system_rhs = 0;
@@ -1048,16 +1056,21 @@ namespace SAND {
             MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
                                                      cell_matrix, cell_rhs, true);
 
+            std::cout << "here" << std::endl;
+
             constraints.distribute_local_to_global(
                     cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
+            std::cout << "not here" << std::endl;
+
         }
+        system_matrix.compress(VectorOperation::add);
         system_rhs = calculate_rhs(state, barrier_size);
 
         for (const auto &cell: dof_handler.active_cell_iterators()) {
             const unsigned int i = cell->active_cell_index();
 
-            typename SparseMatrix<double>::iterator iter = density_filter.filter_matrix.begin(
+            typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
                     i);
             for (; iter != density_filter.filter_matrix.end(i); iter++) {
                 unsigned int j = iter->column();
@@ -1590,7 +1603,6 @@ namespace SAND {
     template<int dim>
     LA::MPI::BlockVector
     KktSystem<dim>::solve(const LA::MPI::BlockVector &state, double barrier_size) {
-        constraints.condense(system_matrix);
         double gmres_tolerance;
         if (Input::use_eisenstat_walker) {
             gmres_tolerance = std::max(

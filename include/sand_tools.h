@@ -12,10 +12,10 @@ namespace SAND{
     void build_matrix_element_by_element (const auto &X,
                                           FullMatrix<double>   &X_matrix)
     {
-
+        auto op_X = linear_operator(X);
         Threads::TaskGroup<void> tasks;
         for (unsigned int j=0; j<X_matrix.n(); ++j)
-            tasks += Threads::new_task ([&X, &X_matrix, j]()
+            tasks += Threads::new_task ([&op_X, &X_matrix, j]()
                                         {
                                             Vector<double> e_j (X_matrix.m());
                                             Vector<double> r_j (X_matrix.n());
@@ -23,7 +23,7 @@ namespace SAND{
                                             e_j = 0;
                                             e_j(j) = 1;
 
-                                            X.vmult (r_j, e_j);
+                                            r_j = op_X * e_j;
 
                                             for (unsigned int i=0; i<X_matrix.m(); ++i)
                                                 X_matrix(i,j) = r_j(i);

@@ -20,6 +20,8 @@
 #include <deal.II/lac/packaged_operation.h>
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/affine_constraints.h>
+#include <deal.II/lac/trilinos_parallel_block_vector.h>
+#include <deal.II/lac/generic_linear_algebra.h>
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
@@ -47,20 +49,23 @@
  * Once formed, we have F*\sigma = \rho*/
 namespace SAND {
     using namespace dealii;
-
+    namespace LA
+    {
+        using namespace dealii::LinearAlgebraTrilinos;
+    }
     template<int dim>
     class DensityFilter {
     public:
 
         DensityFilter()=default;
         DynamicSparsityPattern filter_dsp;
-        SparseMatrix<double> filter_matrix;
+        LA::MPI::SparseMatrix filter_matrix;
         SparsityPattern filter_sparsity_pattern;
         void initialize(Triangulation<dim> &triangulation);
-
+        std::set<typename Triangulation<dim>::cell_iterator> find_relevant_neighbors(typename Triangulation<dim>::cell_iterator cell) const;
 
     private:
-        std::set<typename Triangulation<dim>::cell_iterator> find_relevant_neighbors(typename Triangulation<dim>::cell_iterator cell) const;
+
 
     };
 }

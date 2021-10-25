@@ -7,6 +7,8 @@
 #include "../include/kkt_system.h"
 #include "../include/input_information.h"
 #include <deal.II/lac/generic_linear_algebra.h>
+#include <deal.II/lac/trilinos_parallel_block_vector.h>
+#include <deal.II/lac/generic_linear_algebra.h>
 
 ///Above are fairly normal files to include.  I also use the sparse direct package, which requiresBLAS/LAPACK
 /// to  perform  a  direct  solve  while  I  work  on  a  fast  iterative  solver  for  this problem.
@@ -15,7 +17,7 @@
 namespace SAND {
     namespace LA
     {
-        using namespace dealii::LinearAlgebraPETSc;
+        using namespace dealii::LinearAlgebraTrilinos;
     }
 
 
@@ -296,6 +298,7 @@ namespace SAND {
         kkt_system.create_triangulation();
         kkt_system.setup_boundary_values();
         kkt_system.setup_filter_matrix();
+        std::cout << "setup kkt system" << std::endl;
         kkt_system.setup_block_system();
 
         if (Input::barrier_reduction==BarrierOptions::mixed)
@@ -416,8 +419,9 @@ namespace SAND {
 } // namespace SAND
 
 int
-main() {
+main(int argc, char *argv[]) {
     try {
+        Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
         SAND::SANDTopOpt<SAND::Input::dim> elastic_problem_2d;
         elastic_problem_2d.run();
     }

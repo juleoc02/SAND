@@ -14,18 +14,16 @@
 #include <deal.II/lac/block_sparse_matrix.h>
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/linear_operator.h>
+#include <deal.II/lac/linear_operator_tools.h>
 #include <deal.II/lac/packaged_operation.h>
 #include <deal.II/lac/sparse_direct.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/solver_bicgstab.h>
 #include <deal.II/lac/generic_linear_algebra.h>
-#include <deal.II/lac/petsc_block_sparse_matrix.h>
-#include <deal.II/lac/petsc_solver.h>
-#include <deal.II/lac/petsc_sparse_matrix.h>
-#include <deal.II/lac/petsc_vector.h>
-#include <deal.II/lac/petsc_solver.h>
 #include <deal.II/lac/matrix_out.h>
+#include <deal.II/lac/trilinos_sparse_matrix.h>
+#include <deal.II/lac/trilinos_block_sparse_matrix.h>
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
@@ -71,7 +69,7 @@ namespace SAND
 {
     namespace LA
     {
-        using namespace dealii::LinearAlgebraPETSc;
+        using namespace dealii::LinearAlgebraTrilinos;
     }
     using namespace dealii;
     template<int dim>
@@ -92,7 +90,7 @@ namespace SAND
 
         void print_stuff(const LA::MPI::BlockSparseMatrix &matrix);
 
-        BlockSparseMatrix<double> &system_matrix;
+        LA::MPI::BlockSparseMatrix &system_matrix;
 
     private:
         unsigned int n_rows;
@@ -106,7 +104,7 @@ namespace SAND
         void vmult_step_5(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
 
         BlockSparsityPattern mass_sparsity;
-        BlockSparseMatrix<double> approx_h_mat;
+        LA::MPI::BlockSparseMatrix approx_h_mat;
 
         SolverControl other_solver_control;
         mutable SolverBicgstab<Vector<double>> other_bicgstab;
@@ -136,12 +134,13 @@ namespace SAND
         FullMatrix<double> k_inv_mat;
         LAPACKFullMatrix<double> k_mat;
 
-        mutable Vector<double> pre_j;
-        mutable Vector<double> pre_k;
-        mutable Vector<double> g_d_m_inv_density;
-        mutable Vector<double> k_g_d_m_inv_density;
-
-        SparseDirectUMFPACK a_inv_direct;
+        mutable LA::MPI::Vector pre_j;
+        mutable LA::MPI::Vector pre_k;
+        mutable LA::MPI::Vector g_d_m_inv_density;
+        mutable LA::MPI::Vector k_g_d_m_inv_density;
+//
+//        SolverControl direct_solver_control;
+//        mutable TrilinosWrappers::SolverDirect a_inv_direct;
 
         mutable TimerOutput timer;
 

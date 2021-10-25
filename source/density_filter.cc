@@ -57,7 +57,7 @@ namespace SAND {
         {
             const unsigned int i = cell->active_cell_index();
             double denominator = 0;
-            typename SparseMatrix<double>::iterator iter = filter_matrix.begin(
+            typename LA::MPI::SparseMatrix::iterator iter = filter_matrix.begin(
                     i);
             for (; iter != filter_matrix.end(i); iter++)
             {
