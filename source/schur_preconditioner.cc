@@ -303,10 +303,10 @@ namespace SAND {
 
         if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
         {
-            SolverControl            solver_control_1(1000, 1e-12);
-            SolverControl            solver_control_2(1000, 1e-12);
-            LA::SolverCG a_solver_cg_1(solver_control_1);
-            LA::SolverCG a_solver_cg_2(solver_control_2);
+            SolverControl            solver_control_1(100000, 1e-12);
+            SolverControl            solver_control_2(100000, 1e-12);
+            SolverCG<LA::MPI::Vector> a_solver_cg_1(solver_control_1);
+            SolverCG<LA::MPI::Vector> a_solver_cg_2(solver_control_2);
             auto dst_temp = dst;
             a_solver_cg_1.solve(a_mat,dst_temp.block(SolutionBlocks::displacement_multiplier),src.block(SolutionBlocks::displacement_multiplier),dealii::TrilinosWrappers::PreconditionIdentity());
             a_solver_cg_2.solve(a_mat,dst_temp.block(SolutionBlocks::displacement),src.block(SolutionBlocks::displacement),dealii::TrilinosWrappers::PreconditionIdentity());
@@ -471,11 +471,9 @@ namespace SAND {
             if(Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
             {
                 SolverControl            solver_control(1000, 1e-12);
-                LA::SolverCG a_solver_cg(solver_control);
+                SolverCG<LA::MPI::Vector> a_solver_cg(solver_control);
 
-                auto preconditioner = dealii::TrilinosWrappers::PreconditionIdentity();
-
-                auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg, preconditioner);
+                auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg, PreconditionIdentity());
 
                 dst.block(SolutionBlocks::displacement) = a_inv_op * src.block(SolutionBlocks::displacement_multiplier);
                 dst.block(SolutionBlocks::displacement_multiplier) = a_inv_op * src.block(SolutionBlocks::displacement);
@@ -550,8 +548,8 @@ namespace SAND {
             {
 
                 SolverControl            solver_control(1000, 1e-12);
-                LA::SolverCG a_solver_cg (solver_control);
-                auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg,PreconditionIdentity());
+                SolverCG<LA::MPI::Vector> a_solver_cg (solver_control);
+                auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg, PreconditionIdentity());
 
                 auto op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) *
                             transpose_operator<VectorType, VectorType, PayloadType>(f_mat);
@@ -566,7 +564,7 @@ namespace SAND {
                 pre_k = -1* op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density) + src.block(SolutionBlocks::unfiltered_density_multiplier);
 
                 SolverControl step_5_gmres_control_1 (10000, pre_j.l2_norm()*1e-6);
-                LA::SolverGMRES step_5_gmres_1 (step_5_gmres_control_1);
+                SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
                 try {
                     dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType,VectorType,PayloadType>(op_k_inv), step_5_gmres_1, PreconditionIdentity()) *
                                                                                pre_j;
@@ -579,7 +577,7 @@ namespace SAND {
                 }
 
                 SolverControl step_5_gmres_control_2 (10000, pre_k.l2_norm()*1e-6);
-                LA::SolverGMRES step_5_gmres_2 (step_5_gmres_control_2);
+                SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
                 try {
                     dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2, PreconditionIdentity()) *
                                                          pre_k;

@@ -677,7 +677,8 @@ namespace SAND {
 
             system_matrix.clear();
 
-            DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints, false);
+//            DoFTools::make_sparsity_pattern(dof_handler, coupling, dsp, constraints, false);
+            DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false);
             SparsityTools::distribute_sparsity_pattern(dsp, dof_handler.locally_owned_dofs(), mpi_communicator,
                                                        locally_relevant_dofs);
             //adds the row into the sparsity pattern for the total volume constraint
@@ -723,7 +724,7 @@ namespace SAND {
     KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &state, const double barrier_size) {
         /*Remove any values from old iterations*/
 
-        system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
+        system_matrix=0;
         linear_solution = 0;
         system_rhs = 0;
 
@@ -1065,12 +1066,10 @@ namespace SAND {
             constraints.distribute_local_to_global(
                     cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
-            std::cout << "not here" << std::endl;
 
         }
         system_matrix.compress(VectorOperation::add);
         system_rhs = calculate_rhs(state, barrier_size);
-        system_rhs.compress(VectorOperation::add);
         for (const auto &cell: dof_handler.active_cell_iterators()) {
             const unsigned int i = cell->active_cell_index();
 
@@ -1588,7 +1587,7 @@ namespace SAND {
                     cell_rhs, local_dof_indices, test_rhs);
 
         }
-
+        test_rhs.compress(VectorOperation::add);
         double total_volume = 0;
         double goal_volume = 0;
         for (const auto &cell: dof_handler.active_cell_iterators()) {
@@ -1597,6 +1596,8 @@ namespace SAND {
         }
 
         test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
+
+
 
         return test_rhs;
 
@@ -1615,7 +1616,8 @@ namespace SAND {
                             .001
                     ),
                     Input::default_gmres_tolerance);
-        } else {
+        }
+        else {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
