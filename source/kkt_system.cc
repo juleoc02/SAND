@@ -14,15 +14,12 @@
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/generic_linear_algebra.h>
-#include <deal.II/lac/petsc_block_sparse_matrix.h>
-#include <deal.II/lac/petsc_solver.h>
+#include <deal.II/lac/trilinos_sparse_matrix.h>
+#include <deal.II/lac/trilinos_block_sparse_matrix.h>
 
-#include <deal.II/lac/petsc_sparse_matrix.h>
-#include <deal.II/lac/petsc_vector.h>
-#include <deal.II/lac/petsc_solver.h>
+
 #include <deal.II/lac/matrix_out.h>
 
-#include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_refinement.h>
 
@@ -43,6 +40,10 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
 
+#include <deal.II/distributed/tria.h>
+#include <deal.II/distributed/grid_refinement.h>
+
+
 #include "../include/input_information.h"
 #include "../include/sand_tools.h"
 
@@ -55,6 +56,11 @@ namespace SAND {
     template<int dim>
     KktSystem<dim>::KktSystem()
             :
+            mpi_communicator(MPI_COMM_WORLD),
+            triangulation(mpi_communicator,
+                          typename Triangulation<dim>::MeshSmoothing(
+                                  Triangulation<dim>::smoothing_on_refinement |
+                                  Triangulation<dim>::smoothing_on_coarsening)),
             dof_handler(triangulation),
             /*fe should have 1 FE_DGQ<dim>(0) element for density, dim FE_Q finite elements for displacement,
              * another dim FE_Q elements for the lagrange multiplier on the FE constraint, and 2 more FE_DGQ<dim>(0)
@@ -69,8 +75,7 @@ namespace SAND {
                    FE_DGQ<dim>(0) ^ 1),
             density_ratio(Input::volume_percentage),
             density_penalty_exponent(Input::density_penalty_exponent),
-            density_filter(),
-            mpi_communicator(MPI_COMM_WORLD)
+            density_filter()
     {
         fe_collection.push_back(fe_nine);
         fe_collection.push_back(fe_ten);
@@ -1056,7 +1061,6 @@ namespace SAND {
             MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
                                                      cell_matrix, cell_rhs, true);
 
-            std::cout << "here" << std::endl;
 
             constraints.distribute_local_to_global(
                     cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
@@ -1066,7 +1070,7 @@ namespace SAND {
         }
         system_matrix.compress(VectorOperation::add);
         system_rhs = calculate_rhs(state, barrier_size);
-
+        system_rhs.compress(VectorOperation::add);
         for (const auto &cell: dof_handler.active_cell_iterators()) {
             const unsigned int i = cell->active_cell_index();
 
