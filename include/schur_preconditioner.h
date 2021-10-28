@@ -72,6 +72,18 @@ namespace SAND
         using namespace dealii::LinearAlgebraTrilinos;
     }
     using namespace dealii;
+
+    class VmultTrilinosSolverDirect : public TrilinosWrappers::PreconditionBase {
+    public:
+        VmultTrilinosSolverDirect(SolverControl &cn,
+                                  const TrilinosWrappers::SolverDirect::AdditionalData &data);
+        void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+        void initialize(LA::MPI::SparseMatrix &a_mat) const;
+
+    private:
+        TrilinosWrappers::SolverDirect solver_direct;
+    };
+
     template<int dim>
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
@@ -138,9 +150,11 @@ namespace SAND
         mutable LA::MPI::Vector pre_k;
         mutable LA::MPI::Vector g_d_m_inv_density;
         mutable LA::MPI::Vector k_g_d_m_inv_density;
-//
-//        SolverControl direct_solver_control;
-//        mutable TrilinosWrappers::SolverDirect a_inv_direct;
+
+        std::string solver_type;
+        TrilinosWrappers::SolverDirect::AdditionalData additional_data;
+        SolverControl direct_solver_control;
+        mutable VmultTrilinosSolverDirect a_inv_direct;
 
         mutable TimerOutput timer;
 

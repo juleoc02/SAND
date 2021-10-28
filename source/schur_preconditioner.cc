@@ -27,7 +27,7 @@ namespace SAND {
             n_columns(0),
             n_block_rows(0),
             n_block_columns(0),
-            other_solver_control(100000, 1e-10),
+            other_solver_control(100000, 1e-6),
 //            direct_solver_control(1, 0),
             other_bicgstab(other_solver_control),
             other_gmres(other_solver_control),
@@ -42,8 +42,10 @@ namespace SAND {
             d_2_mat(matrix_in.block(SolutionBlocks::density_upper_slack, SolutionBlocks::density_upper_slack)),
             m_vect(matrix_in.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier)),
             timer(std::cout, TimerOutput::summary,
-                  TimerOutput::wall_times)
-//            a_inv_direct(direct_solver_control)
+                  TimerOutput::wall_times),
+            solver_type("Amesos_Lapack"),
+            additional_data(false, solver_type),
+            a_inv_direct(direct_solver_control, additional_data)
     {
 
     }
@@ -102,7 +104,7 @@ namespace SAND {
         else
         {
             TimerOutput::Scope t(timer, "build A inv");
-//            a_inv_direct.initialize(a_mat);
+            a_inv_direct.initialize(a_mat);
         }
         {
             TimerOutput::Scope t(timer, "reinit diag matrices");
@@ -171,21 +173,23 @@ namespace SAND {
         op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * transpose_operator<VectorType, VectorType, PayloadType>(linear_operator<VectorType,VectorType,PayloadType>(f_mat));
 
 
-        SolverControl            solver_control(1000, 1e-12);
-        LA::SolverCG a_solver_cg(solver_control);
-        auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg,PreconditionIdentity());
+
 
         if (Input::solver_choice==SolverOptions::inexact_K_with_inexact_A_gmres)
         {
+            SolverControl            solver_control(10000, 1e-6);
+            SolverCG<LA::MPI::Vector> a_solver_cg(solver_control);
+            auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg,PreconditionIdentity());
             op_h = linear_operator<VectorType,VectorType,PayloadType>(b_mat)
                    - transpose_operator<VectorType, VectorType, PayloadType>(linear_operator<VectorType, VectorType, PayloadType>(c_mat)) * a_inv_op * linear_operator<VectorType,VectorType,PayloadType>(e_mat)
                    - transpose_operator<VectorType, VectorType, PayloadType>(linear_operator<VectorType, VectorType, PayloadType>(e_mat)) * a_inv_op * linear_operator<VectorType,VectorType,PayloadType>(c_mat);
         }
         else
         {
-//            op_h = linear_operator<VectorType,VectorType,PayloadType>(b_mat)
-//                   - transpose_operator<VectorType, VectorType, PayloadType>(e_mat) * linear_operator<VectorType, VectorType, PayloadType>(a_inv_direct) * transpose_operator<VectorType, VectorType, PayloadType>(c_mat)
-//                   - transpose_operator<VectorType, VectorType, PayloadType>(c_mat) * linear_operator<VectorType, VectorType, PayloadType>(a_inv_direct) * transpose_operator<VectorType, VectorType, PayloadType>(e_mat);
+            auto a_inv_op =linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct);
+            op_h = linear_operator<VectorType,VectorType,PayloadType>(b_mat)
+                   - transpose_operator<VectorType, VectorType, PayloadType>(c_mat) * a_inv_op * linear_operator<VectorType, VectorType, PayloadType>(e_mat)
+                   - transpose_operator<VectorType, VectorType, PayloadType>(e_mat) * a_inv_op * linear_operator<VectorType, VectorType, PayloadType>(c_mat);
         }
 
         if(Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres || Input::solver_choice == SolverOptions::inexact_K_with_exact_A_gmres)
@@ -303,13 +307,13 @@ namespace SAND {
 
         if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
         {
-            SolverControl            solver_control_1(100000, 1e-12);
-            SolverControl            solver_control_2(100000, 1e-12);
+            SolverControl            solver_control_1(100000, 1e-6);
+            SolverControl            solver_control_2(100000, 1e-6);
             SolverCG<LA::MPI::Vector> a_solver_cg_1(solver_control_1);
             SolverCG<LA::MPI::Vector> a_solver_cg_2(solver_control_2);
             auto dst_temp = dst;
-            a_solver_cg_1.solve(a_mat,dst_temp.block(SolutionBlocks::displacement_multiplier),src.block(SolutionBlocks::displacement_multiplier),dealii::TrilinosWrappers::PreconditionIdentity());
-            a_solver_cg_2.solve(a_mat,dst_temp.block(SolutionBlocks::displacement),src.block(SolutionBlocks::displacement),dealii::TrilinosWrappers::PreconditionIdentity());
+            a_solver_cg_1.solve(a_mat,dst_temp.block(SolutionBlocks::displacement_multiplier),src.block(SolutionBlocks::displacement_multiplier),PreconditionIdentity());
+            a_solver_cg_2.solve(a_mat,dst_temp.block(SolutionBlocks::displacement),src.block(SolutionBlocks::displacement),PreconditionIdentity());
             c_mat.Tvmult(dst_temp.block(SolutionBlocks::density_upper_slack),dst_temp.block(SolutionBlocks::displacement_multiplier));
             e_mat.Tvmult(dst_temp.block(SolutionBlocks::density_lower_slack),dst_temp.block(SolutionBlocks::displacement));
 
@@ -319,10 +323,14 @@ namespace SAND {
         }
         else
         {
-//            a_inv_direct.vmult(dst_temp.block(SolutionBlocks::density),src.block(SolutionBlocks::displacement));
-//            e_mat.Tvmult_add(dst.block(SolutionBlocks::density),-1 *dst_temp.block(SolutionBlocks::density));
-//            a_inv_direct.vmult(dst_temp.block(SolutionBlocks::density),src.block(SolutionBlocks::displacement_multiplier));
-//            e_mat.Tvmult_add(dst.block(SolutionBlocks::density),-1 *dst_temp.block(SolutionBlocks::density));
+            auto dst_temp = dst;
+            a_inv_direct.vmult(dst_temp.block(SolutionBlocks::displacement_multiplier),src.block(SolutionBlocks::displacement_multiplier));
+            a_inv_direct.vmult(dst_temp.block(SolutionBlocks::displacement),src.block(SolutionBlocks::displacement));
+
+            c_mat.Tvmult(dst_temp.block(SolutionBlocks::density_upper_slack),dst_temp.block(SolutionBlocks::displacement_multiplier));
+            e_mat.Tvmult(dst_temp.block(SolutionBlocks::density_lower_slack),dst_temp.block(SolutionBlocks::displacement));
+
+            dst.block(SolutionBlocks::density) = dst_temp.block(SolutionBlocks::density) - dst_temp.block(SolutionBlocks::density_upper_slack) - dst_temp.block(SolutionBlocks::density_lower_slack);
         }
 
     }
@@ -344,50 +352,50 @@ namespace SAND {
 
         else if (Input::solver_choice == SolverOptions::inexact_K_with_exact_A_gmres)
         {
-//            auto op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) *
-//                    transpose_operator<VectorType, VectorType, PayloadType>(linear_operator<VectorType,VectorType,PayloadType>(f_mat));
-//
-//            auto op_h = linear_operator(b_mat)
-//                   - transpose_operator<VectorType, VectorType, PayloadType>(linear_operator(c_mat)) * linear_operator(a_inv_direct) * linear_operator(e_mat)
-//                   - transpose_operator<VectorType, VectorType, PayloadType>(linear_operator(e_mat)) * linear_operator(a_inv_direct) * linear_operator(c_mat);
-//
-//            auto op_k_inv = -1 * op_g * linear_operator(d_m_inv_mat) * op_h - linear_operator(d_m_mat);
-//
-//            g_d_m_inv_density = op_g * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density);
-//
-//            SolverControl step_4_gmres_control_1 (10000, g_d_m_inv_density.l2_norm()*1e-6);
-//            SolverGMRES<Vector<double>> step_4_gmres_1 (step_4_gmres_control_1);
-//            try {
-//                k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, PreconditionIdentity()) *
-//                                      g_d_m_inv_density;
-//            } catch (std::exception &exc)
-//            {
-//                std::cerr << "Failure of linear solver step_4_gmres_1" << std::endl;
-//                std::cout << "first residual: " << step_4_gmres_control_1.initial_value() << std::endl;
-//                std::cout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
-//                throw;
-//            }
-//
-//            SolverControl step_4_gmres_control_2 (10000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
-//            SolverGMRES<Vector<double>> step_4_gmres_2 (step_4_gmres_control_2);
-//            try {
-//                k_density_mult = inverse_operator(op_k_inv,step_4_gmres_2, PreconditionIdentity()) *
-//                                 src.block(SolutionBlocks::unfiltered_density_multiplier);
-//            } catch (std::exception &exc)
-//            {
-//                std::cerr << "Failure of linear solver step_4_gmres_2" << std::endl;
-//                std::cout << "first residual: " << step_4_gmres_control_2.initial_value() << std::endl;
-//                std::cout << "last residual: " << step_4_gmres_control_2.last_value() << std::endl;
-//                throw;
-//            }
+            auto op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) *
+                    transpose_operator<VectorType, VectorType, PayloadType>(f_mat);
+
+            auto op_h = linear_operator<VectorType,VectorType,PayloadType>(b_mat)
+                   - transpose_operator<VectorType, VectorType, PayloadType>(c_mat) * linear_operator<VectorType, VectorType, PayloadType>(a_inv_direct) * linear_operator<VectorType,VectorType,PayloadType>(e_mat)
+                   - transpose_operator<VectorType, VectorType, PayloadType>(e_mat) * linear_operator<VectorType, VectorType, PayloadType>(a_inv_direct) * linear_operator<VectorType,VectorType,PayloadType>(c_mat);
+
+            auto op_k_inv = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * op_h - linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
+
+            g_d_m_inv_density = op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
+
+            SolverControl step_4_gmres_control_1 (10000, g_d_m_inv_density.l2_norm()*1e-6);
+            SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
+            try {
+                k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, PreconditionIdentity()) *
+                                      g_d_m_inv_density;
+            } catch (std::exception &exc)
+            {
+                std::cerr << "Failure of linear solver step_4_gmres_1" << std::endl;
+                std::cout << "first residual: " << step_4_gmres_control_1.initial_value() << std::endl;
+                std::cout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
+                throw;
+            }
+
+            SolverControl step_4_gmres_control_2 (10000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
+            SolverGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
+            try {
+                k_density_mult = inverse_operator(op_k_inv,step_4_gmres_2, PreconditionIdentity()) *
+                                 src.block(SolutionBlocks::unfiltered_density_multiplier);
+            } catch (std::exception &exc)
+            {
+                std::cerr << "Failure of linear solver step_4_gmres_2" << std::endl;
+                std::cout << "first residual: " << step_4_gmres_control_2.initial_value() << std::endl;
+                std::cout << "last residual: " << step_4_gmres_control_2.last_value() << std::endl;
+                throw;
+            }
         }
         else if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
         {
 
-            SolverControl            solver_control(1000, 1e-12);
-            LA::SolverCG a_solver_cg(solver_control);
+            SolverControl            solver_control(10000, 1e-6);
+            SolverCG<LA::MPI::Vector> a_solver_cg(solver_control);
 
-            auto preconditioner = dealii::TrilinosWrappers::PreconditionIdentity();
+            auto preconditioner = PreconditionIdentity();
 
             auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg, preconditioner);
 
@@ -402,7 +410,7 @@ namespace SAND {
             auto op_k_inv = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * op_h - linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
 
             SolverControl step_4_gmres_control_1 (10000, g_d_m_inv_density.l2_norm()*1e-6);
-            LA::SolverGMRES step_4_gmres_1 (step_4_gmres_control_1);
+            SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
             try {
                 k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, preconditioner) *
                                       g_d_m_inv_density;
@@ -415,7 +423,7 @@ namespace SAND {
             }
 
             SolverControl step_4_gmres_control_2 (10000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
-            LA::SolverGMRES step_4_gmres_2 (step_4_gmres_control_2);
+            SolverGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
             try {
                 k_density_mult = inverse_operator(op_k_inv,step_4_gmres_2, preconditioner) *
                                  src.block(SolutionBlocks::unfiltered_density_multiplier);
@@ -470,7 +478,7 @@ namespace SAND {
             TimerOutput::Scope t(timer, "inverse 3");
             if(Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
             {
-                SolverControl            solver_control(1000, 1e-12);
+                SolverControl            solver_control(1000, 1e-6);
                 SolverCG<LA::MPI::Vector> a_solver_cg(solver_control);
 
                 auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg, PreconditionIdentity());
@@ -479,8 +487,8 @@ namespace SAND {
                 dst.block(SolutionBlocks::displacement_multiplier) = a_inv_op * src.block(SolutionBlocks::displacement);
             } else
             {
-//                dst.block(SolutionBlocks::displacement) = linear_operator(a_inv_direct) * src.block(SolutionBlocks::displacement_multiplier);
-//                dst.block(SolutionBlocks::displacement_multiplier) = linear_operator(a_inv_direct) * src.block(SolutionBlocks::displacement);
+                dst.block(SolutionBlocks::displacement) = linear_operator<VectorType>(a_inv_direct) * src.block(SolutionBlocks::displacement_multiplier);
+                dst.block(SolutionBlocks::displacement_multiplier) = linear_operator<VectorType>(a_inv_direct) * src.block(SolutionBlocks::displacement);
             }
 
         }
@@ -547,7 +555,7 @@ namespace SAND {
             else if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
             {
 
-                SolverControl            solver_control(1000, 1e-12);
+                SolverControl            solver_control(1000, 1e-6);
                 SolverCG<LA::MPI::Vector> a_solver_cg (solver_control);
                 auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg, PreconditionIdentity());
 
@@ -782,6 +790,24 @@ namespace SAND {
 
 
     }
+
+    void VmultTrilinosSolverDirect::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        solver_direct.solve(dst, src);
+    }
+
+    void VmultTrilinosSolverDirect::initialize(LA::MPI::SparseMatrix &a_mat) const
+    {
+        solver_direct.initialize(a_mat);
+    }
+
+    VmultTrilinosSolverDirect::VmultTrilinosSolverDirect(SolverControl &cn,
+                                                         const TrilinosWrappers::SolverDirect::AdditionalData &data)
+    : solver_direct(cn, data)
+    {
+
+    }
+
 }
 template class SAND::TopOptSchurPreconditioner<2>;
 template class SAND::TopOptSchurPreconditioner<3>;
