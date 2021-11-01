@@ -1626,9 +1626,10 @@ namespace SAND {
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
 //                SolverControl cn;
-//                PETScWrappers::SparseDirectMUMPS solver(cn, mpi_communicator);
-//                solver.set_symmetric_mode(true);
-//                solver.solve(system_matrix, linear_solution, system_rhs);
+//                std::string solver_type;
+//                TrilinosWrappers::SolverDirect::AdditionalData additional_data(false, "Amesos_Klu");
+//                TrilinosWrappers::SolverDirect solver(cn, mpi_communicator, system_matrix);
+//                solver.solve(linear_solution, system_rhs);
                 break;
             }
             case SolverOptions::exact_preconditioner_with_gmres: {

@@ -73,15 +73,26 @@ namespace SAND
     }
     using namespace dealii;
 
-    class VmultTrilinosSolverDirect : public TrilinosWrappers::PreconditionBase {
-    public:
-        VmultTrilinosSolverDirect(SolverControl &cn,
-                                  const TrilinosWrappers::SolverDirect::AdditionalData &data);
-        void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
-        void initialize(LA::MPI::SparseMatrix &a_mat) const;
-
-    private:
-        TrilinosWrappers::SolverDirect solver_direct;
+    class VmultTrilinosSolverDirect : public TrilinosWrappers::SparseMatrix {
+        public:
+            VmultTrilinosSolverDirect(SolverControl &cn,
+                                      const TrilinosWrappers::SolverDirect::AdditionalData &data,
+                                      LA::MPI::SparseMatrix &a_mat
+                                      );
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void initialize(LA::MPI::SparseMatrix &a_mat);
+            unsigned int m() const;
+            unsigned int n() const;
+            int get_size()
+            {
+                return size;
+            }
+        private:
+            mutable TrilinosWrappers::SolverDirect solver_direct;
+            int size;
     };
 
     template<int dim>
@@ -155,7 +166,7 @@ namespace SAND
         TrilinosWrappers::SolverDirect::AdditionalData additional_data;
         SolverControl direct_solver_control;
         mutable VmultTrilinosSolverDirect a_inv_direct;
-
+//        TrilinosWrappers::SolverDirect a_inv_direct;
         mutable TimerOutput timer;
 
     };
