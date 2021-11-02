@@ -372,6 +372,7 @@ namespace SAND {
 
             g_d_m_inv_density = op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
 
+            std::cout << g_d_m_inv_density.l2_norm() << " 4-1" << std::endl;
             SolverControl step_4_gmres_control_1 (100000, std::max(g_d_m_inv_density.l2_norm()*1e-6,1e-6));
             SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
 //            LA::SolverGMRES step_4_gmres_1_Trilinos (step_4_gmres_control_1);
