@@ -535,7 +535,7 @@ namespace SAND {
                 pre_j = src.block(SolutionBlocks::density) + op_h * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
                 pre_k = src.block(SolutionBlocks::unfiltered_density_multiplier) - op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
                 std::cout << "5-2 density " << src.block(SolutionBlocks::density).l2_norm() << " unfiltered_density_multiplier " << src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()
-                        << " pre_k norm " << pre_k.l2_norm();
+                        << " pre_k norm " << pre_k.l2_norm() << std::endl;
 
 
                 TrilinosWrappers::PreconditionIdentity preconditioner;
