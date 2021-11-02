@@ -367,7 +367,7 @@ namespace SAND {
             preconditioner.initialize(b_mat);
 
             g_d_m_inv_density = op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
-            SolverControl step_4_gmres_control_1 (100000, std::max(g_d_m_inv_density.l2_norm()*1e-6,1e-6));
+            SolverControl step_4_gmres_control_1 (100000, g_d_m_inv_density.l2_norm()*1e-6);
             SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
 //            LA::SolverGMRES step_4_gmres_1_Trilinos (step_4_gmres_control_1);
             try {
@@ -385,7 +385,7 @@ namespace SAND {
             std::cout << "first residual 4-1: " << step_4_gmres_control_1.initial_value() << std::endl;
             std::cout << "last residual 4-1: " << step_4_gmres_control_1.last_value() << std::endl;
 
-            SolverControl step_4_gmres_control_2 (100000, std::max(src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6,1e-6));
+            SolverControl step_4_gmres_control_2 (100000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
             SolverGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
             LA::SolverGMRES step_4_gmres_2_Trilinos (step_4_gmres_control_2);
             try {
@@ -538,7 +538,7 @@ namespace SAND {
                 TrilinosWrappers::PreconditionIdentity preconditioner;
                 preconditioner.initialize(b_mat);
 
-                SolverControl step_5_gmres_control_1 (100000, std::max(pre_j.l2_norm()*1e-6,1e-6));
+                SolverControl step_5_gmres_control_1 (100000, pre_j.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
 //                LA::SolverGMRES step_5_gmres_1_Trilinos (step_5_gmres_control_1);
                 try {
@@ -555,7 +555,7 @@ namespace SAND {
                 std::cout << "first residual 5-1: " << step_5_gmres_control_1.initial_value() << std::endl;
                 std::cout << "last residual 5-1: " << step_5_gmres_control_1.last_value() << std::endl;
 
-                SolverControl step_5_gmres_control_2 (100000, std::max(pre_k.l2_norm()*1e-6,1e-6));
+                SolverControl step_5_gmres_control_2 (100000, pre_k.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
 //                LA::SolverGMRES step_5_gmres_2_Trilinos (step_5_gmres_control_2);
                 try {
