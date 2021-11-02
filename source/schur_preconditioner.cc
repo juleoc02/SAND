@@ -533,8 +533,10 @@ namespace SAND {
                 auto op_k_inv = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * op_h - linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
 
                 pre_j = src.block(SolutionBlocks::density) + op_h * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
-                pre_k = src.block(SolutionBlocks::unfiltered_density_multiplier) - op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
-                std::cout << "5-2 density " << src.block(SolutionBlocks::density).l2_norm() << " unfiltered_density_multiplier " << src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()
+                auto pre_pre_k = pre_k;
+                pre_pre_k = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
+                pre_k =  pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
+                std::cout << "pre_pre_k norm " << pre_pre_k.l2_norm() << " unfiltered_density_multiplier " << src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()
                         << " pre_k norm " << pre_k.l2_norm() << std::endl;
 
 
