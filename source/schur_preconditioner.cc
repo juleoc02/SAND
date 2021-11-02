@@ -485,7 +485,8 @@ namespace SAND {
                 pre_pre_k = -1 * op_g * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density);
                 pre_k =  pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
 
-                std::cout << " pre_pre_k_norm " << pre_pre_k.l2_norm() << " pre_k norm " << pre_k.l2_norm() << std::endl;
+                std::cout << "pre_pre_k norm " << pre_pre_k.l2_norm() << " unfiltered_density_multiplier " << src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()
+                          << " pre_k norm " << pre_k.l2_norm() << std::endl;
 
                 SolverControl step_5_gmres_control_1 (10000, pre_j.l2_norm()*1e-6);
                 SolverGMRES<Vector<double>> step_5_gmres_1 (step_5_gmres_control_1);
