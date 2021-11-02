@@ -175,8 +175,6 @@ namespace SAND {
         op_d_8 = linear_operator<VectorType,VectorType,PayloadType>(d_8_mat);
         op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * transpose_operator<VectorType, VectorType, PayloadType>(linear_operator<VectorType,VectorType,PayloadType>(f_mat));
 
-        std::cout << "here" << std::endl;
-
 
         if (Input::solver_choice==SolverOptions::inexact_K_with_inexact_A_gmres)
         {
@@ -195,7 +193,6 @@ namespace SAND {
                    - transpose_operator<VectorType, VectorType, PayloadType>(e_mat) * a_inv_op * linear_operator<VectorType, VectorType, PayloadType>(c_mat);
         }
 
-        std::cout << "here" << std::endl;
 
         if(Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres || Input::solver_choice == SolverOptions::inexact_K_with_exact_A_gmres)
         {
@@ -240,7 +237,6 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         LA::MPI::BlockVector temp_src;
-        std::cout << "starting vmult" << std::endl;
         {
             TimerOutput::Scope t(timer, "part 1");
             vmult_step_1(dst, src);
@@ -371,8 +367,6 @@ namespace SAND {
             preconditioner.initialize(b_mat);
 
             g_d_m_inv_density = op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
-
-            std::cout << g_d_m_inv_density.l2_norm() << " 4-1" << std::endl;
             SolverControl step_4_gmres_control_1 (100000, std::max(g_d_m_inv_density.l2_norm()*1e-6,1e-6));
             SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
 //            LA::SolverGMRES step_4_gmres_1_Trilinos (step_4_gmres_control_1);
@@ -388,6 +382,8 @@ namespace SAND {
                 std::cout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
                 throw;
             }
+            std::cout << "first residual 4-1: " << step_4_gmres_control_1.initial_value() << std::endl;
+            std::cout << "last residual 4-1: " << step_4_gmres_control_1.last_value() << std::endl;
 
             SolverControl step_4_gmres_control_2 (100000, std::max(src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6,1e-6));
             SolverGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
