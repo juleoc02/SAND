@@ -283,23 +283,19 @@ namespace SAND {
     void TopOptSchurPreconditioner<dim>::vmult_step_1(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
         auto dst_temp = dst;
-        auto op_d_5 = linear_operator<VectorType,VectorType,PayloadType>(d_5_mat);
-        auto op_d_6 = linear_operator<VectorType,VectorType,PayloadType>(d_6_mat);
-        dst_temp.block(SolutionBlocks::density_upper_slack) = -1 * op_d_5 * src.block(SolutionBlocks::density_lower_slack_multiplier);
-        dst_temp.block(SolutionBlocks::density_lower_slack) = op_d_6 * src.block(SolutionBlocks::density_upper_slack_multiplier);
-        dst.block(SolutionBlocks::unfiltered_density) = dst_temp.block(SolutionBlocks::unfiltered_density) +
-                                                                   dst_temp.block(SolutionBlocks::density_upper_slack) +
-                                                                   dst_temp.block(SolutionBlocks::density_lower_slack) +
-                                                                   src.block(SolutionBlocks::density_lower_slack) -
-                                                                   src.block(SolutionBlocks::density_upper_slack);
+        dst.block(SolutionBlocks::unfiltered_density) = dst_temp.block(SolutionBlocks::unfiltered_density)
+                - linear_operator<VectorType,VectorType,PayloadType>(d_5_mat) * src.block(SolutionBlocks::density_lower_slack_multiplier)
+                + linear_operator<VectorType,VectorType,PayloadType>(d_6_mat) * src.block(SolutionBlocks::density_upper_slack_multiplier)
+                + src.block(SolutionBlocks::density_lower_slack)
+                - src.block(SolutionBlocks::density_upper_slack);
     }
 
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult_step_2(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
         auto dst_temp = dst;
-        dst_temp.block(SolutionBlocks::density) = linear_operator<VectorType,VectorType,PayloadType>(f_mat)*linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
-        dst.block(SolutionBlocks::unfiltered_density_multiplier) = dst_temp.block(SolutionBlocks::density) + dst_temp.block(SolutionBlocks::unfiltered_density_multiplier);
+        dst.block(SolutionBlocks::unfiltered_density_multiplier) = dst_temp.block(SolutionBlocks::unfiltered_density_multiplier)
+                - linear_operator<VectorType,VectorType,PayloadType>(f_mat)*linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
 
     }
 
@@ -332,7 +328,9 @@ namespace SAND {
             c_mat.Tvmult(dst_temp.block(SolutionBlocks::density_upper_slack),dst_temp.block(SolutionBlocks::displacement_multiplier));
             e_mat.Tvmult(dst_temp.block(SolutionBlocks::density_lower_slack),dst_temp.block(SolutionBlocks::displacement));
 
-            dst.block(SolutionBlocks::density) = dst_temp.block(SolutionBlocks::density) - dst_temp.block(SolutionBlocks::density_upper_slack) - dst_temp.block(SolutionBlocks::density_lower_slack);
+            dst.block(SolutionBlocks::density) = dst_temp.block(SolutionBlocks::density)
+                    - transpose_operator<VectorType,VectorType,PayloadType>(e_mat) * linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct)* src.block(SolutionBlocks::displacement)
+                    - transpose_operator<VectorType,VectorType,PayloadType>(c_mat) * linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct)* src.block(SolutionBlocks::displacement_multiplier);
         }
 
     }
@@ -384,6 +382,7 @@ namespace SAND {
             }
             std::cout << "first residual 4-1: " << step_4_gmres_control_1.initial_value() << std::endl;
             std::cout << "last residual 4-1: " << step_4_gmres_control_1.last_value() << std::endl;
+            std::cout << "last residual 4-1: " << step_4_gmres_control_1.last_step() << std::endl;
 
             SolverControl step_4_gmres_control_2 (100000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
             SolverGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
@@ -401,6 +400,7 @@ namespace SAND {
             }
             std::cout << "first residual 4-2: " << step_4_gmres_control_2.initial_value() << std::endl;
             std::cout << "last residual 4-2: " << step_4_gmres_control_2.last_value() << std::endl;
+            std::cout << "last residual 4-2: " << step_4_gmres_control_2.last_step() << std::endl;
         }
         else if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
         {
@@ -559,6 +559,7 @@ namespace SAND {
                 }
                 std::cout << "first residual 5-1: " << step_5_gmres_control_1.initial_value() << std::endl;
                 std::cout << "last residual 5-1: " << step_5_gmres_control_1.last_value() << std::endl;
+                std::cout << "last residual 5-1: " << step_5_gmres_control_1.last_step() << std::endl;
 
                 SolverControl step_5_gmres_control_2 (100000, pre_k.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
@@ -575,6 +576,7 @@ namespace SAND {
                 }
                 std::cout << "first residual 5-2: " << step_5_gmres_control_2.initial_value() << std::endl;
                 std::cout << "last residual 5-2: " << step_5_gmres_control_2.last_value() << std::endl;
+                std::cout << "last residual 5-2: " << step_5_gmres_control_2.last_step() << std::endl;
             }
             else if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
             {
