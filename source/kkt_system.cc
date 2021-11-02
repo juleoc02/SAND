@@ -673,6 +673,7 @@ namespace SAND {
             coupling[SolutionComponents::density_upper_slack_multiplier<dim>][SolutionComponents::density_upper_slack_multiplier<dim>] = DoFTools::always;
             constraints.reinit(locally_relevant_dofs);
             constraints.clear();
+            DoFTools::make_hanging_node_constraints(dof_handler,constraints);
             constraints.close();
 
             system_matrix.clear();
@@ -714,6 +715,10 @@ namespace SAND {
 
             linear_solution.reinit(owned_partitioning, relevant_partitioning, mpi_communicator);
             system_rhs.reinit(owned_partitioning, mpi_communicator);
+
+            linear_solution.collect_sizes();
+            system_rhs.collect_sizes();
+            system_matrix.collect_sizes();
     }
 
     ///This  is  where  the  magic  happens.   The  equations  describing  the newtons method for finding 0s in the KKT conditions are implemented here.
@@ -772,7 +777,7 @@ namespace SAND {
 
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
 
-        LA::MPI::BlockVector filtered_unfiltered_density_solution(state);
+        LA::MPI::BlockVector filtered_unfiltered_density_solution = state;
         LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = state;
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
