@@ -320,6 +320,7 @@ namespace SAND {
 
             g_d_m_inv_density = op_g * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density);
 
+            std::cout << g_d_m_inv_density.l2_norm() << " 4-1" << std::endl;
             SolverControl step_4_gmres_control_1 (10000, g_d_m_inv_density.l2_norm()*1e-6);
             SolverGMRES<Vector<double>> step_4_gmres_1 (step_4_gmres_control_1);
             try {
@@ -365,7 +366,7 @@ namespace SAND {
 
             g_d_m_inv_density = op_g * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density);
 
-            std::cout << g_d_m_inv_density.l2_norm() << " 4-1" << std::endl;
+
             SolverControl step_4_gmres_control_1 (10000, g_d_m_inv_density.l2_norm()*1e-6);
             SolverGMRES<Vector<double>> step_4_gmres_1 (step_4_gmres_control_1);
             try {
