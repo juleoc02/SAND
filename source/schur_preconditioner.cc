@@ -523,7 +523,7 @@ namespace SAND {
             else if (Input::solver_choice == SolverOptions::inexact_K_with_exact_A_gmres)
             {
                 auto op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) *
-                            transpose_operator<VectorType, VectorType, PayloadType>(f_mat);
+                            transpose_operator(linear_operator<VectorType,VectorType,PayloadType>(f_mat));
 
                 auto op_h = linear_operator<VectorType,VectorType,PayloadType>(b_mat)
                             - transpose_operator<VectorType, VectorType, PayloadType>(c_mat) *
@@ -533,7 +533,10 @@ namespace SAND {
                 auto op_k_inv = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * op_h - linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
 
                 pre_j = src.block(SolutionBlocks::density) + op_h * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
-                pre_k = -1* op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density) + src.block(SolutionBlocks::unfiltered_density_multiplier);
+                pre_k = src.block(SolutionBlocks::unfiltered_density_multiplier) - op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
+                std::cout << "5-2 density " << src.block(SolutionBlocks::density).l2_norm() << " unfiltered_density_multiplier " << src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()
+                        << " pre_k norm " << pre_k.l2_norm();
+
 
                 TrilinosWrappers::PreconditionIdentity preconditioner;
                 preconditioner.initialize(b_mat);
