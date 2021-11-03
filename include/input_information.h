@@ -17,12 +17,12 @@ namespace SAND {
         //geometry options
         constexpr unsigned int geometry_base = GeometryOptions::mbb;
         constexpr unsigned int dim = 2;
-        constexpr unsigned int refinements =  5;
+        constexpr unsigned int refinements =  4;
 
         //nonlinear algorithm options
         constexpr double initial_barrier_size = 25;
-        constexpr double min_barrier_size = .000001;
-        constexpr double fraction_to_boundary = .8;
+        constexpr double min_barrier_size = .00000;
+        constexpr double fraction_to_boundary = .9;
         constexpr unsigned int max_steps=75;
         constexpr unsigned int barrier_reduction=BarrierOptions::loqo;
         constexpr double required_norm = .0001;

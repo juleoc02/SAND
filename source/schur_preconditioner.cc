@@ -97,6 +97,22 @@ namespace SAND {
                             dof_index - disp_mult_start_index, dof_index - disp_mult_start_index, 0);
                 }
             }
+
+
+            const unsigned int m = a_mat.m();
+            const unsigned int n = a_mat.n();
+            std::ofstream Xmat("a_mat_par.csv");
+            for (unsigned int i = 0; i < m; i++)
+            {
+                Xmat << a_mat.el(i, 0);
+                for (unsigned int j = 1; j < n; j++)
+                {
+                    Xmat << "," << a_mat.el(i, j);
+                }
+                Xmat << "\n";
+            }
+            Xmat.close();
+
         }
         if (Input::solver_choice==SolverOptions::inexact_K_with_inexact_A_gmres)
         {
@@ -322,12 +338,6 @@ namespace SAND {
         else
         {
             auto dst_temp = dst;
-            a_inv_direct.vmult(dst_temp.block(SolutionBlocks::displacement_multiplier),src.block(SolutionBlocks::displacement_multiplier));
-            a_inv_direct.vmult(dst_temp.block(SolutionBlocks::displacement),src.block(SolutionBlocks::displacement));
-
-            c_mat.Tvmult(dst_temp.block(SolutionBlocks::density_upper_slack),dst_temp.block(SolutionBlocks::displacement_multiplier));
-            e_mat.Tvmult(dst_temp.block(SolutionBlocks::density_lower_slack),dst_temp.block(SolutionBlocks::displacement));
-
             dst.block(SolutionBlocks::density) = dst_temp.block(SolutionBlocks::density)
                     - transpose_operator<VectorType,VectorType,PayloadType>(e_mat) * linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct)* src.block(SolutionBlocks::displacement)
                     - transpose_operator<VectorType,VectorType,PayloadType>(c_mat) * linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct)* src.block(SolutionBlocks::displacement_multiplier);
@@ -367,12 +377,14 @@ namespace SAND {
             g_d_m_inv_density = op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
             SolverControl step_4_gmres_control_1 (100000, g_d_m_inv_density.l2_norm()*1e-6);
             SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
-//            LA::SolverGMRES step_4_gmres_1_Trilinos (step_4_gmres_control_1);
+            TrilinosWrappers::SolverGMRES step_4_gmres_1_Trilinos (step_4_gmres_control_1);
             try {
 
 //                step_4_gmres_1_Trilinos.solve(op_k_inv, k_g_d_m_inv_density,g_d_m_inv_density,preconditioner);
-                k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, PreconditionIdentity()) *
+                k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1_Trilinos, PreconditionIdentity()) *
                                       g_d_m_inv_density;
+//                k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, PreconditionIdentity()) *
+//                                      g_d_m_inv_density;
             } catch (std::exception &exc)
             {
                 std::cerr << "Failure of linear solver step_4_gmres_1" << std::endl;
@@ -382,15 +394,17 @@ namespace SAND {
             }
             std::cout << "first residual 4-1: " << step_4_gmres_control_1.initial_value() << std::endl;
             std::cout << "last residual 4-1: " << step_4_gmres_control_1.last_value() << std::endl;
-            std::cout << "last residual 4-1: " << step_4_gmres_control_1.last_step() << std::endl;
+            std::cout << "Iterations 4-1: " << step_4_gmres_control_1.last_step() << std::endl;
 
             SolverControl step_4_gmres_control_2 (100000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
             SolverGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
             LA::SolverGMRES step_4_gmres_2_Trilinos (step_4_gmres_control_2);
             try {
 //                step_4_gmres_2_Trilinos.solve(op_k_inv, k_density_mult,src.block(SolutionBlocks::unfiltered_density_multiplier),preconditioner);
-                k_density_mult = inverse_operator(op_k_inv,step_4_gmres_2, PreconditionIdentity()) *
+                k_density_mult = inverse_operator(op_k_inv,step_4_gmres_2_Trilinos, PreconditionIdentity()) *
                                  src.block(SolutionBlocks::unfiltered_density_multiplier);
+//                k_density_mult = inverse_operator(op_k_inv,step_4_gmres_2, PreconditionIdentity()) *
+//                                 src.block(SolutionBlocks::unfiltered_density_multiplier);
             } catch (std::exception &exc)
             {
                 std::cerr << "Failure of linear solver step_4_gmres_2" << std::endl;
@@ -400,7 +414,7 @@ namespace SAND {
             }
             std::cout << "first residual 4-2: " << step_4_gmres_control_2.initial_value() << std::endl;
             std::cout << "last residual 4-2: " << step_4_gmres_control_2.last_value() << std::endl;
-            std::cout << "last residual 4-2: " << step_4_gmres_control_2.last_step() << std::endl;
+            std::cout << "Iterations 4-2: " << step_4_gmres_control_2.last_step() << std::endl;
         }
         else if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
         {
@@ -499,8 +513,8 @@ namespace SAND {
                 dst.block(SolutionBlocks::displacement_multiplier) = a_inv_op * src.block(SolutionBlocks::displacement);
             } else
             {
-                dst.block(SolutionBlocks::displacement) = linear_operator<VectorType>(a_inv_direct) * src.block(SolutionBlocks::displacement_multiplier);
-                dst.block(SolutionBlocks::displacement_multiplier) = linear_operator<VectorType>(a_inv_direct) * src.block(SolutionBlocks::displacement);
+                dst.block(SolutionBlocks::displacement) = linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct) * src.block(SolutionBlocks::displacement_multiplier);
+                dst.block(SolutionBlocks::displacement_multiplier) = linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct) * src.block(SolutionBlocks::displacement);
             }
 
         }
@@ -545,11 +559,13 @@ namespace SAND {
 
                 SolverControl step_5_gmres_control_1 (100000, pre_j.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
-//                LA::SolverGMRES step_5_gmres_1_Trilinos (step_5_gmres_control_1);
+                LA::SolverGMRES step_5_gmres_1_Trilinos (step_5_gmres_control_1);
                 try {
 //                    step_5_gmres_1_Trilinos.solve(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv),dst.block(SolutionBlocks::unfiltered_density_multiplier), pre_j, preconditioner);
-                    dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv), step_5_gmres_1, PreconditionIdentity()) *
+                    dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv), step_5_gmres_1_Trilinos, PreconditionIdentity()) *
                                           pre_j;
+//                    dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv), step_5_gmres_1, PreconditionIdentity()) *
+//                                                                               pre_j;
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_1" << std::endl;
@@ -559,14 +575,15 @@ namespace SAND {
                 }
                 std::cout << "first residual 5-1: " << step_5_gmres_control_1.initial_value() << std::endl;
                 std::cout << "last residual 5-1: " << step_5_gmres_control_1.last_value() << std::endl;
-                std::cout << "last residual 5-1: " << step_5_gmres_control_1.last_step() << std::endl;
+                std::cout << "Iterations 5-1: " << step_5_gmres_control_1.last_step() << std::endl;
 
                 SolverControl step_5_gmres_control_2 (100000, pre_k.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
-//                LA::SolverGMRES step_5_gmres_2_Trilinos (step_5_gmres_control_2);
+                LA::SolverGMRES step_5_gmres_2_Trilinos (step_5_gmres_control_2);
                 try {
 //                    step_5_gmres_2_Trilinos.solve(op_k_inv,dst.block(SolutionBlocks::density), pre_k, preconditioner);
-                    dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2, PreconditionIdentity()) * pre_k;
+                    dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2_Trilinos, PreconditionIdentity()) * pre_k;
+//                    dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2, PreconditionIdentity()) * pre_k;
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_2" << std::endl;
@@ -576,7 +593,7 @@ namespace SAND {
                 }
                 std::cout << "first residual 5-2: " << step_5_gmres_control_2.initial_value() << std::endl;
                 std::cout << "last residual 5-2: " << step_5_gmres_control_2.last_value() << std::endl;
-                std::cout << "last residual 5-2: " << step_5_gmres_control_2.last_step() << std::endl;
+                std::cout << "Iterations 5-2: " << step_5_gmres_control_2.last_step() << std::endl;
             }
             else if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
             {

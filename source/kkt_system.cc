@@ -1625,6 +1625,8 @@ namespace SAND {
         else {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
+        linear_solution=0;
+        constraints.distribute(linear_solution);
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
 
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
