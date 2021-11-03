@@ -1076,6 +1076,11 @@ namespace SAND {
             }
 
 
+            if (cell->active_cell_index()==10)
+            {
+                cell_matrix.print(std::cout);
+            }
+
         }
         system_matrix.compress(VectorOperation::add);
         system_rhs = calculate_rhs(state, barrier_size);

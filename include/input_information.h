@@ -31,7 +31,7 @@ namespace SAND {
         constexpr double filter_r = .251;
 
         //other options
-        constexpr double density_penalty_exponent = 5;
+        constexpr double density_penalty_exponent = 3;
 
         //output options
         constexpr bool output_full_preconditioned_matrix = false;
