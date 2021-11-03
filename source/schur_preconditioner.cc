@@ -142,6 +142,20 @@ namespace SAND {
                 d_m_inv_mat.set(i, i, 1 / m);
 
             }
+
+            const unsigned int m = a_mat.m();
+            const unsigned int n = a_mat.n();
+            std::ofstream Xmat("a_mat_ser.csv");
+            for (unsigned int i = 0; i < m; i++)
+            {
+                Xmat << a_mat.el(i, 0);
+                for (unsigned int j = 1; j < n; j++)
+                {
+                    Xmat << "," << a_mat.el(i, j);
+                }
+                Xmat << "\n";
+            }
+            Xmat.close();
         }
 
         pre_j.reinit(matrix.block(SolutionBlocks::density,SolutionBlocks::density).n());
