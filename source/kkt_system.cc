@@ -1070,6 +1070,10 @@ namespace SAND {
 
             constraints.distribute_local_to_global(
                     cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
+            if (cell->active_cell_index()==10)
+            {
+                cell_matrix.print(std::cout);
+            }
 
 
         }
