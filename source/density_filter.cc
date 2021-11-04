@@ -69,6 +69,7 @@ namespace SAND {
                 iter->value() = iter->value() / denominator;
             }
         }
+        std::cout << "density nonzero entries" << filter_matrix.n_nonzero_elements() << std::endl;
     }
 
     /*This function finds which neighbors are within a certain radius of the initial cell.*/
