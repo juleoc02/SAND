@@ -1071,9 +1071,6 @@ namespace SAND {
             constraints.distribute_local_to_global(
                     cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
-            if (cell->active_cell_index() == 23)
-                cell_matrix.print(std::cout);
-
         }
         system_matrix.compress(VectorOperation::add);
         system_rhs = calculate_rhs(state, barrier_size);
