@@ -7,21 +7,16 @@
 #include <deal.II/base/tensor.h>
 #include <deal.II/base/timer.h>
 
-#include <deal.II/lac/block_vector.h>
 #include <deal.II/lac/full_matrix.h>
-#include <deal.II/lac/block_sparse_matrix.h>
-#include <deal.II/lac/precondition.h>
 #include <deal.II/lac/linear_operator.h>
 #include <deal.II/lac/solver_gmres.h>
 #include <deal.II/lac/generic_linear_algebra.h>
 #include <deal.II/lac/trilinos_sparse_matrix.h>
-#include <deal.II/lac/trilinos_block_sparse_matrix.h>
 
 
 #include <deal.II/lac/matrix_out.h>
 
 #include <deal.II/grid/grid_generator.h>
-#include <deal.II/grid/grid_refinement.h>
 
 #include <deal.II/dofs/dof_renumbering.h>
 #include <deal.II/dofs/dof_tools.h>
@@ -40,12 +35,7 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
 
-#include <deal.II/distributed/tria.h>
-#include <deal.II/distributed/grid_refinement.h>
-
-
 #include "../include/input_information.h"
-#include "../include/sand_tools.h"
 
 #include <iostream>
 #include <algorithm>
@@ -690,7 +680,7 @@ namespace SAND {
                 dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i);
             }
 
-            /*finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
+            /*This finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
             for (const auto &cell: triangulation.active_cell_iterators()) {
                 const unsigned int i = cell->active_cell_index();
                 for (const auto &neighbor_cell: density_filter.find_relevant_neighbors(cell))
@@ -1611,7 +1601,7 @@ namespace SAND {
     ///A  direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
     template<int dim>
     LA::MPI::BlockVector
-    KktSystem<dim>::solve(const LA::MPI::BlockVector &state, double barrier_size) {
+    KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         double gmres_tolerance;
         if (Input::use_eisenstat_walker) {
             gmres_tolerance = std::max(
@@ -1639,21 +1629,21 @@ namespace SAND {
                 break;
             }
             case SolverOptions::exact_preconditioner_with_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
                 SolverFGMRES<LA::MPI::BlockVector> A_fgmres(solver_control);
                 A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_exact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
                 SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
                 B_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_inexact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
                 SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
                 C_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
@@ -1665,7 +1655,7 @@ namespace SAND {
         constraints.distribute(linear_solution);
 
         if (Input::output_parts_of_matrix) {
-            preconditioner.print_stuff(system_matrix);
+            preconditioner.print_stuff();
         }
 
         if (Input::output_full_preconditioned_matrix) {

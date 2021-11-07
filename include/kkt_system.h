@@ -92,7 +92,7 @@ namespace SAND {
         assemble_block_system(const LA::MPI::BlockVector &state, const double barrier_size);
 
         LA::MPI::BlockVector
-        solve(const LA::MPI::BlockVector &state, double barrier_size);
+        solve(const LA::MPI::BlockVector &state);
 
         LA::MPI::BlockVector
         get_initial_state();

@@ -76,8 +76,7 @@ namespace SAND
     class VmultTrilinosSolverDirect : public TrilinosWrappers::SparseMatrix {
         public:
             VmultTrilinosSolverDirect(SolverControl &cn,
-                                      const TrilinosWrappers::SolverDirect::AdditionalData &data,
-                                      LA::MPI::SparseMatrix &a_mat
+                                      const TrilinosWrappers::SolverDirect::AdditionalData &data
                                       );
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
@@ -99,7 +98,7 @@ namespace SAND
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
         TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in);
-        void initialize (LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const double barrier_size, const LA::MPI::BlockVector &state);
+        void initialize (LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &state);
         void vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
         void Tvmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
         void vmult_add(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
@@ -111,7 +110,7 @@ namespace SAND
 
         void assemble_mass_matrix(const LA::MPI::BlockVector &state, const hp::FECollection<dim> &fe_system, const DoFHandler<dim> &dof_handler, const AffineConstraints<double> &constraints,   const BlockSparsityPattern &bsp);
 
-        void print_stuff(const LA::MPI::BlockSparseMatrix &matrix);
+        void print_stuff();
 
         LA::MPI::BlockSparseMatrix &system_matrix;
 

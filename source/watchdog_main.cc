@@ -111,7 +111,7 @@ namespace SAND {
     SANDTopOpt<dim>::find_max_step(const LA::MPI::BlockVector &state)
     {
         kkt_system.assemble_block_system(state, barrier_size);
-        const LA::MPI::BlockVector step = kkt_system.solve(state,barrier_size);
+        const LA::MPI::BlockVector step = kkt_system.solve(state);
 
         const auto max_step_sizes= calculate_max_step_size(state,step);
         const double step_size_s = max_step_sizes.first;

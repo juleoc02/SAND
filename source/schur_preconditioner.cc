@@ -29,7 +29,6 @@ namespace SAND {
             n_block_rows(0),
             n_block_columns(0),
             other_solver_control(100000, 1e-6),
-            direct_solver_control(1, 0),
             other_bicgstab(other_solver_control),
             other_gmres(other_solver_control),
             other_cg(other_solver_control),
@@ -42,17 +41,17 @@ namespace SAND {
             d_1_mat(matrix_in.block(SolutionBlocks::density_lower_slack, SolutionBlocks::density_lower_slack)),
             d_2_mat(matrix_in.block(SolutionBlocks::density_upper_slack, SolutionBlocks::density_upper_slack)),
             m_vect(matrix_in.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier)),
-            timer(std::cout, TimerOutput::summary,
-                  TimerOutput::wall_times),
             solver_type("Amesos_Klu"),
             additional_data(false, solver_type),
-            a_inv_direct(direct_solver_control, additional_data, a_mat)
+            direct_solver_control(1, 0),
+            a_inv_direct(direct_solver_control, additional_data),
+            timer(std::cout, TimerOutput::summary, TimerOutput::wall_times)
     {
 
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const double barrier_size, const LA::MPI::BlockVector &state)
+    void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &state)
     {
         TimerOutput::Scope t(timer, "initialize");
         {
@@ -362,16 +361,26 @@ namespace SAND {
 
         else if (Input::solver_choice == SolverOptions::inexact_K_with_exact_A_gmres)
         {
-            auto op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) *
-                    transpose_operator<VectorType, VectorType, PayloadType>(f_mat);
+            auto op_d_8 = linear_operator<VectorType,VectorType,PayloadType>(d_8_mat);
+            auto op_f = linear_operator<VectorType,VectorType,PayloadType>(f_mat);
+            auto op_b = linear_operator<VectorType,VectorType,PayloadType>(b_mat);
+            auto op_c = linear_operator<VectorType,VectorType,PayloadType>(c_mat);
+            auto op_a_inv = linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct);
+            auto op_e = linear_operator<VectorType,VectorType,PayloadType>(e_mat);
+            auto op_d_m= linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
+            auto op_d_m_inv= linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat);
 
-            auto op_h = linear_operator<VectorType,VectorType,PayloadType>(b_mat)
-                   - transpose_operator<VectorType, VectorType, PayloadType>(c_mat) * linear_operator<VectorType, VectorType, PayloadType>(a_inv_direct) * linear_operator<VectorType,VectorType,PayloadType>(e_mat)
-                   - transpose_operator<VectorType, VectorType, PayloadType>(e_mat) * linear_operator<VectorType, VectorType, PayloadType>(a_inv_direct) * linear_operator<VectorType,VectorType,PayloadType>(c_mat);
+            auto op_g = op_f * op_d_8 *
+                    transpose_operator(op_f);
 
-            auto op_k_inv = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * op_h - linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
 
-            g_d_m_inv_density = op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
+            auto op_h = op_b
+                   - transpose_operator(op_c) * op_a_inv * op_e
+                   - transpose_operator(op_e) * op_a_inv * op_c;
+
+            auto op_k_inv = -1 * op_g *op_d_m_inv * op_h - op_d_m;
+
+            g_d_m_inv_density = op_g * op_d_m_inv * src.block(SolutionBlocks::density);
             SolverControl step_4_gmres_control_1 (100000, g_d_m_inv_density.l2_norm()*1e-6);
             SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
             try {
@@ -538,8 +547,7 @@ namespace SAND {
                 auto pre_pre_k = pre_k;
                 pre_pre_k = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
                 pre_k =  pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
-                TrilinosWrappers::PreconditionIdentity preconditioner;
-                preconditioner.initialize(b_mat);
+
 
                 SolverControl step_5_gmres_control_1 (100000, pre_j.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
@@ -779,34 +787,34 @@ namespace SAND {
 
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::print_stuff(const LA::MPI::BlockSparseMatrix &matrix)
+    void TopOptSchurPreconditioner<dim>::print_stuff()
     {
 
-//        print_matrix("OAmat.csv",a_mat);
-//        print_matrix("OBmat.csv",b_mat);
-//        print_matrix("OCmat.csv",c_mat);
-//        print_matrix("OEmat.csv",e_mat);
-//        print_matrix("OFmat.csv",f_mat);
-//        FullMatrix<double> g_mat;
-//        FullMatrix<double> h_mat;
-//        FullMatrix<double> k_inv_mat;
-//        g_mat.reinit(b_mat.m(),b_mat.n());
-//        h_mat.reinit(b_mat.m(),b_mat.n());
-//        k_inv_mat.reinit(b_mat.m(),b_mat.n());
-//        auto op_g = linear_operator(f_mat) * linear_operator(d_8_mat) *
-//                    transpose_operator(linear_operator(f_mat));
-//
-//        auto op_h = linear_operator(b_mat)
-//                    - transpose_operator(linear_operator(c_mat)) * linear_operator(a_inv_direct) * linear_operator(e_mat)
-//                    - transpose_operator(linear_operator(e_mat)) * linear_operator(a_inv_direct) * linear_operator(c_mat);
-//
-//        auto op_k_inv = -1 * op_g * linear_operator(d_m_inv_mat) * op_h - linear_operator(d_m_mat);
-//        build_matrix_element_by_element(op_g,g_mat);
-//        build_matrix_element_by_element(op_h,h_mat);
-//        build_matrix_element_by_element(op_k_inv,k_inv_mat);
-//        print_matrix("OGmat.csv",g_mat);
-//        print_matrix("OHmat.csv",h_mat);
-//        print_matrix("OKinvmat.csv",k_inv_mat);
+//        print_matrix(std::string("OAmat.csv"),a_mat);
+//        print_matrix(std::string("OBmat.csv"),b_mat);
+//        print_matrix(std::string("OCmat.csv"),c_mat);
+//        print_matrix(std::string("OEmat.csv"),e_mat);
+//        print_matrix(std::string("OFmat.csv"),f_mat);
+        FullMatrix<double> g_mat;
+        FullMatrix<double> h_mat;
+        FullMatrix<double> k_inv_mat;
+        g_mat.reinit(b_mat.m(),b_mat.n());
+        h_mat.reinit(b_mat.m(),b_mat.n());
+        k_inv_mat.reinit(b_mat.m(),b_mat.n());
+        auto op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) *
+                    transpose_operator(linear_operator<VectorType,VectorType,PayloadType>(f_mat));
+
+        auto op_h = linear_operator<VectorType,VectorType,PayloadType>(b_mat)
+                    - transpose_operator(linear_operator<VectorType,VectorType,PayloadType>(c_mat)) * linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct) * linear_operator<VectorType,VectorType,PayloadType>(e_mat)
+                    - transpose_operator(linear_operator<VectorType,VectorType,PayloadType>(e_mat)) * linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct) * linear_operator<VectorType,VectorType,PayloadType>(c_mat);
+
+        auto op_k_inv = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * op_h - linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
+//        build_matrix_element_by_element(op_g,g_mat, src.block(SolutionBlocks::density));
+//        build_matrix_element_by_element(op_h,h_mat, src.block(SolutionBlocks::density));
+//        build_matrix_element_by_element(op_k_inv,k_inv_mat, src.block(SolutionBlocks::density));
+//        print_matrix(std::string("OGmat.csv"),g_mat);
+//        print_matrix(std::string("OHmat.csv"),h_mat);
+//        print_matrix(std::string("OKinvmat.csv"),k_inv_mat);
 
 
     }
@@ -842,8 +850,7 @@ namespace SAND {
 
 
     VmultTrilinosSolverDirect::VmultTrilinosSolverDirect(SolverControl &cn,
-                     const TrilinosWrappers::SolverDirect::AdditionalData &data,
-                     LA::MPI::SparseMatrix &a_mat)
+                     const TrilinosWrappers::SolverDirect::AdditionalData &data)
     : solver_direct(cn, data)
     {
 
