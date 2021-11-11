@@ -109,30 +109,33 @@ namespace SAND {
 
                 /*Set BCIDs   */
                 for (const auto &cell: dof_handler.active_cell_iterators()) {
-                    cell->set_active_fe_index(0);
-                    cell->set_material_id(MaterialIds::without_multiplier);
-                    for (unsigned int face_number = 0;
-                         face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number) {
-                        if (cell->face(face_number)->at_boundary()) {
-                            const auto center = cell->face(face_number)->center();
+                    if(cell->is_locally_owned())
+                    {
+                        cell->set_active_fe_index(0);
+                        cell->set_material_id(MaterialIds::without_multiplier);
+                        for (unsigned int face_number = 0;
+                             face_number < GeometryInfo<dim>::faces_per_cell;
+                             ++face_number) {
+                            if (cell->face(face_number)->at_boundary()) {
+                                const auto center = cell->face(face_number)->center();
 
-                            if (std::fabs(center(1) - downforce_y) < 1e-12) {
-                                if (std::fabs(center(0) - downforce_x) < downforce_size) {
-                                    cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
-                                } else {
-                                    cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                                if (std::fabs(center(1) - downforce_y) < 1e-12) {
+                                    if (std::fabs(center(0) - downforce_x) < downforce_size) {
+                                        cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
+                                    } else {
+                                        cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                                    }
                                 }
                             }
                         }
-                    }
-                    for (unsigned int vertex_number = 0;
-                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                         ++vertex_number) {
-                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1)) <
-                            1e-10) {
-                            cell->set_active_fe_index(1);
-                            cell->set_material_id(MaterialIds::with_multiplier);
+                        for (unsigned int vertex_number = 0;
+                             vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                             ++vertex_number) {
+                            if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1)) <
+                                1e-10) {
+                                cell->set_active_fe_index(1);
+                                cell->set_material_id(MaterialIds::with_multiplier);
+                            }
                         }
                     }
                 }
@@ -149,30 +152,33 @@ namespace SAND {
                 triangulation.refine_global(Input::refinements);
 
                 for (const auto &cell: dof_handler.active_cell_iterators()) {
-                    cell->set_active_fe_index(0);
-                    cell->set_material_id(MaterialIds::without_multiplier);
-                    for (unsigned int face_number = 0;
-                         face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number) {
-                        if (cell->face(face_number)->at_boundary()) {
-                            const auto center = cell->face(face_number)->center();
+                    if (cell->is_locally_owned())
+                    {
+                        cell->set_active_fe_index(0);
+                        cell->set_material_id(MaterialIds::without_multiplier);
+                        for (unsigned int face_number = 0;
+                             face_number < GeometryInfo<dim>::faces_per_cell;
+                             ++face_number) {
+                            if (cell->face(face_number)->at_boundary()) {
+                                const auto center = cell->face(face_number)->center();
 
-                            if (std::fabs(center(1) - downforce_y) < 1e-12) {
-                                if (std::fabs(center(0) - downforce_x) < downforce_size) {
-                                    cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
-                                } else {
-                                    cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                                if (std::fabs(center(1) - downforce_y) < 1e-12) {
+                                    if (std::fabs(center(0) - downforce_x) < downforce_size) {
+                                        cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
+                                    } else {
+                                        cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                                    }
                                 }
                             }
                         }
-                    }
-                    for (unsigned int vertex_number = 0;
-                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                         ++vertex_number) {
-                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1))
-                            + std::abs(cell->vertex(vertex_number)(2)) < 1e-10) {
-                            cell->set_active_fe_index(1);
-                            cell->set_material_id(MaterialIds::with_multiplier);
+                        for (unsigned int vertex_number = 0;
+                             vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                             ++vertex_number) {
+                            if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1))
+                                + std::abs(cell->vertex(vertex_number)(2)) < 1e-10) {
+                                cell->set_active_fe_index(1);
+                                cell->set_material_id(MaterialIds::with_multiplier);
+                            }
                         }
                     }
                 }
@@ -207,30 +213,33 @@ namespace SAND {
 
                 /*Set BCIDs   */
                 for (const auto &cell: dof_handler.active_cell_iterators()) {
-                    cell->set_active_fe_index(0);
-                    cell->set_material_id(MaterialIds::without_multiplier);
-                    for (unsigned int face_number = 0;
-                         face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number) {
-                        if (cell->face(face_number)->at_boundary()) {
-                            const auto center = cell->face(face_number)->center();
+                    if (cell->is_locally_owned())
+                    {
+                        cell->set_active_fe_index(0);
+                        cell->set_material_id(MaterialIds::without_multiplier);
+                        for (unsigned int face_number = 0;
+                             face_number < GeometryInfo<dim>::faces_per_cell;
+                             ++face_number) {
+                            if (cell->face(face_number)->at_boundary()) {
+                                const auto center = cell->face(face_number)->center();
 
-                            if (std::fabs(center(0) - downforce_x) < 1e-12) {
-                                if (std::fabs(center(1) - downforce_y) < downforce_size) {
-                                    cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
-                                } else {
-                                    cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                                if (std::fabs(center(0) - downforce_x) < 1e-12) {
+                                    if (std::fabs(center(1) - downforce_y) < downforce_size) {
+                                        cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
+                                    } else {
+                                        cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                                    }
                                 }
                             }
                         }
-                    }
-                    for (unsigned int vertex_number = 0;
-                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                         ++vertex_number) {
-                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1)) <
-                            1e-10) {
-                            cell->set_active_fe_index(1);
-                            cell->set_material_id(MaterialIds::with_multiplier);
+                        for (unsigned int vertex_number = 0;
+                             vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                             ++vertex_number) {
+                            if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1)) <
+                                1e-10) {
+                                cell->set_active_fe_index(1);
+                                cell->set_material_id(MaterialIds::with_multiplier);
+                            }
                         }
                     }
                 }
@@ -250,35 +259,38 @@ namespace SAND {
 
                 /*Set BCIDs   */
                 for (const auto &cell: dof_handler.active_cell_iterators()) {
-                    cell->set_active_fe_index(0);
-                    cell->set_material_id(MaterialIds::without_multiplier);
-                    for (unsigned int face_number = 0;
-                         face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number) {
-                        if (cell->face(face_number)->at_boundary()) {
-                            const auto center = cell->face(face_number)->center();
+                    if(cell->is_locally_owned())
+                    {
+                        cell->set_active_fe_index(0);
+                        cell->set_material_id(MaterialIds::without_multiplier);
+                        for (unsigned int face_number = 0;
+                             face_number < GeometryInfo<dim>::faces_per_cell;
+                             ++face_number) {
+                            if (cell->face(face_number)->at_boundary()) {
+                                const auto center = cell->face(face_number)->center();
 
-                            if (std::fabs(center(0) - downforce_x) < 1e-12) {
-                                if (std::fabs(center(1) - downforce_y) < downforce_size) {
-                                    cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
-                                    if (std::fabs(center(2) - downforce_z) < downforce_size) {
+                                if (std::fabs(center(0) - downforce_x) < 1e-12) {
+                                    if (std::fabs(center(1) - downforce_y) < downforce_size) {
                                         cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
+                                        if (std::fabs(center(2) - downforce_z) < downforce_size) {
+                                            cell->face(face_number)->set_boundary_id(BoundaryIds::down_force);
+                                        } else {
+                                            cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
+                                        }
                                     } else {
                                         cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
                                     }
-                                } else {
-                                    cell->face(face_number)->set_boundary_id(BoundaryIds::no_force);
                                 }
                             }
                         }
-                    }
-                    for (unsigned int vertex_number = 0;
-                         vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                         ++vertex_number) {
-                        if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1)) <
-                            1e-10) {
-                            cell->set_active_fe_index(1);
-                            cell->set_material_id(MaterialIds::with_multiplier);
+                        for (unsigned int vertex_number = 0;
+                             vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                             ++vertex_number) {
+                            if (std::abs(cell->vertex(vertex_number)(0)) + std::abs(cell->vertex(vertex_number)(1)) <
+                                1e-10) {
+                                cell->set_active_fe_index(1);
+                                cell->set_material_id(MaterialIds::with_multiplier);
+                            }
                         }
                     }
                 }
@@ -304,113 +316,119 @@ namespace SAND {
         if (Input::geometry_base == GeometryOptions::mbb) {
             if (dim == 2) {
                 for (const auto &cell: dof_handler.active_cell_iterators()) {
+                    if(cell->is_locally_owned())
+                    {
+                        for (unsigned int face_number = 0;
+                             face_number < GeometryInfo<dim>::faces_per_cell;
+                             ++face_number) {
+                            if (cell->face(face_number)->at_boundary()) {
+                                for (unsigned int vertex_number = 0;
+                                     vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                     ++vertex_number) {
+                                    const auto vert = cell->vertex(vertex_number);
+                                    /*Find bottom left corner*/
+                                    if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                            vert(1) - 0) < 1e-12) {
 
-                    for (unsigned int face_number = 0;
-                         face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number) {
-                        if (cell->face(face_number)->at_boundary()) {
-                            for (unsigned int vertex_number = 0;
-                                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                                 ++vertex_number) {
-                                const auto vert = cell->vertex(vertex_number);
-                                /*Find bottom left corner*/
-                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                        vert(1) - 0) < 1e-12) {
-
-                                    const unsigned int x_displacement =
-                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                    const unsigned int y_displacement =
-                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                    const unsigned int x_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                                    const unsigned int y_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                    /*set bottom left BC*/
-                                    boundary_values[x_displacement] = 0;
-                                    boundary_values[y_displacement] = 0;
-                                    boundary_values[x_displacement_multiplier] = 0;
-                                    boundary_values[y_displacement_multiplier] = 0;
-                                }
-                                /*Find bottom right corner*/
-                                if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-                                        vert(1) - 0) < 1e-12) {
+                                        const unsigned int x_displacement =
+                                                cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                        const unsigned int y_displacement =
+                                                cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                        const unsigned int x_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                        const unsigned int y_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                        /*set bottom left BC*/
+                                        boundary_values[x_displacement] = 0;
+                                        boundary_values[y_displacement] = 0;
+                                        boundary_values[x_displacement_multiplier] = 0;
+                                        boundary_values[y_displacement_multiplier] = 0;
+                                    }
+                                    /*Find bottom right corner*/
+                                    if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
+                                            vert(1) - 0) < 1e-12) {
 //                            const unsigned int x_displacement =
 //                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                    const unsigned int y_displacement =
-                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                        const unsigned int y_displacement =
+                                                cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
 //                            const unsigned int x_displacement_multiplier =
 //                                    cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                                    const unsigned int y_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                        const unsigned int y_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
 //                            boundary_values[x_displacement] = 0;
-                                    boundary_values[y_displacement] = 0;
+                                        boundary_values[y_displacement] = 0;
 //                            boundary_values[x_displacement_multiplier] = 0;
-                                    boundary_values[y_displacement_multiplier] = 0;
+                                        boundary_values[y_displacement_multiplier] = 0;
+                                    }
                                 }
                             }
                         }
                     }
+
                 }
             } else if (dim == 3) {
                 for (const auto &cell: dof_handler.active_cell_iterators()) {
-                    for (unsigned int face_number = 0;
-                         face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number) {
-                        if (cell->face(face_number)->at_boundary()) {
-                            for (unsigned int vertex_number = 0;
-                                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                                 ++vertex_number) {
-                                const auto vert = cell->vertex(vertex_number);
-                                /*Find bottom left corner*/
-                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                        vert(1) - 0) < 1e-12 && ((std::fabs(
-                                        vert(2) - 0) < 1e-12) || (std::fabs(
-                                        vert(2) - 1) < 1e-12))) {
+                    if(cell->is_locally_owned())
+                    {
+                        for (unsigned int face_number = 0;
+                             face_number < GeometryInfo<dim>::faces_per_cell;
+                             ++face_number) {
+                            if (cell->face(face_number)->at_boundary()) {
+                                for (unsigned int vertex_number = 0;
+                                     vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                     ++vertex_number) {
+                                    const auto vert = cell->vertex(vertex_number);
+                                    /*Find bottom left corner*/
+                                    if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                            vert(1) - 0) < 1e-12 && ((std::fabs(
+                                            vert(2) - 0) < 1e-12) || (std::fabs(
+                                            vert(2) - 1) < 1e-12))) {
 
 
-                                    const unsigned int x_displacement =
-                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                    const unsigned int y_displacement =
-                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                    const unsigned int z_displacement =
-                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                                    const unsigned int x_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                    const unsigned int y_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
-                                    const unsigned int z_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
+                                        const unsigned int x_displacement =
+                                                cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                        const unsigned int y_displacement =
+                                                cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                        const unsigned int z_displacement =
+                                                cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                        const unsigned int x_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                        const unsigned int y_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
+                                        const unsigned int z_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
 
-                                    boundary_values[x_displacement] = 0;
-                                    boundary_values[y_displacement] = 0;
-                                    boundary_values[z_displacement] = 0;
-                                    boundary_values[x_displacement_multiplier] = 0;
-                                    boundary_values[y_displacement_multiplier] = 0;
-                                    boundary_values[z_displacement_multiplier] = 0;
-                                }
-                                /*Find bottom right corner*/
-                                if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-                                        vert(1) - 0) < 1e-12 && ((std::fabs(
-                                        vert(2) - 0) < 1e-12) || (std::fabs(
-                                        vert(2) - 1) < 1e-12))) {
+                                        boundary_values[x_displacement] = 0;
+                                        boundary_values[y_displacement] = 0;
+                                        boundary_values[z_displacement] = 0;
+                                        boundary_values[x_displacement_multiplier] = 0;
+                                        boundary_values[y_displacement_multiplier] = 0;
+                                        boundary_values[z_displacement_multiplier] = 0;
+                                    }
+                                    /*Find bottom right corner*/
+                                    if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
+                                            vert(1) - 0) < 1e-12 && ((std::fabs(
+                                            vert(2) - 0) < 1e-12) || (std::fabs(
+                                            vert(2) - 1) < 1e-12))) {
 //                              const unsigned int x_displacement =
 //                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                    const unsigned int y_displacement =
-                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                    const unsigned int z_displacement =
-                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                        const unsigned int y_displacement =
+                                                cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                        const unsigned int z_displacement =
+                                                cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
 //                              const unsigned int x_displacement_multiplier =
 //                                    cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                    const unsigned int y_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
-                                    const unsigned int z_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
+                                        const unsigned int y_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
+                                        const unsigned int z_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
 //                              boundary_values[x_displacement] = 0;
-                                    boundary_values[y_displacement] = 0;
-                                    boundary_values[z_displacement] = 0;
+                                        boundary_values[y_displacement] = 0;
+                                        boundary_values[z_displacement] = 0;
 //                              boundary_values[x_displacement_multiplier] = 0;
-                                    boundary_values[y_displacement_multiplier] = 0;
-                                    boundary_values[z_displacement_multiplier] = 0;
+                                        boundary_values[y_displacement_multiplier] = 0;
+                                        boundary_values[z_displacement_multiplier] = 0;
+                                    }
                                 }
                             }
                         }
@@ -422,48 +440,50 @@ namespace SAND {
         } else if (Input::geometry_base == GeometryOptions::l_shape) {
             if (dim == 2) {
                 for (const auto &cell: dof_handler.active_cell_iterators()) {
+                    if(cell->is_locally_owned())
+                    {
+                        for (unsigned int face_number = 0;
+                             face_number < GeometryInfo<dim>::faces_per_cell;
+                             ++face_number) {
+                            if (cell->face(face_number)->at_boundary()) {
+                                for (unsigned int vertex_number = 0;
+                                     vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                     ++vertex_number) {
+                                    const auto vert = cell->vertex(vertex_number);
+                                    /*Find top left corner*/
+                                    if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                            vert(1) - 2) < 1e-12) {
 
-                    for (unsigned int face_number = 0;
-                         face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number) {
-                        if (cell->face(face_number)->at_boundary()) {
-                            for (unsigned int vertex_number = 0;
-                                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                                 ++vertex_number) {
-                                const auto vert = cell->vertex(vertex_number);
-                                /*Find top left corner*/
-                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                        vert(1) - 2) < 1e-12) {
-
-                                    const unsigned int x_displacement =
-                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                    const unsigned int y_displacement =
-                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                    const unsigned int x_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                                    const unsigned int y_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                    /*set bottom left BC*/
-                                    boundary_values[x_displacement] = 0;
-                                    boundary_values[y_displacement] = 0;
-                                    boundary_values[x_displacement_multiplier] = 0;
-                                    boundary_values[y_displacement_multiplier] = 0;
-                                }
-                                /*Find top right corner*/
-                                if (std::fabs(vert(0) - 1) < 1e-12 && std::fabs(
-                                        vert(1) - 2) < 1e-12) {
-                                    const unsigned int x_displacement =
-                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                    const unsigned int y_displacement =
-                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                    const unsigned int x_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                                    const unsigned int y_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                    boundary_values[x_displacement] = 0;
-                                    boundary_values[y_displacement] = 0;
-                                    boundary_values[x_displacement_multiplier] = 0;
-                                    boundary_values[y_displacement_multiplier] = 0;
+                                        const unsigned int x_displacement =
+                                                cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                        const unsigned int y_displacement =
+                                                cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                        const unsigned int x_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                        const unsigned int y_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                        /*set bottom left BC*/
+                                        boundary_values[x_displacement] = 0;
+                                        boundary_values[y_displacement] = 0;
+                                        boundary_values[x_displacement_multiplier] = 0;
+                                        boundary_values[y_displacement_multiplier] = 0;
+                                    }
+                                    /*Find top right corner*/
+                                    if (std::fabs(vert(0) - 1) < 1e-12 && std::fabs(
+                                            vert(1) - 2) < 1e-12) {
+                                        const unsigned int x_displacement =
+                                                cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                        const unsigned int y_displacement =
+                                                cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                        const unsigned int x_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                        const unsigned int y_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                        boundary_values[x_displacement] = 0;
+                                        boundary_values[y_displacement] = 0;
+                                        boundary_values[x_displacement_multiplier] = 0;
+                                        boundary_values[y_displacement_multiplier] = 0;
+                                    }
                                 }
                             }
                         }
@@ -471,64 +491,67 @@ namespace SAND {
                 }
             } else if (dim == 3) {
                 for (const auto &cell: dof_handler.active_cell_iterators()) {
-                    for (unsigned int face_number = 0;
-                         face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number) {
-                        if (cell->face(face_number)->at_boundary()) {
-                            for (unsigned int vertex_number = 0;
-                                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                                 ++vertex_number) {
-                                const auto vert = cell->vertex(vertex_number);
-                                /*Find bottom left corner*/
-                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                        vert(1) - 2) < 1e-12 && ((std::fabs(
-                                        vert(2) - 0) < 1e-12) || (std::fabs(
-                                        vert(2) - 1) < 1e-12))) {
+                    if(cell->is_locally_owned())
+                    {
+                        for (unsigned int face_number = 0;
+                             face_number < GeometryInfo<dim>::faces_per_cell;
+                             ++face_number) {
+                            if (cell->face(face_number)->at_boundary()) {
+                                for (unsigned int vertex_number = 0;
+                                     vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                     ++vertex_number) {
+                                    const auto vert = cell->vertex(vertex_number);
+                                    /*Find bottom left corner*/
+                                    if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                            vert(1) - 2) < 1e-12 && ((std::fabs(
+                                            vert(2) - 0) < 1e-12) || (std::fabs(
+                                            vert(2) - 1) < 1e-12))) {
 
 
-                                    const unsigned int x_displacement =
-                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                    const unsigned int y_displacement =
-                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                    const unsigned int z_displacement =
-                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                                    const unsigned int x_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                    const unsigned int y_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
-                                    const unsigned int z_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
+                                        const unsigned int x_displacement =
+                                                cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                        const unsigned int y_displacement =
+                                                cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                        const unsigned int z_displacement =
+                                                cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                        const unsigned int x_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                        const unsigned int y_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
+                                        const unsigned int z_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
 
-                                    boundary_values[x_displacement] = 0;
-                                    boundary_values[y_displacement] = 0;
-                                    boundary_values[z_displacement] = 0;
-                                    boundary_values[x_displacement_multiplier] = 0;
-                                    boundary_values[y_displacement_multiplier] = 0;
-                                    boundary_values[z_displacement_multiplier] = 0;
-                                }
-                                /*Find bottom right corner*/
-                                if (std::fabs(vert(0) - 1) < 1e-12 && std::fabs(
-                                        vert(1) - 2) < 1e-12 && ((std::fabs(
-                                        vert(2) - 0) < 1e-12) || (std::fabs(
-                                        vert(2) - 1) < 1e-12))) {
-                                    const unsigned int x_displacement =
-                                            cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
-                                    const unsigned int y_displacement =
-                                            cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                    const unsigned int z_displacement =
-                                            cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
-                                    const unsigned int x_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                    const unsigned int y_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
-                                    const unsigned int z_displacement_multiplier =
-                                            cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
-                                    boundary_values[x_displacement] = 0;
-                                    boundary_values[y_displacement] = 0;
-                                    boundary_values[z_displacement] = 0;
-                                    boundary_values[x_displacement_multiplier] = 0;
-                                    boundary_values[y_displacement_multiplier] = 0;
-                                    boundary_values[z_displacement_multiplier] = 0;
+                                        boundary_values[x_displacement] = 0;
+                                        boundary_values[y_displacement] = 0;
+                                        boundary_values[z_displacement] = 0;
+                                        boundary_values[x_displacement_multiplier] = 0;
+                                        boundary_values[y_displacement_multiplier] = 0;
+                                        boundary_values[z_displacement_multiplier] = 0;
+                                    }
+                                    /*Find bottom right corner*/
+                                    if (std::fabs(vert(0) - 1) < 1e-12 && std::fabs(
+                                            vert(1) - 2) < 1e-12 && ((std::fabs(
+                                            vert(2) - 0) < 1e-12) || (std::fabs(
+                                            vert(2) - 1) < 1e-12))) {
+                                        const unsigned int x_displacement =
+                                                cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+                                        const unsigned int y_displacement =
+                                                cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
+                                        const unsigned int z_displacement =
+                                                cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+                                        const unsigned int x_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
+                                        const unsigned int y_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 4, cell->active_fe_index());
+                                        const unsigned int z_displacement_multiplier =
+                                                cell->vertex_dof_index(vertex_number, 5, cell->active_fe_index());
+                                        boundary_values[x_displacement] = 0;
+                                        boundary_values[y_displacement] = 0;
+                                        boundary_values[z_displacement] = 0;
+                                        boundary_values[x_displacement_multiplier] = 0;
+                                        boundary_values[y_displacement_multiplier] = 0;
+                                        boundary_values[z_displacement_multiplier] = 0;
+                                    }
                                 }
                             }
                         }
@@ -551,7 +574,7 @@ namespace SAND {
     KktSystem<dim>::setup_block_system() {
         const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
 
-        //MAKE n_u and n_P*****************************************************************
+        //MAKE n_u and n_P
 
         /*Setup 10 by 10 block matrix*/
         std::vector<unsigned int> block_component(10, 2);
@@ -703,10 +726,12 @@ namespace SAND {
             DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
             system_matrix.reinit(owned_partitioning, dsp, mpi_communicator);
 
-            linear_solution.reinit(owned_partitioning, relevant_partitioning, mpi_communicator);
+            locally_relevant_solution.reinit(owned_partitioning, relevant_partitioning, mpi_communicator);
+            distributed_solution.reinit(owned_partitioning, mpi_communicator);
             system_rhs.reinit(owned_partitioning, mpi_communicator);
 
-            linear_solution.collect_sizes();
+            locally_relevant_solution.collect_sizes();
+            distributed_solution.collect_sizes();
             system_rhs.collect_sizes();
             system_matrix.collect_sizes();
     }
@@ -720,7 +745,7 @@ namespace SAND {
         /*Remove any values from old iterations*/
 
         system_matrix=0;
-        linear_solution = 0;
+        locally_relevant_solution = 0;
         system_rhs = 0;
 
         QGauss<dim> nine_quadrature(fe_nine.degree + 1);
@@ -767,15 +792,37 @@ namespace SAND {
 
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
 
+        for (const auto &cell: dof_handler.active_cell_iterators()) {
+            const unsigned int i = cell->active_cell_index();
+
+            typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
+                    i);
+            for (; iter != density_filter.filter_matrix.end(i); iter++) {
+                unsigned int j = iter->column();
+                double value = iter->value() * cell->measure();
+
+                system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+                                    SolutionBlocks::unfiltered_density).add(i, j, value);
+                system_matrix.block(SolutionBlocks::unfiltered_density,
+                                    SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
+            }
+
+            system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i,
+                                                                                                      cell->measure());
+            system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0,
+                                                                                                      cell->measure());
+        }
+
+
         LA::MPI::BlockVector filtered_unfiltered_density_solution = state;
         LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = state;
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
-        density_filter.filter_matrix.vmult(
+        system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).vmult(
                 filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density),
                 state.block(SolutionBlocks::unfiltered_density));
-        density_filter.filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(
+        system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(
                                                     SolutionBlocks::unfiltered_density_multiplier),
                                             state.block(SolutionBlocks::unfiltered_density_multiplier));
 
@@ -1064,26 +1111,7 @@ namespace SAND {
         }
         system_matrix.compress(VectorOperation::add);
         system_rhs = calculate_rhs(state, barrier_size);
-        for (const auto &cell: dof_handler.active_cell_iterators()) {
-            const unsigned int i = cell->active_cell_index();
 
-            typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
-                    i);
-            for (; iter != density_filter.filter_matrix.end(i); iter++) {
-                unsigned int j = iter->column();
-                double value = iter->value() * cell->measure();
-
-                system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                                    SolutionBlocks::unfiltered_density).add(i, j, value);
-                system_matrix.block(SolutionBlocks::unfiltered_density,
-                                    SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
-            }
-
-            system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i,
-                                                                                                      cell->measure());
-            system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0,
-                                                                                                      cell->measure());
-        }
         std::cout << "assembled" << std::endl;
     }
 
@@ -1195,19 +1223,6 @@ namespace SAND {
     double
     KktSystem<dim>::calculate_feasibility(const LA::MPI::BlockVector &state, const double barrier_size) const {
         LA::MPI::BlockVector test_rhs = calculate_rhs(state, barrier_size);
-//        double feasibility = 0;
-//        feasibility +=
-//                test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_lower_slack).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_upper_slack).l2_norm() +
-//                test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm()+
-//                test_rhs.block(SolutionBlocks::density).l2_norm()+
-//                test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm()+
-//                test_rhs.block(SolutionBlocks::displacement).l2_norm();
-//        return feasibility;
 
         double norm = 0;
         norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
@@ -1218,6 +1233,7 @@ namespace SAND {
         norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(), 2);
+        std::cout << "!!!!!!!!!!!!!!!!!!" << std::endl;
         for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++) {
             norm += state.block(SolutionBlocks::density_upper_slack)[k] *
                     state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
@@ -1270,8 +1286,7 @@ namespace SAND {
     template<int dim>
     LA::MPI::BlockVector
     KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &state, const double barrier_size) const {
-        LA::MPI::BlockVector test_rhs;
-        test_rhs = system_rhs;
+        LA::MPI::BlockVector test_rhs (system_rhs);
         test_rhs = 0;
 
 
@@ -1322,277 +1337,324 @@ namespace SAND {
 
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
 
-        LA::MPI::BlockVector filtered_unfiltered_density_solution = state;
-        LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = state;
+        locally_relevant_solution = state;
+        distributed_solution = state;
+        LA::MPI::BlockVector filtered_unfiltered_density_solution (system_rhs);
+        LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution (system_rhs);
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
+        system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+                            SolutionBlocks::unfiltered_density) = 0;
+        system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+                            SolutionBlocks::unfiltered_density) = 0;
+        for (const auto &cell: dof_handler.active_cell_iterators()) {
+            if(cell->is_locally_owned())
+            {
+                const unsigned int i = cell->active_cell_index();
 
-        density_filter.filter_matrix.vmult(
-                filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density),
-                state.block(SolutionBlocks::unfiltered_density));
-        density_filter.filter_matrix.Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(
-                                                    SolutionBlocks::unfiltered_density_multiplier),
-                                            state.block(SolutionBlocks::unfiltered_density_multiplier));
-        const double old_volume_multiplier = state.block(SolutionBlocks::total_volume_multiplier)[0];
+                typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
+                        i);
+                for (; iter != density_filter.filter_matrix.end(i); iter++)
+                {
+                    unsigned int j = iter->column();
+                    double value = iter->value() * cell->measure();
+
+                    system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+                                        SolutionBlocks::unfiltered_density).add(i, j, value);
+                    system_matrix.block(SolutionBlocks::unfiltered_density,
+                                        SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
+                }
+            }
+        }
+
+        auto op_f = linear_operator<LA::MPI::Vector>(system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+                                                                         SolutionBlocks::unfiltered_density));
+        filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = op_f * distributed_solution.block(SolutionBlocks::unfiltered_density);
+        filter_adjoint_unfiltered_density_multiplier_solution.block(
+                                                    SolutionBlocks::unfiltered_density_multiplier)
+                                                    = transpose_operator(op_f) * distributed_solution.block(SolutionBlocks::unfiltered_density_multiplier);
+
+        LA::MPI::BlockVector relevant_filtered_unfiltered_density_solution (locally_relevant_solution);
+        LA::MPI::BlockVector relevant_filter_adjoint_unfiltered_density_multiplier_solution (locally_relevant_solution);
+        relevant_filtered_unfiltered_density_solution = filtered_unfiltered_density_solution;
+        relevant_filter_adjoint_unfiltered_density_multiplier_solution = filter_adjoint_unfiltered_density_multiplier_solution;
+
+        double old_volume_multiplier;
+        if(state.block(SolutionBlocks::total_volume_multiplier).in_local_range(0))
+        {
+            old_volume_multiplier = state.block(SolutionBlocks::total_volume_multiplier)[0];
+        }
+
+        std::cout << "here" << std::endl;
 
         for (const auto &cell: dof_handler.active_cell_iterators()) {
-            hp_fe_values.reinit(cell);
-            const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
-            cell_matrix.reinit(cell->get_fe().n_dofs_per_cell(),
-                               cell->get_fe().n_dofs_per_cell());
-            cell_rhs.reinit(cell->get_fe().n_dofs_per_cell());
+            if(cell->is_locally_owned())
+            {
+                hp_fe_values.reinit(cell);
+                const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
+                cell_matrix.reinit(cell->get_fe().n_dofs_per_cell(),
+                                   cell->get_fe().n_dofs_per_cell());
+                cell_rhs.reinit(cell->get_fe().n_dofs_per_cell());
 
-            const unsigned int n_q_points = fe_values.n_quadrature_points;
+                const unsigned int n_q_points = fe_values.n_quadrature_points;
 
-            std::vector<double> old_density_values(n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
-            std::vector<double> old_displacement_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
-                    n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
-                    n_q_points);
-            std::vector<double> old_displacement_multiplier_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
-                    n_q_points);
-            std::vector<double> old_lower_slack_multiplier_values(n_q_points);
-            std::vector<double> old_upper_slack_multiplier_values(n_q_points);
-            std::vector<double> old_lower_slack_values(n_q_points);
-            std::vector<double> old_upper_slack_values(n_q_points);
-            std::vector<double> old_unfiltered_density_values(n_q_points);
-            std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
-            std::vector<double> filtered_unfiltered_density_values(n_q_points);
-            std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
-            std::vector<double> lambda_values(n_q_points);
-            std::vector<double> mu_values(n_q_points);
+                std::vector<double> old_density_values(n_q_points);
+                std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
+                std::vector<double> old_displacement_divs(n_q_points);
+                std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
+                        n_q_points);
+                std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
+                        n_q_points);
+                std::vector<double> old_displacement_multiplier_divs(n_q_points);
+                std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
+                        n_q_points);
+                std::vector<double> old_lower_slack_multiplier_values(n_q_points);
+                std::vector<double> old_upper_slack_multiplier_values(n_q_points);
+                std::vector<double> old_lower_slack_values(n_q_points);
+                std::vector<double> old_upper_slack_values(n_q_points);
+                std::vector<double> old_unfiltered_density_values(n_q_points);
+                std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
+                std::vector<double> filtered_unfiltered_density_values(n_q_points);
+                std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
+                std::vector<double> lambda_values(n_q_points);
+                std::vector<double> mu_values(n_q_points);
 
-            const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
+                const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
 
-            cell_matrix = 0;
-            cell_rhs = 0;
-            local_dof_indices.resize(cell->get_fe().n_dofs_per_cell());
+                cell_matrix = 0;
+                cell_rhs = 0;
+                local_dof_indices.resize(cell->get_fe().n_dofs_per_cell());
 
-            cell->get_dof_indices(local_dof_indices);
+                cell->get_dof_indices(local_dof_indices);
 
-            lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
-            mu.value_list(fe_values.get_quadrature_points(), mu_values);
+                lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
+                mu.value_list(fe_values.get_quadrature_points(), mu_values);
 
-            fe_values[densities].get_function_values(state,
-                                                     old_density_values);
-            fe_values[displacements].get_function_values(state,
-                                                         old_displacement_values);
-            fe_values[displacements].get_function_divergences(state,
-                                                              old_displacement_divs);
-            fe_values[displacements].get_function_symmetric_gradients(
-                    state, old_displacement_symmgrads);
-            fe_values[displacement_multipliers].get_function_values(
-                    state, old_displacement_multiplier_values);
-            fe_values[displacement_multipliers].get_function_divergences(
-                    state, old_displacement_multiplier_divs);
-            fe_values[displacement_multipliers].get_function_symmetric_gradients(
-                    state, old_displacement_multiplier_symmgrads);
-            fe_values[density_lower_slacks].get_function_values(
-                    state, old_lower_slack_values);
-            fe_values[density_lower_slack_multipliers].get_function_values(
-                    state, old_lower_slack_multiplier_values);
-            fe_values[density_upper_slacks].get_function_values(
-                    state, old_upper_slack_values);
-            fe_values[density_upper_slack_multipliers].get_function_values(
-                    state, old_upper_slack_multiplier_values);
-            fe_values[unfiltered_densities].get_function_values(
-                    state, old_unfiltered_density_values);
-            fe_values[unfiltered_density_multipliers].get_function_values(
-                    state, old_unfiltered_density_multiplier_values);
-            fe_values[unfiltered_densities].get_function_values(
-                    filtered_unfiltered_density_solution, filtered_unfiltered_density_values);
-            fe_values[unfiltered_density_multipliers].get_function_values(
-                    filter_adjoint_unfiltered_density_multiplier_solution,
-                    filter_adjoint_unfiltered_density_multiplier_values);
-
-
-            Tensor<1, dim> traction;
-            traction[1] = -1;
-
-            for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
-
-                for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                    const SymmetricTensor<2, dim> displacement_phi_i_symmgrad =
-                            fe_values[displacements].symmetric_gradient(i, q_point);
-                    const double displacement_phi_i_div =
-                            fe_values[displacements].divergence(i, q_point);
-
-                    const SymmetricTensor<2, dim> displacement_multiplier_phi_i_symmgrad =
-                            fe_values[displacement_multipliers].symmetric_gradient(i,
-                                                                                   q_point);
-                    const double displacement_multiplier_phi_i_div =
-                            fe_values[displacement_multipliers].divergence(i,
-                                                                           q_point);
+                fe_values[densities].get_function_values(state,
+                                                         old_density_values);
+                fe_values[displacements].get_function_values(state,
+                                                             old_displacement_values);
+                fe_values[displacements].get_function_divergences(state,
+                                                                  old_displacement_divs);
+                fe_values[displacements].get_function_symmetric_gradients(
+                        state, old_displacement_symmgrads);
+                fe_values[displacement_multipliers].get_function_values(
+                        state, old_displacement_multiplier_values);
+                fe_values[displacement_multipliers].get_function_divergences(
+                        state, old_displacement_multiplier_divs);
+                fe_values[displacement_multipliers].get_function_symmetric_gradients(
+                        state, old_displacement_multiplier_symmgrads);
+                fe_values[density_lower_slacks].get_function_values(
+                        state, old_lower_slack_values);
+                fe_values[density_lower_slack_multipliers].get_function_values(
+                        state, old_lower_slack_multiplier_values);
+                fe_values[density_upper_slacks].get_function_values(
+                        state, old_upper_slack_values);
+                fe_values[density_upper_slack_multipliers].get_function_values(
+                        state, old_upper_slack_multiplier_values);
+                fe_values[unfiltered_densities].get_function_values(
+                        state, old_unfiltered_density_values);
+                fe_values[unfiltered_density_multipliers].get_function_values(
+                        state, old_unfiltered_density_multiplier_values);
+                fe_values[unfiltered_densities].get_function_values(
+                        relevant_filtered_unfiltered_density_solution, filtered_unfiltered_density_values);
+                fe_values[unfiltered_density_multipliers].get_function_values(
+                        relevant_filter_adjoint_unfiltered_density_multiplier_solution,
+                        filter_adjoint_unfiltered_density_multiplier_values);
 
 
-                    const double density_phi_i = fe_values[densities].value(i,
-                                                                            q_point);
-                    const double unfiltered_density_phi_i = fe_values[unfiltered_densities].value(i,
-                                                                                                  q_point);
-                    const double unfiltered_density_multiplier_phi_i = fe_values[unfiltered_density_multipliers].value(
-                            i, q_point);
+                Tensor<1, dim> traction;
+                traction[1] = -1;
 
-                    const double lower_slack_multiplier_phi_i =
-                            fe_values[density_lower_slack_multipliers].value(i,
-                                                                             q_point);
+                for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
 
-                    const double lower_slack_phi_i =
-                            fe_values[density_lower_slacks].value(i, q_point);
+                    for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                        const SymmetricTensor<2, dim> displacement_phi_i_symmgrad =
+                                fe_values[displacements].symmetric_gradient(i, q_point);
+                        const double displacement_phi_i_div =
+                                fe_values[displacements].divergence(i, q_point);
 
-                    const double upper_slack_phi_i =
-                            fe_values[density_upper_slacks].value(i, q_point);
-
-                    const double upper_slack_multiplier_phi_i =
-                            fe_values[density_upper_slack_multipliers].value(i,
-                                                                             q_point);
+                        const SymmetricTensor<2, dim> displacement_multiplier_phi_i_symmgrad =
+                                fe_values[displacement_multipliers].symmetric_gradient(i,
+                                                                                       q_point);
+                        const double displacement_multiplier_phi_i_div =
+                                fe_values[displacement_multipliers].divergence(i,
+                                                                               q_point);
 
 
-                    //rhs eqn 0
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (
-                                    -1 * density_penalty_exponent *
-                                    std::pow(old_density_values[q_point], density_penalty_exponent - 1) * density_phi_i
-                                    * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
-                                       * lambda_values[q_point]
-                                       + 2 * mu_values[q_point] * (old_displacement_symmgrads[q_point]
-                                                                   * old_displacement_multiplier_symmgrads[q_point]))
-                                    - density_phi_i * old_unfiltered_density_multiplier_values[q_point]
-                                    + old_volume_multiplier * density_phi_i
-                            );
+                        const double density_phi_i = fe_values[densities].value(i,
+                                                                                q_point);
+                        const double unfiltered_density_phi_i = fe_values[unfiltered_densities].value(i,
+                                                                                                      q_point);
+                        const double unfiltered_density_multiplier_phi_i = fe_values[unfiltered_density_multipliers].value(
+                                i, q_point);
 
-                    //rhs eqn 1 - boundary terms counted later
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (
-                                    -1 * std::pow(old_density_values[q_point], density_penalty_exponent)
-                                    * (old_displacement_multiplier_divs[q_point] * displacement_phi_i_div
-                                       * lambda_values[q_point]
-                                       + 2 * mu_values[q_point] * (old_displacement_multiplier_symmgrads[q_point]
-                                                                   * displacement_phi_i_symmgrad))
-                            );
+                        const double lower_slack_multiplier_phi_i =
+                                fe_values[density_lower_slack_multipliers].value(i,
+                                                                                 q_point);
 
-                    //rhs eqn 2
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (
-                                    unfiltered_density_phi_i *
-                                    filter_adjoint_unfiltered_density_multiplier_values[q_point]
-                                    + unfiltered_density_phi_i * old_upper_slack_multiplier_values[q_point]
-                                    + -1 * unfiltered_density_phi_i * old_lower_slack_multiplier_values[q_point]
-                            );
+                        const double lower_slack_phi_i =
+                                fe_values[density_lower_slacks].value(i, q_point);
+
+                        const double upper_slack_phi_i =
+                                fe_values[density_upper_slacks].value(i, q_point);
+
+                        const double upper_slack_multiplier_phi_i =
+                                fe_values[density_upper_slack_multipliers].value(i,
+                                                                                 q_point);
 
 
+                        //rhs eqn 0
+                        cell_rhs(i) +=
+                                -1 * fe_values.JxW(q_point) * (
+                                        -1 * density_penalty_exponent *
+                                        std::pow(old_density_values[q_point], density_penalty_exponent - 1) * density_phi_i
+                                        * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
+                                           * lambda_values[q_point]
+                                           + 2 * mu_values[q_point] * (old_displacement_symmgrads[q_point]
+                                                                       * old_displacement_multiplier_symmgrads[q_point]))
+                                        - density_phi_i * old_unfiltered_density_multiplier_values[q_point]
+                                        + old_volume_multiplier * density_phi_i
+                                );
+
+                        //rhs eqn 1 - boundary terms counted later
+                        cell_rhs(i) +=
+                                -1 * fe_values.JxW(q_point) * (
+                                        -1 * std::pow(old_density_values[q_point], density_penalty_exponent)
+                                        * (old_displacement_multiplier_divs[q_point] * displacement_phi_i_div
+                                           * lambda_values[q_point]
+                                           + 2 * mu_values[q_point] * (old_displacement_multiplier_symmgrads[q_point]
+                                                                       * displacement_phi_i_symmgrad))
+                                );
+
+                        //rhs eqn 2
+                        cell_rhs(i) +=
+                                -1 * fe_values.JxW(q_point) * (
+                                        unfiltered_density_phi_i *
+                                        filter_adjoint_unfiltered_density_multiplier_values[q_point]
+                                        + unfiltered_density_phi_i * old_upper_slack_multiplier_values[q_point]
+                                        + -1 * unfiltered_density_phi_i * old_lower_slack_multiplier_values[q_point]
+                                );
 
 
-                    //rhs eqn 3 - boundary terms counted later
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (
-                                    -1 * std::pow(old_density_values[q_point], density_penalty_exponent)
-                                    * (old_displacement_divs[q_point] * displacement_multiplier_phi_i_div
-                                       * lambda_values[q_point]
-                                       + 2 * mu_values[q_point] * (displacement_multiplier_phi_i_symmgrad
-                                                                   * old_displacement_symmgrads[q_point]))
-                            );
 
-                    //rhs eqn 4
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) *
-                            (-1 * lower_slack_multiplier_phi_i
-                             * (old_unfiltered_density_values[q_point] - old_lower_slack_values[q_point])
-                            );
 
-                    //rhs eqn 5
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (
-                                    -1 * upper_slack_multiplier_phi_i
-                                    * (1 - old_unfiltered_density_values[q_point]
-                                       - old_upper_slack_values[q_point]));
+                        //rhs eqn 3 - boundary terms counted later
+                        cell_rhs(i) +=
+                                -1 * fe_values.JxW(q_point) * (
+                                        -1 * std::pow(old_density_values[q_point], density_penalty_exponent)
+                                        * (old_displacement_divs[q_point] * displacement_multiplier_phi_i_div
+                                           * lambda_values[q_point]
+                                           + 2 * mu_values[q_point] * (displacement_multiplier_phi_i_symmgrad
+                                                                       * old_displacement_symmgrads[q_point]))
+                                );
 
-                    //rhs eqn 6
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) * (
-                                    -1 * unfiltered_density_multiplier_phi_i
-                                    * (old_density_values[q_point] - filtered_unfiltered_density_values[q_point])
-                            );
+                        //rhs eqn 4
+                        cell_rhs(i) +=
+                                -1 * fe_values.JxW(q_point) *
+                                (-1 * lower_slack_multiplier_phi_i
+                                 * (old_unfiltered_density_values[q_point] - old_lower_slack_values[q_point])
+                                );
 
-                    //rhs eqn 7
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) *
-                            (lower_slack_phi_i *
-                             (old_lower_slack_multiplier_values[q_point] -
-                              barrier_size / old_lower_slack_values[q_point]));
+                        //rhs eqn 5
+                        cell_rhs(i) +=
+                                -1 * fe_values.JxW(q_point) * (
+                                        -1 * upper_slack_multiplier_phi_i
+                                        * (1 - old_unfiltered_density_values[q_point]
+                                           - old_upper_slack_values[q_point]));
 
-                    //rhs eqn 8
-                    cell_rhs(i) +=
-                            -1 * fe_values.JxW(q_point) *
-                            (upper_slack_phi_i *
-                             (old_upper_slack_multiplier_values[q_point] -
-                              barrier_size / old_upper_slack_values[q_point]));
+                        //rhs eqn 6
+                        cell_rhs(i) +=
+                                -1 * fe_values.JxW(q_point) * (
+                                        -1 * unfiltered_density_multiplier_phi_i
+                                        * (old_density_values[q_point] - filtered_unfiltered_density_values[q_point])
+                                );
+
+                        //rhs eqn 7
+                        cell_rhs(i) +=
+                                -1 * fe_values.JxW(q_point) *
+                                (lower_slack_phi_i *
+                                 (old_lower_slack_multiplier_values[q_point] -
+                                  barrier_size / old_lower_slack_values[q_point]));
+
+                        //rhs eqn 8
+                        cell_rhs(i) +=
+                                -1 * fe_values.JxW(q_point) *
+                                (upper_slack_phi_i *
+                                 (old_upper_slack_multiplier_values[q_point] -
+                                  barrier_size / old_upper_slack_values[q_point]));
+
+                    }
 
                 }
 
-            }
+                for (unsigned int face_number = 0;
+                     face_number < GeometryInfo<dim>::faces_per_cell;
+                     ++face_number) {
+                    if (cell->face(face_number)->at_boundary() && cell->face(
+                            face_number)->boundary_id() == BoundaryIds::down_force) {
+                        for (unsigned int face_q_point = 0;
+                             face_q_point < n_face_q_points; ++face_q_point) {
+                            for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                                if (cell->material_id() == MaterialIds::without_multiplier) {
+                                    fe_nine_face_values.reinit(cell, face_number);
+                                    cell_rhs(i) += -1
+                                                   * traction
+                                                   * fe_nine_face_values[displacements].value(i,
+                                                                                              face_q_point)
+                                                   * fe_nine_face_values.JxW(face_q_point);
 
+                                    cell_rhs(i) += -1 * traction
+                                                   * fe_nine_face_values[displacement_multipliers].value(
+                                            i, face_q_point)
+                                                   * fe_nine_face_values.JxW(face_q_point);
+                                } else {
+                                    fe_ten_face_values.reinit(cell, face_number);
+                                    cell_rhs(i) += -1
+                                                   * traction
+                                                   * fe_ten_face_values[displacements].value(i,
+                                                                                             face_q_point)
+                                                   * fe_ten_face_values.JxW(face_q_point);
 
-            for (unsigned int face_number = 0;
-                 face_number < GeometryInfo<dim>::faces_per_cell;
-                 ++face_number) {
-                if (cell->face(face_number)->at_boundary() && cell->face(
-                        face_number)->boundary_id() == BoundaryIds::down_force) {
-                    for (unsigned int face_q_point = 0;
-                         face_q_point < n_face_q_points; ++face_q_point) {
-                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                            if (cell->material_id() == MaterialIds::without_multiplier) {
-                                fe_nine_face_values.reinit(cell, face_number);
-                                cell_rhs(i) += -1
-                                               * traction
-                                               * fe_nine_face_values[displacements].value(i,
-                                                                                          face_q_point)
-                                               * fe_nine_face_values.JxW(face_q_point);
-
-                                cell_rhs(i) += -1 * traction
-                                               * fe_nine_face_values[displacement_multipliers].value(
-                                        i, face_q_point)
-                                               * fe_nine_face_values.JxW(face_q_point);
-                            } else {
-                                fe_ten_face_values.reinit(cell, face_number);
-                                cell_rhs(i) += -1
-                                               * traction
-                                               * fe_ten_face_values[displacements].value(i,
-                                                                                         face_q_point)
-                                               * fe_ten_face_values.JxW(face_q_point);
-
-                                cell_rhs(i) += -1 * traction
-                                               * fe_ten_face_values[displacement_multipliers].value(
-                                        i, face_q_point)
-                                               * fe_ten_face_values.JxW(face_q_point);
+                                    cell_rhs(i) += -1 * traction
+                                                   * fe_ten_face_values[displacement_multipliers].value(
+                                            i, face_q_point)
+                                                   * fe_ten_face_values.JxW(face_q_point);
+                                }
                             }
                         }
                     }
                 }
+
+
+                MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
+                                                         cell_matrix, cell_rhs, true);
+                constraints.distribute_local_to_global(
+                        cell_rhs, local_dof_indices, test_rhs);
             }
-
-
-            MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
-                                                     cell_matrix, cell_rhs, true);
-
-            constraints.distribute_local_to_global(
-                    cell_rhs, local_dof_indices, test_rhs);
-
         }
+        std::cout << "++++++++++++++++" << std::endl;
         test_rhs.compress(VectorOperation::add);
         double total_volume = 0;
         double goal_volume = 0;
+
+        distributed_solution = state;
         for (const auto &cell: dof_handler.active_cell_iterators()) {
-            total_volume += cell->measure() * state.block(SolutionBlocks::density)[cell->active_cell_index()];
-            goal_volume += cell->measure() * Input::volume_percentage;
+            if(cell->is_locally_owned())
+            {
+                if (distributed_solution.block(SolutionBlocks::density).in_local_range(cell->active_cell_index()))
+                {
+                    total_volume += cell->measure() * state.block(SolutionBlocks::density)[cell->active_cell_index()];
+                    goal_volume += cell->measure() * Input::volume_percentage;
+                }
+            }
+        }
+        if (test_rhs.block(SolutionBlocks::total_volume_multiplier).in_local_range(0))
+        {
+            test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
         }
 
-        test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
-
-
-
+        test_rhs.print(std::cout);
         return test_rhs;
 
     }
@@ -1614,8 +1676,8 @@ namespace SAND {
         else {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
-        linear_solution=0;
-        constraints.distribute(linear_solution);
+        locally_relevant_solution=0;
+        constraints.distribute(locally_relevant_solution);
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
 
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
@@ -1625,34 +1687,34 @@ namespace SAND {
 //                std::string solver_type;
 //                TrilinosWrappers::SolverDirect::AdditionalData additional_data(false, "Amesos_Klu");
 //                TrilinosWrappers::SolverDirect solver(cn, mpi_communicator, system_matrix);
-//                solver.solve(linear_solution, system_rhs);
+//                solver.solve(locally_relevant_solution, system_rhs);
                 break;
             }
             case SolverOptions::exact_preconditioner_with_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
                 SolverFGMRES<LA::MPI::BlockVector> A_fgmres(solver_control);
-                A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+                A_fgmres.solve(system_matrix, locally_relevant_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_exact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
                 SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
-                B_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+                B_fgmres.solve(system_matrix, locally_relevant_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_inexact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
                 SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
-                C_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+                C_fgmres.solve(system_matrix, locally_relevant_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             default:
                 throw;
         }
-        constraints.distribute(linear_solution);
+        constraints.distribute(locally_relevant_solution);
 
         if (Input::output_parts_of_matrix) {
             preconditioner.print_stuff();
@@ -1679,7 +1741,7 @@ namespace SAND {
 //            }
 //            Mat.close();
         }
-        return linear_solution;
+        return locally_relevant_solution;
     }
 
     template<int dim>
@@ -1693,8 +1755,8 @@ namespace SAND {
     KktSystem<dim>::get_initial_state() {
 
         std::vector<unsigned int> block_component(10, 2);
-        block_component[0] = 0;
-        block_component[5] = 1;
+        block_component[SolutionBlocks::density] = 0;
+        block_component[SolutionBlocks::displacement] = 1;
         const std::vector<types::global_dof_index> dofs_per_block =
                 DoFTools::count_dofs_per_fe_block(dof_handler, block_component);
         const unsigned int n_p = dofs_per_block[0];
@@ -1704,17 +1766,19 @@ namespace SAND {
         LA::MPI::BlockVector state(owned_partitioning, relevant_partitioning,mpi_communicator);
         {
             using namespace SolutionBlocks;
-            state.block(density).add(density_ratio);
-            state.block(unfiltered_density).add(density_ratio);
-            state.block(unfiltered_density_multiplier)
+            distributed_solution=state;
+            distributed_solution.block(density).add(density_ratio);
+            distributed_solution.block(unfiltered_density).add(density_ratio);
+            distributed_solution.block(unfiltered_density_multiplier)
                     .add(density_ratio);
-            state.block(density_lower_slack).add(density_ratio);
-            state.block(density_lower_slack_multiplier).add(50);
-            state.block(density_upper_slack).add(1 - density_ratio);
-            state.block(density_upper_slack_multiplier).add(50);
-            state.block(total_volume_multiplier).add(1);
-            state.block(displacement).add(0);
-            state.block(displacement_multiplier).add(0);
+            distributed_solution.block(density_lower_slack).add(density_ratio);
+            distributed_solution.block(density_lower_slack_multiplier).add(50);
+            distributed_solution.block(density_upper_slack).add(1 - density_ratio);
+            distributed_solution.block(density_upper_slack_multiplier).add(50);
+            distributed_solution.block(total_volume_multiplier).add(1);
+            distributed_solution.block(displacement).add(0);
+            distributed_solution.block(displacement_multiplier).add(0);
+            state=distributed_solution;
         }
         return state;
 

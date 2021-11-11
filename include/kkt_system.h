@@ -128,8 +128,9 @@ namespace SAND {
 
         BlockDynamicSparsityPattern dsp;
         BlockSparsityPattern sparsity_pattern;
-        LA::MPI::BlockSparseMatrix system_matrix;
-        LA::MPI::BlockVector linear_solution;
+        mutable LA::MPI::BlockSparseMatrix system_matrix;
+        mutable LA::MPI::BlockVector locally_relevant_solution;
+        mutable LA::MPI::BlockVector distributed_solution;
         LA::MPI::BlockVector system_rhs;
         parallel::distributed::Triangulation<dim> triangulation;
         DoFHandler<dim> dof_handler;
@@ -140,7 +141,7 @@ namespace SAND {
         const double density_ratio;
         const double density_penalty_exponent;
 
-        DensityFilter<dim> density_filter;
+        mutable DensityFilter<dim> density_filter;
 
         std::map<types::global_dof_index, double> boundary_values;
 
