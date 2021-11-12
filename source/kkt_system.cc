@@ -1151,19 +1151,6 @@ namespace SAND {
     double
     KktSystem<dim>::calculate_feasibility(const BlockVector<double> &state, const double barrier_size) const {
         BlockVector<double> test_rhs = calculate_rhs(state, barrier_size);
-//        double feasibility = 0;
-//        feasibility +=
-//                test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_lower_slack).l2_norm() +
-//                test_rhs.block(SolutionBlocks::density_upper_slack).l2_norm() +
-//                test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm()+
-//                test_rhs.block(SolutionBlocks::density).l2_norm()+
-//                test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm()+
-//                test_rhs.block(SolutionBlocks::displacement).l2_norm();
-//        return feasibility;
 
         double norm = 0;
         norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
@@ -1186,6 +1173,8 @@ namespace SAND {
                     * state.block(SolutionBlocks::density_lower_slack)[k] *
                     state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
         }
+        std::cout << "norm " << norm << std::endl;
+        std::abort();
         return norm;
     }
 
@@ -1548,7 +1537,6 @@ namespace SAND {
         test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
 
         test_rhs.print(std::cout);
-        std::abort();
         return test_rhs;
 
     }
