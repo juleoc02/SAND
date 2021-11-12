@@ -346,9 +346,6 @@ namespace SAND {
                 std::cout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
                 throw;
             }
-            std::cout << "first residual 4-1: " << step_4_gmres_control_1.initial_value() << std::endl;
-            std::cout << "last residual 4-1: " << step_4_gmres_control_1.last_value() << std::endl;
-            std::cout << "last residual 4-1: " << step_4_gmres_control_1.last_step() << std::endl;
 
             SolverControl step_4_gmres_control_2 (10000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
             SolverGMRES<Vector<double>> step_4_gmres_2 (step_4_gmres_control_2);
@@ -362,9 +359,6 @@ namespace SAND {
                 std::cout << "last residual: " << step_4_gmres_control_2.last_value() << std::endl;
                 throw;
             }
-            std::cout << "first residual 4-2: " << step_4_gmres_control_2.initial_value() << std::endl;
-            std::cout << "last residual 4-2: " << step_4_gmres_control_2.last_value() << std::endl;
-            std::cout << "last residual 4-2: " << step_4_gmres_control_2.last_step() << std::endl;
         }
         else if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)
         {
@@ -500,9 +494,6 @@ namespace SAND {
                 pre_pre_k = -1 * op_g * linear_operator(d_m_inv_mat) * src.block(SolutionBlocks::density);
                 pre_k =  pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
 
-                std::cout << "pre_pre_k norm " << pre_pre_k.l2_norm() << " unfiltered_density_multiplier " << src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()
-                          << " pre_k norm " << pre_k.l2_norm() << std::endl;
-
                 SolverControl step_5_gmres_control_1 (10000, pre_j.l2_norm()*1e-6);
                 SolverGMRES<Vector<double>> step_5_gmres_1 (step_5_gmres_control_1);
                 try {
@@ -515,9 +506,6 @@ namespace SAND {
                     std::cout << "last residual: " << step_5_gmres_control_1.last_value() << std::endl;
                     throw;
                 }
-                std::cout << "first residual 5-1: " << step_5_gmres_control_1.initial_value() << std::endl;
-                std::cout << "last residual 5-1: " << step_5_gmres_control_1.last_value() << std::endl;
-                std::cout << "last residual 5-1: " << step_5_gmres_control_1.last_step() << std::endl;
 
                 SolverControl step_5_gmres_control_2 (10000, pre_k.l2_norm()*1e-6);
                 SolverGMRES<Vector<double>> step_5_gmres_2 (step_5_gmres_control_2);
@@ -531,9 +519,6 @@ namespace SAND {
                     std::cout << "last residual: " << step_5_gmres_control_2.last_value() << std::endl;
                     throw;
                 }
-                std::cout << "first residual 5-2: " << step_5_gmres_control_2.initial_value() << std::endl;
-                std::cout << "last residual 5-2: " << step_5_gmres_control_2.last_value() << std::endl;
-                std::cout << "last residual 5-2: " << step_5_gmres_control_2.last_step() << std::endl;
 
             }
             else if (Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres)

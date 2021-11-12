@@ -1017,10 +1017,6 @@ namespace SAND {
                     cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
 
-            if (cell->active_cell_index() == 23)
-                cell_matrix.print(std::cout);
-
-
         }
         system_rhs = calculate_rhs(state, barrier_size);
 
@@ -1551,6 +1547,8 @@ namespace SAND {
 
         test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
 
+        test_rhs.print(std::cout);
+        std::abort();
         return test_rhs;
 
     }
