@@ -85,6 +85,8 @@ namespace SAND {
             const LA::MPI::BlockVector state_test_z =
                     (Input::fraction_to_boundary * state) + (step_size_z * step);
 
+            std::cout << "********** NEED TO FIND A WAY TO CHECK NONNEGATIVE HERE ***************" << std::endl;
+
             const bool accept_s = (state_test_s.block(SolutionBlocks::density_lower_slack).is_non_negative())
                                   && (state_test_s.block(SolutionBlocks::density_upper_slack).is_non_negative());
             const bool accept_z = (state_test_z.block(SolutionBlocks::density_lower_slack_multiplier).is_non_negative())

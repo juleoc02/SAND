@@ -819,8 +819,6 @@ namespace SAND {
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
-        std::cout << "******************BEFORE" << std::endl;
-
         system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
                             SolutionBlocks::unfiltered_density).vmult(
                 filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density),
@@ -829,7 +827,6 @@ namespace SAND {
                             SolutionBlocks::unfiltered_density).Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(
                                                     SolutionBlocks::unfiltered_density_multiplier),
                                             distributed_solution.block(SolutionBlocks::unfiltered_density_multiplier));
-        std::cout << "******************AFTER" << std::endl;
 
         LA::MPI::BlockVector relevant_filtered_unfiltered_density_solution = locally_relevant_solution;
         LA::MPI::BlockVector relevant_filter_adjoint_unfiltered_density_multiplier_solution = locally_relevant_solution;
@@ -1164,7 +1161,8 @@ namespace SAND {
         traction[1] = -1;
         distributed_solution = state;
         double objective_value = 0;
-        for (const auto &cell: dof_handler.active_cell_iterators()) {
+        for (const auto &cell: dof_handler.active_cell_iterators())
+        {
             if(cell->is_locally_owned())
             {
                 hp_fe_values.reinit(cell);
@@ -1179,11 +1177,11 @@ namespace SAND {
 
                 for (unsigned int face_number = 0;
                      face_number < GeometryInfo<dim>::faces_per_cell;
-                     ++face_number) {
+                     ++face_number)
+                {
                     if (cell->face(face_number)->at_boundary() && cell->face(face_number)->boundary_id()
-                                                                  == BoundaryIds::down_force) {
-
-
+                                                                  == BoundaryIds::down_force)
+                    {
                         for (unsigned int face_q_point = 0;
                              face_q_point < n_face_q_points; ++face_q_point) {
                             for (unsigned int i = 0; i < dofs_per_cell; ++i) {
@@ -1203,12 +1201,14 @@ namespace SAND {
                             }
                         }
                     }
-
                 }
             }
-
         }
-        std::cout << "objective value: - NEED TO ADD THESE " << objective_value << std::endl;
+        double objective_value_out;
+        MPI_Reduce(&objective_value, &objective_value_out, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&objective_value_out, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+        std::cout << "objective value: " << objective_value_out << std::endl;
         return objective_value;
     }
 
@@ -1228,9 +1228,13 @@ namespace SAND {
             if (distributed_solution.block(SolutionBlocks::density_upper_slack).in_local_range(k))
             barrier_distance_log_sum += std::log(state.block(SolutionBlocks::density_upper_slack)[k]);
         }
-        std::cout << "Barrier distance log sum - NEED TO ADD THESE TOO " << barrier_distance_log_sum << std::endl;
+        double out_barrier_distance_log_sum;
+        MPI_Reduce(&barrier_distance_log_sum, &out_barrier_distance_log_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&out_barrier_distance_log_sum, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-        return barrier_distance_log_sum;
+        std::cout << "Barrier distance log sum: " << out_barrier_distance_log_sum << std::endl;
+
+        return out_barrier_distance_log_sum;
     }
 
     template<int dim>
@@ -1247,14 +1251,7 @@ namespace SAND {
         LA::MPI::BlockVector test_rhs = calculate_rhs(state, barrier_size);
 
         double norm = 0;
-        norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(), 2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm(), 2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm(), 2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(), 2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(), 2);
-        norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(), 2);
+
         distributed_solution = state;
         for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++)
         {
@@ -1268,7 +1265,7 @@ namespace SAND {
         }
         for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++)
         {
-            if(distributed_solution.block(SolutionBlocks::density_upper_slack).in_local_range(k))
+            if(distributed_solution.block(SolutionBlocks::density_lower_slack).in_local_range(k))
             {
                 norm += distributed_solution.block(SolutionBlocks::density_lower_slack)[k] *
                         distributed_solution.block(SolutionBlocks::density_lower_slack_multiplier)[k]
@@ -1276,8 +1273,20 @@ namespace SAND {
                         distributed_solution.block(SolutionBlocks::density_lower_slack_multiplier)[k];
             }
         }
+        double pre_norm;
+        MPI_Reduce(&norm, &pre_norm, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&pre_norm, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        norm = pre_norm;
+        norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::displacement_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(), 2);
+        norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(), 2);
 
-        std::cout << "norm - NEED TO ADD THESE!!!" << norm << std::endl;
+        std::cout << "norm: " << norm << std::endl;
 
         return norm;
     }
@@ -1417,8 +1426,6 @@ namespace SAND {
         {
             old_volume_multiplier = state.block(SolutionBlocks::total_volume_multiplier)[0];
         }
-
-        std::cout << "here" << std::endl;
 
         for (const auto &cell: dof_handler.active_cell_iterators()) {
             if(cell->is_locally_owned())
@@ -1666,7 +1673,7 @@ namespace SAND {
                         cell_rhs, local_dof_indices, test_rhs);
             }
         }
-        std::cout << "++++++++++++++++" << std::endl;
+
         test_rhs.compress(VectorOperation::add);
         double total_volume = 0;
         double goal_volume = 0;
@@ -1687,7 +1694,6 @@ namespace SAND {
             test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
         }
 
-        test_rhs.print(std::cout);
         return test_rhs;
 
     }
@@ -1712,7 +1718,6 @@ namespace SAND {
         locally_relevant_solution=0;
         distributed_solution = state;
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
-        std::cout << "into solve" << std::endl;
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
@@ -1731,14 +1736,14 @@ namespace SAND {
                 break;
             }
             case SolverOptions::inexact_K_with_exact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  state);
                 SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
                 B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_inexact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  state);
                 SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
                 C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;

@@ -55,12 +55,14 @@ namespace SAND {
     {
         TimerOutput::Scope t(timer, "initialize");
         {
+
             TimerOutput::Scope t(timer, "diag stuff");
+            const types::global_dof_index disp_start_index = system_matrix.get_row_indices().block_start(
+                    SolutionBlocks::displacement);
+            const types::global_dof_index disp_mult_start_index = system_matrix.get_row_indices().block_start(
+                    SolutionBlocks::displacement_multiplier);
             for (auto&[dof_index, boundary_value]: boundary_values) {
-                const types::global_dof_index disp_start_index = system_matrix.get_row_indices().block_start(
-                        SolutionBlocks::displacement);
-                const types::global_dof_index disp_mult_start_index = system_matrix.get_row_indices().block_start(
-                        SolutionBlocks::displacement_multiplier);
+
                 const types::global_dof_index n_u = system_matrix.block(SolutionBlocks::displacement,
                                                                         SolutionBlocks::displacement).m();
                 if ((dof_index >= disp_start_index) && (dof_index < disp_start_index + n_u)) {
@@ -139,44 +141,46 @@ namespace SAND {
             d_8_mat=0;
             d_m_inv_mat=0;
         }
+        std::cout << "*************************** Diag Matrix Stuff Needs To Go Back In" << std::endl;
         {
             TimerOutput::Scope t(timer, "build diag matrices");
-            for (const auto cell: dof_handler.active_cell_iterators())
-            {
-                const double i = cell->active_cell_index();
-                const double m = cell->measure();
-                double d_3_value = -1 * state.block(SolutionBlocks::density_lower_slack_multiplier)[i] /
-                                   (m * state.block(SolutionBlocks::density_lower_slack)[i]);
-                double d_4_value = -1 * state.block(SolutionBlocks::density_upper_slack_multiplier)[i] /
-                                   (m * state.block(SolutionBlocks::density_upper_slack)[i]);
-                double d_5_value = state.block(SolutionBlocks::density_lower_slack_multiplier)[i] /
-                                   (state.block(SolutionBlocks::density_lower_slack)[i]);
-                double d_6_value = state.block(SolutionBlocks::density_upper_slack_multiplier)[i] /
-                                   (state.block(SolutionBlocks::density_upper_slack)[i]);
-                double d_7_value = (m * (state.block(SolutionBlocks::density_lower_slack_multiplier)[i] *
-                                         state.block(SolutionBlocks::density_upper_slack)[i] +
-                                         state.block(SolutionBlocks::density_upper_slack_multiplier)[i] *
-                                         state.block(SolutionBlocks::density_lower_slack)[i]))
-                                   / (state.block(SolutionBlocks::density_lower_slack)[i] *
-                                      state.block(SolutionBlocks::density_upper_slack)[i]);
-                double d_8_value = (state.block(SolutionBlocks::density_lower_slack)[i] *
-                                    state.block(SolutionBlocks::density_upper_slack)[i])
-                                   / (m * (state.block(SolutionBlocks::density_lower_slack_multiplier)[i] *
-                                           state.block(SolutionBlocks::density_upper_slack)[i] +
-                                           state.block(SolutionBlocks::density_upper_slack_multiplier)[i] *
-                                           state.block(SolutionBlocks::density_lower_slack)[i]));
-                d_3_mat.set(i, i, d_3_value);
-                d_4_mat.set(i, i, d_4_value);
-                d_5_mat.set(i, i, d_5_value);
-                d_6_mat.set(i, i, d_6_value);
-                d_7_mat.set(i, i, d_7_value);
-                d_8_mat.set(i, i, d_8_value);
-                d_m_inv_mat.set(i, i, 1 / m);
-
-            }
+//            for (const auto cell: dof_handler.active_cell_iterators())
+//            {
+//                if(cell->is_locally_owned())
+//                {
+//                    const unsigned int i = cell->active_cell_index();
+//                    std::cout << i << std::endl;
+//                    const double m = cell->measure();
+//                    double d_3_value = -1 * state.block(SolutionBlocks::density_lower_slack_multiplier)[i] /
+//                                       (m * state.block(SolutionBlocks::density_lower_slack)[i]);
+//                    double d_4_value = -1 * state.block(SolutionBlocks::density_upper_slack_multiplier)[i] /
+//                                       (m * state.block(SolutionBlocks::density_upper_slack)[i]);
+//                    double d_5_value = state.block(SolutionBlocks::density_lower_slack_multiplier)[i] /
+//                                       (state.block(SolutionBlocks::density_lower_slack)[i]);
+//                    double d_6_value = state.block(SolutionBlocks::density_upper_slack_multiplier)[i] /
+//                                       (state.block(SolutionBlocks::density_upper_slack)[i]);
+//                    double d_7_value = (m * (state.block(SolutionBlocks::density_lower_slack_multiplier)[i] *
+//                                             state.block(SolutionBlocks::density_upper_slack)[i] +
+//                                             state.block(SolutionBlocks::density_upper_slack_multiplier)[i] *
+//                                             state.block(SolutionBlocks::density_lower_slack)[i]))
+//                                       / (state.block(SolutionBlocks::density_lower_slack)[i] *
+//                                          state.block(SolutionBlocks::density_upper_slack)[i]);
+//                    double d_8_value = (state.block(SolutionBlocks::density_lower_slack)[i] *
+//                                        state.block(SolutionBlocks::density_upper_slack)[i])
+//                                       / (m * (state.block(SolutionBlocks::density_lower_slack_multiplier)[i] *
+//                                               state.block(SolutionBlocks::density_upper_slack)[i] +
+//                                               state.block(SolutionBlocks::density_upper_slack_multiplier)[i] *
+//                                               state.block(SolutionBlocks::density_lower_slack)[i]));
+//                    d_3_mat.set(i, i, d_3_value);
+//                    d_4_mat.set(i, i, d_4_value);
+//                    d_5_mat.set(i, i, d_5_value);
+//                    d_6_mat.set(i, i, d_6_value);
+//                    d_7_mat.set(i, i, d_7_value);
+//                    d_8_mat.set(i, i, d_8_value);
+//                    d_m_inv_mat.set(i, i, 1 / m);
+//                }
+//            }
         }
-
-
 
         pre_j=state.block(SolutionBlocks::density);
         pre_k=state.block(SolutionBlocks::density);
@@ -189,7 +193,6 @@ namespace SAND {
         op_f = linear_operator<VectorType,VectorType,PayloadType>(f_mat);
         op_d_8 = linear_operator<VectorType,VectorType,PayloadType>(d_8_mat);
         op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * transpose_operator<VectorType, VectorType, PayloadType>(linear_operator<VectorType,VectorType,PayloadType>(f_mat));
-
 
         if (Input::solver_choice==SolverOptions::inexact_K_with_inexact_A_gmres)
         {
@@ -237,15 +240,12 @@ namespace SAND {
 //            }
         }
 
-
-
         if (Input::solver_choice == SolverOptions::exact_preconditioner_with_gmres)
         {
             TimerOutput::Scope t(timer, "invert k_mat");
             k_mat.copy_from(k_inv_mat);
             k_mat.invert();
         }
-
     }
 
 
@@ -386,14 +386,14 @@ namespace SAND {
             try {
                 k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, PreconditionIdentity()) *
                                       g_d_m_inv_density;
-            } catch (std::exception &exc)
+            }
+            catch (std::exception &exc)
             {
                 std::cerr << "Failure of linear solver step_4_gmres_1" << std::endl;
                 std::cout << "first residual: " << step_4_gmres_control_1.initial_value() << std::endl;
                 std::cout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
                 throw;
             }
-
             SolverControl step_4_gmres_control_2 (100000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
             SolverGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
             try {
