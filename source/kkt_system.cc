@@ -1233,19 +1233,30 @@ namespace SAND {
         norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(), 2);
-        std::cout << "!!!!!!!!!!!!!!!!!!" << std::endl;
-        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++) {
-            norm += state.block(SolutionBlocks::density_upper_slack)[k] *
-                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
-                    * state.block(SolutionBlocks::density_upper_slack)[k] *
-                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+        distributed_solution = state;
+        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++)
+        {
+            if(distributed_solution.block(SolutionBlocks::density_upper_slack).in_local_range(k))
+            {
+                norm += distributed_solution.block(SolutionBlocks::density_upper_slack)[k] *
+                    distributed_solution.block(SolutionBlocks::density_upper_slack_multiplier)[k]
+                    * distributed_solution.block(SolutionBlocks::density_upper_slack)[k] *
+                    distributed_solution.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+            }
         }
-        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++) {
-            norm += state.block(SolutionBlocks::density_lower_slack)[k] *
-                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
-                    * state.block(SolutionBlocks::density_lower_slack)[k] *
-                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++)
+        {
+            if(distributed_solution.block(SolutionBlocks::density_upper_slack).in_local_range(k))
+            {
+                norm += distributed_solution.block(SolutionBlocks::density_lower_slack)[k] *
+                        distributed_solution.block(SolutionBlocks::density_lower_slack_multiplier)[k]
+                        * distributed_solution.block(SolutionBlocks::density_lower_slack)[k] *
+                        distributed_solution.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+            }
         }
+
+        std::cout << "norm " << norm << std::endl;
+
         return norm;
     }
 
