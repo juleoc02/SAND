@@ -813,300 +813,312 @@ namespace SAND {
                                                                                                       cell->measure());
         }
 
-
-        LA::MPI::BlockVector filtered_unfiltered_density_solution = state;
-        LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = state;
+        distributed_solution = state;
+        LA::MPI::BlockVector filtered_unfiltered_density_solution = distributed_solution;
+        LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = distributed_solution;
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
-        system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).vmult(
+        std::cout << "******************BEFORE" << std::endl;
+
+        system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+                            SolutionBlocks::unfiltered_density).vmult(
                 filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density),
-                state.block(SolutionBlocks::unfiltered_density));
-        system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(
+                distributed_solution.block(SolutionBlocks::unfiltered_density));
+        system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+                            SolutionBlocks::unfiltered_density).Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(
                                                     SolutionBlocks::unfiltered_density_multiplier),
-                                            state.block(SolutionBlocks::unfiltered_density_multiplier));
+                                            distributed_solution.block(SolutionBlocks::unfiltered_density_multiplier));
+        std::cout << "******************AFTER" << std::endl;
 
-
+        LA::MPI::BlockVector relevant_filtered_unfiltered_density_solution = locally_relevant_solution;
+        LA::MPI::BlockVector relevant_filter_adjoint_unfiltered_density_multiplier_solution = locally_relevant_solution;
+        relevant_filtered_unfiltered_density_solution =filtered_unfiltered_density_solution;
+        relevant_filter_adjoint_unfiltered_density_multiplier_solution = filter_adjoint_unfiltered_density_multiplier_solution;
         for (const auto &cell: dof_handler.active_cell_iterators()) {
-            hp_fe_values.reinit(cell);
-            const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
-            cell_matrix.reinit(cell->get_fe().n_dofs_per_cell(),
-                               cell->get_fe().n_dofs_per_cell());
-            cell_rhs.reinit(cell->get_fe().n_dofs_per_cell());
+            if(cell->is_locally_owned())
+            {
+                hp_fe_values.reinit(cell);
+                const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
+                cell_matrix.reinit(cell->get_fe().n_dofs_per_cell(),
+                                   cell->get_fe().n_dofs_per_cell());
+                cell_rhs.reinit(cell->get_fe().n_dofs_per_cell());
 
-            const unsigned int n_q_points = fe_values.n_quadrature_points;
+                const unsigned int n_q_points = fe_values.n_quadrature_points;
 
-            std::vector<double> old_density_values(n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
-            std::vector<double> old_displacement_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
-                    n_q_points);
-            std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
-                    n_q_points);
-            std::vector<double> old_displacement_multiplier_divs(n_q_points);
-            std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
-                    n_q_points);
-            std::vector<double> old_lower_slack_multiplier_values(n_q_points);
-            std::vector<double> old_upper_slack_multiplier_values(n_q_points);
-            std::vector<double> old_lower_slack_values(n_q_points);
-            std::vector<double> old_upper_slack_values(n_q_points);
-            std::vector<double> old_unfiltered_density_values(n_q_points);
-            std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
-            std::vector<double> filtered_unfiltered_density_values(n_q_points);
-            std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
-            std::vector<double> lambda_values(n_q_points);
-            std::vector<double> mu_values(n_q_points);
+                std::vector<double> old_density_values(n_q_points);
+                std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
+                std::vector<double> old_displacement_divs(n_q_points);
+                std::vector<SymmetricTensor<2, dim>> old_displacement_symmgrads(
+                        n_q_points);
+                std::vector<Tensor<1, dim>> old_displacement_multiplier_values(
+                        n_q_points);
+                std::vector<double> old_displacement_multiplier_divs(n_q_points);
+                std::vector<SymmetricTensor<2, dim>> old_displacement_multiplier_symmgrads(
+                        n_q_points);
+                std::vector<double> old_lower_slack_multiplier_values(n_q_points);
+                std::vector<double> old_upper_slack_multiplier_values(n_q_points);
+                std::vector<double> old_lower_slack_values(n_q_points);
+                std::vector<double> old_upper_slack_values(n_q_points);
+                std::vector<double> old_unfiltered_density_values(n_q_points);
+                std::vector<double> old_unfiltered_density_multiplier_values(n_q_points);
+                std::vector<double> filtered_unfiltered_density_values(n_q_points);
+                std::vector<double> filter_adjoint_unfiltered_density_multiplier_values(n_q_points);
+                std::vector<double> lambda_values(n_q_points);
+                std::vector<double> mu_values(n_q_points);
 
-            const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
+                const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
 
-            cell_matrix = 0;
-            cell_rhs = 0;
-            local_dof_indices.resize(cell->get_fe().n_dofs_per_cell());
-            cell->get_dof_indices(local_dof_indices);
+                cell_matrix = 0;
+                cell_rhs = 0;
+                local_dof_indices.resize(cell->get_fe().n_dofs_per_cell());
+                cell->get_dof_indices(local_dof_indices);
 
-            lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
-            mu.value_list(fe_values.get_quadrature_points(), mu_values);
+                lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
+                mu.value_list(fe_values.get_quadrature_points(), mu_values);
 
-            fe_values[densities].get_function_values(state,
-                                                     old_density_values);
-            fe_values[displacements].get_function_values(state,
-                                                         old_displacement_values);
-            fe_values[displacements].get_function_divergences(state,
-                                                              old_displacement_divs);
-            fe_values[displacements].get_function_symmetric_gradients(
-                    state, old_displacement_symmgrads);
-            fe_values[displacement_multipliers].get_function_values(
-                    state, old_displacement_multiplier_values);
-            fe_values[displacement_multipliers].get_function_divergences(
-                    state, old_displacement_multiplier_divs);
-            fe_values[displacement_multipliers].get_function_symmetric_gradients(
-                    state, old_displacement_multiplier_symmgrads);
-            fe_values[density_lower_slacks].get_function_values(
-                    state, old_lower_slack_values);
-            fe_values[density_lower_slack_multipliers].get_function_values(
-                    state, old_lower_slack_multiplier_values);
-            fe_values[density_upper_slacks].get_function_values(
-                    state, old_upper_slack_values);
-            fe_values[density_upper_slack_multipliers].get_function_values(
-                    state, old_upper_slack_multiplier_values);
-            fe_values[unfiltered_densities].get_function_values(
-                    state, old_unfiltered_density_values);
-            fe_values[unfiltered_density_multipliers].get_function_values(
-                    state, old_unfiltered_density_multiplier_values);
-            fe_values[unfiltered_densities].get_function_values(
-                    filtered_unfiltered_density_solution, filtered_unfiltered_density_values);
-            fe_values[unfiltered_density_multipliers].get_function_values(
-                    filter_adjoint_unfiltered_density_multiplier_solution,
-                    filter_adjoint_unfiltered_density_multiplier_values);
+                fe_values[densities].get_function_values(state,
+                                                         old_density_values);
+                fe_values[displacements].get_function_values(state,
+                                                             old_displacement_values);
+                fe_values[displacements].get_function_divergences(state,
+                                                                  old_displacement_divs);
+                fe_values[displacements].get_function_symmetric_gradients(
+                        state, old_displacement_symmgrads);
+                fe_values[displacement_multipliers].get_function_values(
+                        state, old_displacement_multiplier_values);
+                fe_values[displacement_multipliers].get_function_divergences(
+                        state, old_displacement_multiplier_divs);
+                fe_values[displacement_multipliers].get_function_symmetric_gradients(
+                        state, old_displacement_multiplier_symmgrads);
+                fe_values[density_lower_slacks].get_function_values(
+                        state, old_lower_slack_values);
+                fe_values[density_lower_slack_multipliers].get_function_values(
+                        state, old_lower_slack_multiplier_values);
+                fe_values[density_upper_slacks].get_function_values(
+                        state, old_upper_slack_values);
+                fe_values[density_upper_slack_multipliers].get_function_values(
+                        state, old_upper_slack_multiplier_values);
+                fe_values[unfiltered_densities].get_function_values(
+                        state, old_unfiltered_density_values);
+                fe_values[unfiltered_density_multipliers].get_function_values(
+                        state, old_unfiltered_density_multiplier_values);
+                fe_values[unfiltered_densities].get_function_values(
+                        relevant_filtered_unfiltered_density_solution, filtered_unfiltered_density_values);
+                fe_values[unfiltered_density_multipliers].get_function_values(
+                        relevant_filter_adjoint_unfiltered_density_multiplier_solution,
+                        filter_adjoint_unfiltered_density_multiplier_values);
 
-            Tensor<1, dim> traction;
-            traction[1] = -1;
+                Tensor<1, dim> traction;
+                traction[1] = -1;
 
-            for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
+                for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
 
-                for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                    const SymmetricTensor<2, dim> displacement_phi_i_symmgrad =
-                            fe_values[displacements].symmetric_gradient(i, q_point);
-                    const double displacement_phi_i_div =
-                            fe_values[displacements].divergence(i, q_point);
+                    for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                        const SymmetricTensor<2, dim> displacement_phi_i_symmgrad =
+                                fe_values[displacements].symmetric_gradient(i, q_point);
+                        const double displacement_phi_i_div =
+                                fe_values[displacements].divergence(i, q_point);
 
-                    const SymmetricTensor<2, dim> displacement_multiplier_phi_i_symmgrad =
-                            fe_values[displacement_multipliers].symmetric_gradient(i,
-                                                                                   q_point);
-                    const double displacement_multiplier_phi_i_div =
-                            fe_values[displacement_multipliers].divergence(i,
-                                                                           q_point);
-
-
-                    const double density_phi_i = fe_values[densities].value(i,
-                                                                            q_point);
-                    const double unfiltered_density_phi_i = fe_values[unfiltered_densities].value(i,
-                                                                                                  q_point);
-                    const double unfiltered_density_multiplier_phi_i = fe_values[unfiltered_density_multipliers].value(
-                            i, q_point);
-
-                    const double lower_slack_multiplier_phi_i =
-                            fe_values[density_lower_slack_multipliers].value(i,
-                                                                             q_point);
-
-                    const double lower_slack_phi_i =
-                            fe_values[density_lower_slacks].value(i, q_point);
-
-                    const double upper_slack_phi_i =
-                            fe_values[density_upper_slacks].value(i, q_point);
-
-                    const double upper_slack_multiplier_phi_i =
-                            fe_values[density_upper_slack_multipliers].value(i,
-                                                                             q_point);
-
-
-                    for (unsigned int j = 0; j < dofs_per_cell; ++j) {
-                        const SymmetricTensor<2, dim> displacement_phi_j_symmgrad =
-                                fe_values[displacements].symmetric_gradient(j,
-                                                                            q_point);
-                        const double displacement_phi_j_div =
-                                fe_values[displacements].divergence(j, q_point);
-
-                        const SymmetricTensor<2, dim> displacement_multiplier_phi_j_symmgrad =
-                                fe_values[displacement_multipliers].symmetric_gradient(
-                                        j, q_point);
-                        const double displacement_multiplier_phi_j_div =
-                                fe_values[displacement_multipliers].divergence(j,
+                        const SymmetricTensor<2, dim> displacement_multiplier_phi_i_symmgrad =
+                                fe_values[displacement_multipliers].symmetric_gradient(i,
+                                                                                       q_point);
+                        const double displacement_multiplier_phi_i_div =
+                                fe_values[displacement_multipliers].divergence(i,
                                                                                q_point);
 
-                        const double density_phi_j = fe_values[densities].value(
-                                j, q_point);
 
-                        const double unfiltered_density_phi_j = fe_values[unfiltered_densities].value(j,
+                        const double density_phi_i = fe_values[densities].value(i,
+                                                                                q_point);
+                        const double unfiltered_density_phi_i = fe_values[unfiltered_densities].value(i,
                                                                                                       q_point);
-                        const double unfiltered_density_multiplier_phi_j = fe_values[unfiltered_density_multipliers].value(
-                                j, q_point);
+                        const double unfiltered_density_multiplier_phi_i = fe_values[unfiltered_density_multipliers].value(
+                                i, q_point);
 
-
-                        const double lower_slack_phi_j =
-                                fe_values[density_lower_slacks].value(j, q_point);
-
-                        const double upper_slack_phi_j =
-                                fe_values[density_upper_slacks].value(j, q_point);
-
-                        const double lower_slack_multiplier_phi_j =
-                                fe_values[density_lower_slack_multipliers].value(j,
+                        const double lower_slack_multiplier_phi_i =
+                                fe_values[density_lower_slack_multipliers].value(i,
                                                                                  q_point);
 
-                        const double upper_slack_multiplier_phi_j =
-                                fe_values[density_upper_slack_multipliers].value(j,
+                        const double lower_slack_phi_i =
+                                fe_values[density_lower_slacks].value(i, q_point);
+
+                        const double upper_slack_phi_i =
+                                fe_values[density_upper_slacks].value(i, q_point);
+
+                        const double upper_slack_multiplier_phi_i =
+                                fe_values[density_upper_slack_multipliers].value(i,
                                                                                  q_point);
 
-                        //Equation 0
-                        cell_matrix(i, j) +=
-                                fe_values.JxW(q_point) *
-                                (
-                                        -density_phi_i * unfiltered_density_multiplier_phi_j
 
-                                        - density_penalty_exponent * (density_penalty_exponent - 1)
-                                          * std::pow(
-                                                old_density_values[q_point],
-                                                density_penalty_exponent - 2)
-                                          * density_phi_i
-                                          * density_phi_j
-                                          * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
-                                             * lambda_values[q_point]
-                                             + 2 * mu_values[q_point]
-                                               * (old_displacement_symmgrads[q_point] *
-                                                  old_displacement_multiplier_symmgrads[q_point]))
+                        for (unsigned int j = 0; j < dofs_per_cell; ++j) {
+                            const SymmetricTensor<2, dim> displacement_phi_j_symmgrad =
+                                    fe_values[displacements].symmetric_gradient(j,
+                                                                                q_point);
+                            const double displacement_phi_j_div =
+                                    fe_values[displacements].divergence(j, q_point);
 
-                                        - density_penalty_exponent * std::pow(
-                                                old_density_values[q_point],
-                                                density_penalty_exponent - 1)
-                                          * density_phi_i
-                                          * (displacement_multiplier_phi_j_div * old_displacement_divs[q_point]
-                                             * lambda_values[q_point]
-                                             + 2 * mu_values[q_point]
-                                               *
-                                               (old_displacement_symmgrads[q_point] *
-                                                displacement_multiplier_phi_j_symmgrad))
+                            const SymmetricTensor<2, dim> displacement_multiplier_phi_j_symmgrad =
+                                    fe_values[displacement_multipliers].symmetric_gradient(
+                                            j, q_point);
+                            const double displacement_multiplier_phi_j_div =
+                                    fe_values[displacement_multipliers].divergence(j,
+                                                                                   q_point);
 
-                                        - density_penalty_exponent * std::pow(
-                                                old_density_values[q_point],
-                                                density_penalty_exponent - 1)
-                                          * density_phi_i
-                                          * (displacement_phi_j_div * old_displacement_multiplier_divs[q_point]
-                                             * lambda_values[q_point]
-                                             + 2 * mu_values[q_point]
-                                               * (old_displacement_multiplier_symmgrads[q_point] *
-                                                  displacement_phi_j_symmgrad)));
-                        //Equation 1
+                            const double density_phi_j = fe_values[densities].value(
+                                    j, q_point);
 
-                        cell_matrix(i, j) +=
-                                fe_values.JxW(q_point) * (
-                                        -density_penalty_exponent * std::pow(
-                                                old_density_values[q_point],
-                                                density_penalty_exponent - 1)
-                                        * density_phi_j
-                                        * (old_displacement_multiplier_divs[q_point] * displacement_phi_i_div
-                                           * lambda_values[q_point]
-                                           + 2 * mu_values[q_point]
-                                             * (old_displacement_multiplier_symmgrads[q_point] *
-                                                displacement_phi_i_symmgrad))
+                            const double unfiltered_density_phi_j = fe_values[unfiltered_densities].value(j,
+                                                                                                          q_point);
+                            const double unfiltered_density_multiplier_phi_j = fe_values[unfiltered_density_multipliers].value(
+                                    j, q_point);
 
-                                        - std::pow(old_density_values[q_point],
-                                                   density_penalty_exponent)
-                                          * (displacement_multiplier_phi_j_div * displacement_phi_i_div
-                                             * lambda_values[q_point]
-                                             + 2 * mu_values[q_point]
-                                               * (displacement_multiplier_phi_j_symmgrad * displacement_phi_i_symmgrad))
 
-                                );
+                            const double lower_slack_phi_j =
+                                    fe_values[density_lower_slacks].value(j, q_point);
 
-                        //Equation 2 has to do with the filter, which is calculated elsewhere.
-                        cell_matrix(i, j) +=
-                                fe_values.JxW(q_point) * (
-                                        -1 * unfiltered_density_phi_i * lower_slack_multiplier_phi_j
-                                        + unfiltered_density_phi_i * upper_slack_multiplier_phi_j);
+                            const double upper_slack_phi_j =
+                                    fe_values[density_upper_slacks].value(j, q_point);
 
-                        //Equation 3 - Primal Feasibility
+                            const double lower_slack_multiplier_phi_j =
+                                    fe_values[density_lower_slack_multipliers].value(j,
+                                                                                     q_point);
 
-                        cell_matrix(i, j) +=
-                                fe_values.JxW(q_point) * (
+                            const double upper_slack_multiplier_phi_j =
+                                    fe_values[density_upper_slack_multipliers].value(j,
+                                                                                     q_point);
 
-                                        -1 * density_penalty_exponent * std::pow(
-                                                old_density_values[q_point],
-                                                density_penalty_exponent - 1)
-                                        * density_phi_j
-                                        * (old_displacement_divs[q_point] * displacement_multiplier_phi_i_div
-                                           * lambda_values[q_point]
-                                           + 2 * mu_values[q_point]
-                                             * (old_displacement_symmgrads[q_point] *
-                                                displacement_multiplier_phi_i_symmgrad))
+                            //Equation 0
+                            cell_matrix(i, j) +=
+                                    fe_values.JxW(q_point) *
+                                    (
+                                            -density_phi_i * unfiltered_density_multiplier_phi_j
 
-                                        + -1 * std::pow(old_density_values[q_point],
-                                                        density_penalty_exponent)
-                                          * (displacement_phi_j_div * displacement_multiplier_phi_i_div
-                                             * lambda_values[q_point]
-                                             + 2 * mu_values[q_point]
-                                               *
-                                               (displacement_phi_j_symmgrad * displacement_multiplier_phi_i_symmgrad)));
+                                            - density_penalty_exponent * (density_penalty_exponent - 1)
+                                              * std::pow(
+                                                    old_density_values[q_point],
+                                                    density_penalty_exponent - 2)
+                                              * density_phi_i
+                                              * density_phi_j
+                                              * (old_displacement_multiplier_divs[q_point] * old_displacement_divs[q_point]
+                                                 * lambda_values[q_point]
+                                                 + 2 * mu_values[q_point]
+                                                   * (old_displacement_symmgrads[q_point] *
+                                                      old_displacement_multiplier_symmgrads[q_point]))
 
-                        //Equation 4 - more primal feasibility
-                        cell_matrix(i, j) +=
-                                -1 * fe_values.JxW(q_point) * lower_slack_multiplier_phi_i *
-                                (unfiltered_density_phi_j - lower_slack_phi_j);
+                                            - density_penalty_exponent * std::pow(
+                                                    old_density_values[q_point],
+                                                    density_penalty_exponent - 1)
+                                              * density_phi_i
+                                              * (displacement_multiplier_phi_j_div * old_displacement_divs[q_point]
+                                                 * lambda_values[q_point]
+                                                 + 2 * mu_values[q_point]
+                                                   *
+                                                   (old_displacement_symmgrads[q_point] *
+                                                    displacement_multiplier_phi_j_symmgrad))
 
-                        //Equation 5 - more primal feasibility
-                        cell_matrix(i, j) +=
-                                -1 * fe_values.JxW(q_point) * upper_slack_multiplier_phi_i * (
-                                        -1 * unfiltered_density_phi_j - upper_slack_phi_j);
+                                            - density_penalty_exponent * std::pow(
+                                                    old_density_values[q_point],
+                                                    density_penalty_exponent - 1)
+                                              * density_phi_i
+                                              * (displacement_phi_j_div * old_displacement_multiplier_divs[q_point]
+                                                 * lambda_values[q_point]
+                                                 + 2 * mu_values[q_point]
+                                                   * (old_displacement_multiplier_symmgrads[q_point] *
+                                                      displacement_phi_j_symmgrad)));
+                            //Equation 1
 
-                        //Equation 6 - more primal feasibility - part with filter added later
-                        cell_matrix(i, j) +=
-                                -1 * fe_values.JxW(q_point) * unfiltered_density_multiplier_phi_i * (
-                                        density_phi_j);
+                            cell_matrix(i, j) +=
+                                    fe_values.JxW(q_point) * (
+                                            -density_penalty_exponent * std::pow(
+                                                    old_density_values[q_point],
+                                                    density_penalty_exponent - 1)
+                                            * density_phi_j
+                                            * (old_displacement_multiplier_divs[q_point] * displacement_phi_i_div
+                                               * lambda_values[q_point]
+                                               + 2 * mu_values[q_point]
+                                                 * (old_displacement_multiplier_symmgrads[q_point] *
+                                                    displacement_phi_i_symmgrad))
 
-                        //Equation 7 - complementary slackness
-                        cell_matrix(i, j) += fe_values.JxW(q_point) *
-                                             (lower_slack_phi_i * lower_slack_multiplier_phi_j
-                                              + lower_slack_phi_i * lower_slack_phi_j *
-                                                old_lower_slack_multiplier_values[q_point] /
-                                                old_lower_slack_values[q_point]);
-                        //Equation 8 - complementary slackness
-                        cell_matrix(i, j) += fe_values.JxW(q_point) *
-                                             (upper_slack_phi_i * upper_slack_multiplier_phi_j
-                                              + upper_slack_phi_i * upper_slack_phi_j *
-                                                old_upper_slack_multiplier_values[q_point] /
-                                                old_upper_slack_values[q_point]);
+                                            - std::pow(old_density_values[q_point],
+                                                       density_penalty_exponent)
+                                              * (displacement_multiplier_phi_j_div * displacement_phi_i_div
+                                                 * lambda_values[q_point]
+                                                 + 2 * mu_values[q_point]
+                                                   * (displacement_multiplier_phi_j_symmgrad * displacement_phi_i_symmgrad))
+
+                                    );
+
+                            //Equation 2 has to do with the filter, which is calculated elsewhere.
+                            cell_matrix(i, j) +=
+                                    fe_values.JxW(q_point) * (
+                                            -1 * unfiltered_density_phi_i * lower_slack_multiplier_phi_j
+                                            + unfiltered_density_phi_i * upper_slack_multiplier_phi_j);
+
+                            //Equation 3 - Primal Feasibility
+
+                            cell_matrix(i, j) +=
+                                    fe_values.JxW(q_point) * (
+
+                                            -1 * density_penalty_exponent * std::pow(
+                                                    old_density_values[q_point],
+                                                    density_penalty_exponent - 1)
+                                            * density_phi_j
+                                            * (old_displacement_divs[q_point] * displacement_multiplier_phi_i_div
+                                               * lambda_values[q_point]
+                                               + 2 * mu_values[q_point]
+                                                 * (old_displacement_symmgrads[q_point] *
+                                                    displacement_multiplier_phi_i_symmgrad))
+
+                                            + -1 * std::pow(old_density_values[q_point],
+                                                            density_penalty_exponent)
+                                              * (displacement_phi_j_div * displacement_multiplier_phi_i_div
+                                                 * lambda_values[q_point]
+                                                 + 2 * mu_values[q_point]
+                                                   *
+                                                   (displacement_phi_j_symmgrad * displacement_multiplier_phi_i_symmgrad)));
+
+                            //Equation 4 - more primal feasibility
+                            cell_matrix(i, j) +=
+                                    -1 * fe_values.JxW(q_point) * lower_slack_multiplier_phi_i *
+                                    (unfiltered_density_phi_j - lower_slack_phi_j);
+
+                            //Equation 5 - more primal feasibility
+                            cell_matrix(i, j) +=
+                                    -1 * fe_values.JxW(q_point) * upper_slack_multiplier_phi_i * (
+                                            -1 * unfiltered_density_phi_j - upper_slack_phi_j);
+
+                            //Equation 6 - more primal feasibility - part with filter added later
+                            cell_matrix(i, j) +=
+                                    -1 * fe_values.JxW(q_point) * unfiltered_density_multiplier_phi_i * (
+                                            density_phi_j);
+
+                            //Equation 7 - complementary slackness
+                            cell_matrix(i, j) += fe_values.JxW(q_point) *
+                                                 (lower_slack_phi_i * lower_slack_multiplier_phi_j
+                                                  + lower_slack_phi_i * lower_slack_phi_j *
+                                                    old_lower_slack_multiplier_values[q_point] /
+                                                    old_lower_slack_values[q_point]);
+                            //Equation 8 - complementary slackness
+                            cell_matrix(i, j) += fe_values.JxW(q_point) *
+                                                 (upper_slack_phi_i * upper_slack_multiplier_phi_j
+                                                  + upper_slack_phi_i * upper_slack_phi_j *
+                                                    old_upper_slack_multiplier_values[q_point] /
+                                                    old_upper_slack_values[q_point]);
+                        }
+
                     }
 
                 }
 
+
+                MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
+                                                         cell_matrix, cell_rhs, true);
+
+
+                constraints.distribute_local_to_global(
+                        cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
+
             }
-
-
-            MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
-                                                     cell_matrix, cell_rhs, true);
-
-
-            constraints.distribute_local_to_global(
-                    cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
         }
         system_matrix.compress(VectorOperation::add);
@@ -1150,48 +1162,53 @@ namespace SAND {
 
         Tensor<1, dim> traction;
         traction[1] = -1;
-
+        distributed_solution = state;
         double objective_value = 0;
         for (const auto &cell: dof_handler.active_cell_iterators()) {
-            hp_fe_values.reinit(cell);
-            const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
-            const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
-            const unsigned int n_q_points = fe_values.n_quadrature_points;
-            const unsigned int n_face_q_points = common_face_quadrature.size();
+            if(cell->is_locally_owned())
+            {
+                hp_fe_values.reinit(cell);
+                const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
+                const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
+                const unsigned int n_q_points = fe_values.n_quadrature_points;
+                const unsigned int n_face_q_points = common_face_quadrature.size();
 
-            std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
-            fe_values[displacements].get_function_values(
-                    state, old_displacement_values);
+                std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
+                fe_values[displacements].get_function_values(
+                        state, old_displacement_values);
 
-            for (unsigned int face_number = 0;
-                 face_number < GeometryInfo<dim>::faces_per_cell;
-                 ++face_number) {
-                if (cell->face(face_number)->at_boundary() && cell->face(face_number)->boundary_id()
-                                                              == BoundaryIds::down_force) {
+                for (unsigned int face_number = 0;
+                     face_number < GeometryInfo<dim>::faces_per_cell;
+                     ++face_number) {
+                    if (cell->face(face_number)->at_boundary() && cell->face(face_number)->boundary_id()
+                                                                  == BoundaryIds::down_force) {
 
 
-                    for (unsigned int face_q_point = 0;
-                         face_q_point < n_face_q_points; ++face_q_point) {
-                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
-                            if (cell->material_id() == MaterialIds::without_multiplier) {
-                                fe_nine_face_values.reinit(cell, face_number);
-                                objective_value += traction
-                                                   * fe_nine_face_values[displacements].value(i,
-                                                                                              face_q_point)
-                                                   * fe_nine_face_values.JxW(face_q_point);
-                            } else {
-                                fe_ten_face_values.reinit(cell, face_number);
-                                objective_value += traction
-                                                   * fe_ten_face_values[displacements].value(i,
-                                                                                             face_q_point)
-                                                   * fe_ten_face_values.JxW(face_q_point);
+                        for (unsigned int face_q_point = 0;
+                             face_q_point < n_face_q_points; ++face_q_point) {
+                            for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                                if (cell->material_id() == MaterialIds::without_multiplier) {
+                                    fe_nine_face_values.reinit(cell, face_number);
+                                    objective_value += traction
+                                                       * fe_nine_face_values[displacements].value(i,
+                                                                                                  face_q_point)
+                                                       * fe_nine_face_values.JxW(face_q_point);
+                                } else {
+                                    fe_ten_face_values.reinit(cell, face_number);
+                                    objective_value += traction
+                                                       * fe_ten_face_values[displacements].value(i,
+                                                                                                 face_q_point)
+                                                       * fe_ten_face_values.JxW(face_q_point);
+                                }
                             }
                         }
                     }
-                }
 
+                }
             }
+
         }
+        std::cout << "objective value: - NEED TO ADD THESE " << objective_value << std::endl;
         return objective_value;
     }
 
@@ -1202,12 +1219,17 @@ namespace SAND {
     KktSystem<dim>::calculate_barrier_distance(const LA::MPI::BlockVector &state) const {
         double barrier_distance_log_sum = 0;
         unsigned int vect_size = state.block(SolutionBlocks::density_lower_slack).size();
+        distributed_solution = state;
         for (unsigned int k = 0; k < vect_size; k++) {
+            if (distributed_solution.block(SolutionBlocks::density_lower_slack).in_local_range(k))
             barrier_distance_log_sum += std::log(state.block(SolutionBlocks::density_lower_slack)[k]);
         }
         for (unsigned int k = 0; k < vect_size; k++) {
+            if (distributed_solution.block(SolutionBlocks::density_upper_slack).in_local_range(k))
             barrier_distance_log_sum += std::log(state.block(SolutionBlocks::density_upper_slack)[k]);
         }
+        std::cout << "Barrier distance log sum - NEED TO ADD THESE TOO " << barrier_distance_log_sum << std::endl;
+
         return barrier_distance_log_sum;
     }
 
@@ -1255,7 +1277,7 @@ namespace SAND {
             }
         }
 
-        std::cout << "norm " << norm << std::endl;
+        std::cout << "norm - NEED TO ADD THESE!!!" << norm << std::endl;
 
         return norm;
     }
@@ -1688,9 +1710,9 @@ namespace SAND {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
         locally_relevant_solution=0;
-        constraints.distribute(locally_relevant_solution);
+        distributed_solution = state;
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
-
+        std::cout << "into solve" << std::endl;
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
@@ -1698,34 +1720,34 @@ namespace SAND {
 //                std::string solver_type;
 //                TrilinosWrappers::SolverDirect::AdditionalData additional_data(false, "Amesos_Klu");
 //                TrilinosWrappers::SolverDirect solver(cn, mpi_communicator, system_matrix);
-//                solver.solve(locally_relevant_solution, system_rhs);
+//                solver.solve(distributed_solution, system_rhs);
                 break;
             }
             case SolverOptions::exact_preconditioner_with_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
                 SolverFGMRES<LA::MPI::BlockVector> A_fgmres(solver_control);
-                A_fgmres.solve(system_matrix, locally_relevant_solution, system_rhs, preconditioner);
+                A_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_exact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
                 SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
-                B_fgmres.solve(system_matrix, locally_relevant_solution, system_rhs, preconditioner);
+                B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_inexact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
                 SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
-                C_fgmres.solve(system_matrix, locally_relevant_solution, system_rhs, preconditioner);
+                C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             default:
                 throw;
         }
-        constraints.distribute(locally_relevant_solution);
+        constraints.distribute(distributed_solution);
 
         if (Input::output_parts_of_matrix) {
             preconditioner.print_stuff();
