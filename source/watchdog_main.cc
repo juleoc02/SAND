@@ -72,8 +72,10 @@ namespace SAND {
         double step_size_s_high = 1;
         double step_size_z_high = 1;
         double step_size_s, step_size_z;
-
-
+        LA::MPI::BlockVector state_test_s = state;
+        state_test_s = 0;
+        LA::MPI::BlockVector state_test_z = state;
+        state_test_z = 0;
         for (unsigned int k = 0; k < 50; k++)
         {
 
@@ -84,8 +86,6 @@ namespace SAND {
 
             const LA::MPI::BlockVector state_test_z =
                     (Input::fraction_to_boundary * state) + (step_size_z * step);
-
-            std::cout << "********** NEED TO FIND A WAY TO CHECK NONNEGATIVE HERE ***************" << std::endl;
 
             const bool accept_s = (state_test_s.block(SolutionBlocks::density_lower_slack).is_non_negative())
                                   && (state_test_s.block(SolutionBlocks::density_upper_slack).is_non_negative());
@@ -103,6 +103,7 @@ namespace SAND {
                 step_size_z_high = step_size_z;
             }
         }
+        std::cout << "s step : " << step_size_s_low << " z size : " << step_size_z_low << std::endl;
         return {step_size_s_low, step_size_z_low};
     }
 

@@ -572,7 +572,6 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::setup_block_system() {
-        const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
 
         //MAKE n_u and n_P
 
@@ -741,8 +740,11 @@ namespace SAND {
 
     template<int dim>
     void
-    KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &state, const double barrier_size) {
+    KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &distributed_state, const double barrier_size) {
         /*Remove any values from old iterations*/
+
+        LA::MPI::BlockVector relevant_state(owned_partitioning, relevant_partitioning, mpi_communicator);
+        relevant_state = distributed_state;
 
         system_matrix=0;
         locally_relevant_solution = 0;
@@ -813,7 +815,7 @@ namespace SAND {
                                                                                                       cell->measure());
         }
 
-        distributed_solution = state;
+        distributed_solution = distributed_state;
         LA::MPI::BlockVector filtered_unfiltered_density_solution = distributed_solution;
         LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = distributed_solution;
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
@@ -874,32 +876,32 @@ namespace SAND {
                 lambda.value_list(fe_values.get_quadrature_points(), lambda_values);
                 mu.value_list(fe_values.get_quadrature_points(), mu_values);
 
-                fe_values[densities].get_function_values(state,
+                fe_values[densities].get_function_values(relevant_state,
                                                          old_density_values);
-                fe_values[displacements].get_function_values(state,
+                fe_values[displacements].get_function_values(relevant_state,
                                                              old_displacement_values);
-                fe_values[displacements].get_function_divergences(state,
+                fe_values[displacements].get_function_divergences(relevant_state,
                                                                   old_displacement_divs);
                 fe_values[displacements].get_function_symmetric_gradients(
-                        state, old_displacement_symmgrads);
+                        relevant_state, old_displacement_symmgrads);
                 fe_values[displacement_multipliers].get_function_values(
-                        state, old_displacement_multiplier_values);
+                        relevant_state, old_displacement_multiplier_values);
                 fe_values[displacement_multipliers].get_function_divergences(
-                        state, old_displacement_multiplier_divs);
+                        relevant_state, old_displacement_multiplier_divs);
                 fe_values[displacement_multipliers].get_function_symmetric_gradients(
-                        state, old_displacement_multiplier_symmgrads);
+                        relevant_state, old_displacement_multiplier_symmgrads);
                 fe_values[density_lower_slacks].get_function_values(
-                        state, old_lower_slack_values);
+                        relevant_state, old_lower_slack_values);
                 fe_values[density_lower_slack_multipliers].get_function_values(
-                        state, old_lower_slack_multiplier_values);
+                        relevant_state, old_lower_slack_multiplier_values);
                 fe_values[density_upper_slacks].get_function_values(
-                        state, old_upper_slack_values);
+                        relevant_state, old_upper_slack_values);
                 fe_values[density_upper_slack_multipliers].get_function_values(
-                        state, old_upper_slack_multiplier_values);
+                        relevant_state, old_upper_slack_multiplier_values);
                 fe_values[unfiltered_densities].get_function_values(
-                        state, old_unfiltered_density_values);
+                        relevant_state, old_unfiltered_density_values);
                 fe_values[unfiltered_density_multipliers].get_function_values(
-                        state, old_unfiltered_density_multiplier_values);
+                        relevant_state, old_unfiltered_density_multiplier_values);
                 fe_values[unfiltered_densities].get_function_values(
                         relevant_filtered_unfiltered_density_solution, filtered_unfiltered_density_values);
                 fe_values[unfiltered_density_multipliers].get_function_values(
@@ -1104,10 +1106,11 @@ namespace SAND {
                         }
 
                     }
-
                 }
 
 
+                if (cell->active_cell_index()==23)
+                    cell_matrix.print(std::cout);
                 MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
                                                          cell_matrix, cell_rhs, true);
 
@@ -1119,15 +1122,17 @@ namespace SAND {
 
         }
         system_matrix.compress(VectorOperation::add);
-        system_rhs = calculate_rhs(state, barrier_size);
-
+        system_rhs = calculate_rhs(distributed_state, barrier_size);
         std::cout << "assembled" << std::endl;
     }
 
     template<int dim>
     double
-    KktSystem<dim>::calculate_objective_value(const LA::MPI::BlockVector &state) const {
+    KktSystem<dim>::calculate_objective_value(const LA::MPI::BlockVector &distributed_state) const {
         /*Remove any values from old iterations*/
+
+        locally_relevant_solution = distributed_state;
+
 
         QGauss<dim> nine_quadrature(fe_nine.degree + 1);
         QGauss<dim> ten_quadrature(fe_ten.degree + 1);
@@ -1159,7 +1164,7 @@ namespace SAND {
 
         Tensor<1, dim> traction;
         traction[1] = -1;
-        distributed_solution = state;
+        distributed_solution = distributed_state;
         double objective_value = 0;
         for (const auto &cell: dof_handler.active_cell_iterators())
         {
@@ -1173,7 +1178,7 @@ namespace SAND {
 
                 std::vector<Tensor<1, dim>> old_displacement_values(n_q_points);
                 fe_values[displacements].get_function_values(
-                        state, old_displacement_values);
+                        locally_relevant_solution, old_displacement_values);
 
                 for (unsigned int face_number = 0;
                      face_number < GeometryInfo<dim>::faces_per_cell;
@@ -1327,8 +1332,10 @@ namespace SAND {
 
     template<int dim>
     LA::MPI::BlockVector
-    KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &state, const double barrier_size) const {
+    KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &distributed_state, const double barrier_size) const {
         LA::MPI::BlockVector test_rhs (system_rhs);
+        LA::MPI::BlockVector state (locally_relevant_solution);
+        state = distributed_state;
         test_rhs = 0;
 
 
@@ -1693,7 +1700,7 @@ namespace SAND {
         {
             test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
         }
-
+        test_rhs.compress(VectorOperation::insert);
         return test_rhs;
 
     }
@@ -1715,7 +1722,8 @@ namespace SAND {
         else {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
-        locally_relevant_solution=0;
+        system_rhs.print(std::cout);
+        locally_relevant_solution=state;
         distributed_solution = state;
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
@@ -1729,21 +1737,21 @@ namespace SAND {
                 break;
             }
             case SolverOptions::exact_preconditioner_with_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, state);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler, locally_relevant_solution, distributed_solution);
                 SolverFGMRES<LA::MPI::BlockVector> A_fgmres(solver_control);
                 A_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_exact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  state);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  state, distributed_solution);
                 SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
                 B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_inexact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  state);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  state, distributed_solution);
                 SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
                 C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
                 std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
@@ -1779,7 +1787,7 @@ namespace SAND {
 //            }
 //            Mat.close();
         }
-        return locally_relevant_solution;
+        return distributed_solution;
     }
 
     template<int dim>
@@ -1801,30 +1809,29 @@ namespace SAND {
         const unsigned int n_u = dofs_per_block[1];
         const std::vector<unsigned int> block_sizes = {n_p, n_p, n_p, n_p, n_p, n_u, n_u, n_p, n_p, 1};
 
-        LA::MPI::BlockVector state(owned_partitioning, relevant_partitioning,mpi_communicator);
+        LA::MPI::BlockVector state(owned_partitioning, mpi_communicator);
         {
             using namespace SolutionBlocks;
-            distributed_solution=state;
-            distributed_solution.block(density).add(density_ratio);
-            distributed_solution.block(unfiltered_density).add(density_ratio);
-            distributed_solution.block(unfiltered_density_multiplier)
+            state.block(density).add(density_ratio);
+            state.block(unfiltered_density).add(density_ratio);
+            state.block(unfiltered_density_multiplier)
                     .add(density_ratio);
-            distributed_solution.block(density_lower_slack).add(density_ratio);
-            distributed_solution.block(density_lower_slack_multiplier).add(50);
-            distributed_solution.block(density_upper_slack).add(1 - density_ratio);
-            distributed_solution.block(density_upper_slack_multiplier).add(50);
-            distributed_solution.block(total_volume_multiplier).add(1);
-            distributed_solution.block(displacement).add(0);
-            distributed_solution.block(displacement_multiplier).add(0);
-            state=distributed_solution;
+            state.block(density_lower_slack).add(density_ratio);
+            state.block(density_lower_slack_multiplier).add(50);
+            state.block(density_upper_slack).add(1 - density_ratio);
+            state.block(density_upper_slack_multiplier).add(50);
+            state.block(total_volume_multiplier).add(1);
+            state.block(displacement).add(0);
+            state.block(displacement_multiplier).add(0);
         }
+        state.compress(VectorOperation::add);
         return state;
-
     }
 
     template<int dim>
     void
     KktSystem<dim>::output(const LA::MPI::BlockVector &state, const unsigned int j) const {
+        locally_relevant_solution = state;
         std::vector<std::string> solution_names(1, "low_slack_multiplier");
         std::vector<DataComponentInterpretation::DataComponentInterpretation> data_component_interpretation(
                 1, DataComponentInterpretation::component_is_scalar);
@@ -1861,11 +1868,14 @@ namespace SAND {
                 DataComponentInterpretation::component_is_scalar);
         DataOut<dim> data_out;
         data_out.attach_dof_handler(dof_handler);
-        data_out.add_data_vector(state, solution_names,
-                                 DataOut<dim>::type_dof_data, data_component_interpretation);
+        std::cout << "+++++++++++++++++++++++++HERE++++++++++" << std::endl;
+        data_out.add_data_vector(locally_relevant_solution,
+                                 solution_names,
+                                 DataOut<dim>::type_dof_data,
+                                 data_component_interpretation);
         data_out.build_patches();
         std::ofstream output("solution" + std::to_string(j) + ".vtk");
-        data_out.write_vtk(output);
+//        data_out.write_vtk(output);
 
     }
 

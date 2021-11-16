@@ -51,7 +51,7 @@ namespace SAND {
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &state)
+    void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &locally_relevant_state, const LA::MPI::BlockVector &distributed_state)
     {
         TimerOutput::Scope t(timer, "initialize");
         {
@@ -80,7 +80,6 @@ namespace SAND {
                 }
             }
 
-
             //set diagonal to 0?
             for (auto&[dof_index, boundary_value]: boundary_values) {
                 const types::global_dof_index disp_start_index = system_matrix.get_row_indices().block_start(
@@ -99,20 +98,21 @@ namespace SAND {
                 }
             }
 
+//            system_matrix.compress(VectorOperation::insert);
 
-            const unsigned int m = a_mat.m();
-            const unsigned int n = a_mat.n();
-            std::ofstream Xmat("a_mat_par.csv");
-            for (unsigned int i = 0; i < m; i++)
-            {
-                Xmat << a_mat.el(i, 0);
-                for (unsigned int j = 1; j < n; j++)
-                {
-                    Xmat << "," << a_mat.el(i, j);
-                }
-                Xmat << "\n";
-            }
-            Xmat.close();
+//            const unsigned int m = a_mat.m();
+//            const unsigned int n = a_mat.n();
+//            std::ofstream Xmat("a_mat_par.csv");
+//            for (unsigned int i = 0; i < m; i++)
+//            {
+//                Xmat << a_mat.el(i, 0);
+//                for (unsigned int j = 1; j < n; j++)
+//                {
+//                    Xmat << "," << a_mat.el(i, j);
+//                }
+//                Xmat << "\n";
+//            }
+//            Xmat.close();
 
         }
         if (Input::solver_choice==SolverOptions::inexact_K_with_inexact_A_gmres)
@@ -141,51 +141,73 @@ namespace SAND {
             d_8_mat=0;
             d_m_inv_mat=0;
         }
-        std::cout << "*************************** Diag Matrix Stuff Needs To Go Back In" << std::endl;
         {
             TimerOutput::Scope t(timer, "build diag matrices");
-//            for (const auto cell: dof_handler.active_cell_iterators())
-//            {
-//                if(cell->is_locally_owned())
-//                {
-//                    const unsigned int i = cell->active_cell_index();
-//                    std::cout << i << std::endl;
-//                    const double m = cell->measure();
-//                    double d_3_value = -1 * state.block(SolutionBlocks::density_lower_slack_multiplier)[i] /
-//                                       (m * state.block(SolutionBlocks::density_lower_slack)[i]);
-//                    double d_4_value = -1 * state.block(SolutionBlocks::density_upper_slack_multiplier)[i] /
-//                                       (m * state.block(SolutionBlocks::density_upper_slack)[i]);
-//                    double d_5_value = state.block(SolutionBlocks::density_lower_slack_multiplier)[i] /
-//                                       (state.block(SolutionBlocks::density_lower_slack)[i]);
-//                    double d_6_value = state.block(SolutionBlocks::density_upper_slack_multiplier)[i] /
-//                                       (state.block(SolutionBlocks::density_upper_slack)[i]);
-//                    double d_7_value = (m * (state.block(SolutionBlocks::density_lower_slack_multiplier)[i] *
-//                                             state.block(SolutionBlocks::density_upper_slack)[i] +
-//                                             state.block(SolutionBlocks::density_upper_slack_multiplier)[i] *
-//                                             state.block(SolutionBlocks::density_lower_slack)[i]))
-//                                       / (state.block(SolutionBlocks::density_lower_slack)[i] *
-//                                          state.block(SolutionBlocks::density_upper_slack)[i]);
-//                    double d_8_value = (state.block(SolutionBlocks::density_lower_slack)[i] *
-//                                        state.block(SolutionBlocks::density_upper_slack)[i])
-//                                       / (m * (state.block(SolutionBlocks::density_lower_slack_multiplier)[i] *
-//                                               state.block(SolutionBlocks::density_upper_slack)[i] +
-//                                               state.block(SolutionBlocks::density_upper_slack_multiplier)[i] *
-//                                               state.block(SolutionBlocks::density_lower_slack)[i]));
-//                    d_3_mat.set(i, i, d_3_value);
-//                    d_4_mat.set(i, i, d_4_value);
-//                    d_5_mat.set(i, i, d_5_value);
-//                    d_6_mat.set(i, i, d_6_value);
-//                    d_7_mat.set(i, i, d_7_value);
-//                    d_8_mat.set(i, i, d_8_value);
-//                    d_m_inv_mat.set(i, i, 1 / m);
-//                }
-//            }
-        }
+            for (const auto cell: dof_handler.active_cell_iterators())
+            {
+                const unsigned int i = cell->active_cell_index();
+                const double m = cell->measure();
+                double l = 0;
+                double lm = 0;
+                double u = 0;
+                double um = 0;
 
-        pre_j=state.block(SolutionBlocks::density);
-        pre_k=state.block(SolutionBlocks::density);
-        g_d_m_inv_density=state.block(SolutionBlocks::density);
-        k_g_d_m_inv_density=state.block(SolutionBlocks::density);
+
+                double l_global;
+                double lm_global;
+                double u_global;
+                double um_global;
+
+
+                if(distributed_state.block(SolutionBlocks::density_lower_slack_multiplier).in_local_range(i))
+                {
+                    lm = distributed_state.block(SolutionBlocks::density_lower_slack_multiplier)[i];
+                }
+
+                MPI_Allreduce(&lm, &lm_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+                if(distributed_state.block(SolutionBlocks::density_lower_slack).in_local_range(i))
+                {
+                    l =  distributed_state.block(SolutionBlocks::density_lower_slack)[i];
+                }
+                MPI_Allreduce(&l, &l_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+                if(distributed_state.block(SolutionBlocks::density_upper_slack_multiplier).in_local_range(i))
+                {
+                    um= distributed_state.block(SolutionBlocks::density_upper_slack_multiplier)[i];
+                }
+                MPI_Allreduce(&um, &um_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+                if(distributed_state.block(SolutionBlocks::density_upper_slack).in_local_range(i))
+                {
+                    u = distributed_state.block(SolutionBlocks::density_upper_slack)[i];
+                }
+                MPI_Allreduce(&u, &u_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+                if(distributed_state.block(SolutionBlocks::density_lower_slack_multiplier).in_local_range(i))
+                {
+                    d_3_mat.set(i, i, -1 * lm_global/(m*l_global));
+                    d_4_mat.set(i, i, -1 * um_global/(m*u_global));
+                    d_5_mat.set(i, i, lm_global/l_global);
+                    d_6_mat.set(i, i, um_global/u_global);
+                    d_7_mat.set(i, i, m*(lm_global*u_global + um_global*l_global)/(l_global*u_global));
+                    d_8_mat.set(i, i, l_global*u_global/(m*(lm_global*u_global + um_global*l_global)));
+                    d_m_inv_mat.set(i, i, 1 / m);
+                }
+            }
+        }
+        d_3_mat.compress(VectorOperation::insert);
+        d_4_mat.compress(VectorOperation::insert);
+        d_5_mat.compress(VectorOperation::insert);
+        d_6_mat.compress(VectorOperation::insert);
+        d_7_mat.compress(VectorOperation::insert);
+        d_8_mat.compress(VectorOperation::insert);
+        d_m_inv_mat.compress(VectorOperation::insert);
+
+        pre_j=distributed_state.block(SolutionBlocks::density);
+        pre_k=distributed_state.block(SolutionBlocks::density);
+        g_d_m_inv_density=distributed_state.block(SolutionBlocks::density);
+        k_g_d_m_inv_density=distributed_state.block(SolutionBlocks::density);
         LinearOperator<VectorType,VectorType,PayloadType> op_g;
         LinearOperator<VectorType,VectorType,PayloadType> op_h;
         LinearOperator<VectorType,VectorType,PayloadType> op_f;
@@ -252,6 +274,7 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         LA::MPI::BlockVector temp_src;
+        std::cout << "vmult" << std::endl;
         {
             TimerOutput::Scope t(timer, "part 1");
             vmult_step_1(dst, src);

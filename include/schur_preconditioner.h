@@ -98,7 +98,7 @@ namespace SAND
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
         TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in);
-        void initialize (LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &state);
+        void initialize (LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &state, const LA::MPI::BlockVector &distributed_state);
         void vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
         void Tvmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
         void vmult_add(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
