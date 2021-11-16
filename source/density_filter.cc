@@ -21,6 +21,7 @@ namespace SAND {
         const std::vector<types::global_dof_index> dofs_per_block = DoFTools::count_dofs_per_fe_block(dof_handler);
         filter_dsp.reinit(dofs_per_block[0],
                           dofs_per_block[0]);
+        std::cout << "initialized with " << dofs_per_block[0] << std::endl;
         std::set<unsigned int> neighbor_ids;
         std::set<typename DoFHandler<dim>::cell_iterator> cells_to_check;
         std::set<typename DoFHandler<dim>::cell_iterator> cells_to_check_temp;
@@ -45,7 +46,10 @@ namespace SAND {
 
         }
         filter_sparsity_pattern.copy_from(filter_dsp);
-        filter_matrix.reinit(filter_sparsity_pattern);
+
+        const auto owned_dofs = dof_handler.locally_owned_dofs().get_view(0, dofs_per_block[0]);
+
+        filter_matrix.reinit(owned_dofs, filter_sparsity_pattern, MPI_COMM_WORLD);
 
         /*adds values to the matrix corresponding to the max radius - */
         for (const auto &cell : dof_handler.active_cell_iterators())

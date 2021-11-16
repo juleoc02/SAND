@@ -708,6 +708,7 @@ namespace SAND {
             }
 
             /*This finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
+            setup_filter_matrix();
             for (const auto &cell : dof_handler.active_cell_iterators()) {
                 if (cell->is_locally_owned())
                 {
@@ -720,7 +721,7 @@ namespace SAND {
                         dsp.block(SolutionBlocks::unfiltered_density_multiplier,
                                   SolutionBlocks::unfiltered_density).add(i[16], j[16]);
                         dsp.block(SolutionBlocks::unfiltered_density,
-                                  SolutionBlocks::unfiltered_density_multiplier).add(i[16], j[16]);
+                                  SolutionBlocks::unfiltered_density_multiplier).add(j[16], i[16]);
                     }
                 }
             }
@@ -829,8 +830,6 @@ namespace SAND {
 
         }
 
-
-        std::cout << ":) :) :) :) " << std::endl;
 
         distributed_solution = distributed_state;
         LA::MPI::BlockVector filtered_unfiltered_density_solution = distributed_solution;
@@ -1119,12 +1118,8 @@ namespace SAND {
                     }
                 }
 
-
-                if (cell->active_cell_index()==23)
-                    cell_matrix.print(std::cout);
                 MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
                                                          cell_matrix, cell_rhs, true);
-
 
                 constraints.distribute_local_to_global(
                         cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
@@ -1143,7 +1138,6 @@ namespace SAND {
         /*Remove any values from old iterations*/
 
         locally_relevant_solution = distributed_state;
-
 
         QGauss<dim> nine_quadrature(fe_nine.degree + 1);
         QGauss<dim> ten_quadrature(fe_ten.degree + 1);

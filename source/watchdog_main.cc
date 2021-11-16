@@ -300,7 +300,6 @@ namespace SAND {
         barrier_size = Input::initial_barrier_size;
         kkt_system.create_triangulation();
         kkt_system.setup_boundary_values();
-        kkt_system.setup_filter_matrix();
         std::cout << "setup kkt system" << std::endl;
         kkt_system.setup_block_system();
 
