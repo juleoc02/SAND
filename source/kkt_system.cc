@@ -1210,8 +1210,7 @@ namespace SAND {
             }
         }
         double objective_value_out;
-        MPI_Reduce(&objective_value, &objective_value_out, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-        MPI_Bcast(&objective_value_out, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Allreduce(&objective_value, &objective_value_out, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
         std::cout << "objective value: " << objective_value_out << std::endl;
         return objective_value;
@@ -1234,8 +1233,7 @@ namespace SAND {
             barrier_distance_log_sum += std::log(state.block(SolutionBlocks::density_upper_slack)[k]);
         }
         double out_barrier_distance_log_sum;
-        MPI_Reduce(&barrier_distance_log_sum, &out_barrier_distance_log_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-        MPI_Bcast(&out_barrier_distance_log_sum, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Allreduce(&barrier_distance_log_sum, &out_barrier_distance_log_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
         std::cout << "Barrier distance log sum: " << out_barrier_distance_log_sum << std::endl;
 
@@ -1279,8 +1277,7 @@ namespace SAND {
             }
         }
         double pre_norm;
-        MPI_Reduce(&norm, &pre_norm, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-        MPI_Bcast(&pre_norm, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Allreduce(&norm, &pre_norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         norm = pre_norm;
         norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
@@ -1428,11 +1425,13 @@ namespace SAND {
         relevant_filtered_unfiltered_density_solution = filtered_unfiltered_density_solution;
         relevant_filter_adjoint_unfiltered_density_multiplier_solution = filter_adjoint_unfiltered_density_multiplier_solution;
 
+        double old_volume_multiplier_temp = 0;
         double old_volume_multiplier;
-        if(state.block(SolutionBlocks::total_volume_multiplier).in_local_range(0))
+        if(distributed_state.block(SolutionBlocks::total_volume_multiplier).in_local_range(0))
         {
-            old_volume_multiplier = state.block(SolutionBlocks::total_volume_multiplier)[0];
+            old_volume_multiplier_temp = state.block(SolutionBlocks::total_volume_multiplier)[0];
         }
+        MPI_Allreduce(&old_volume_multiplier_temp, &old_volume_multiplier, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
         for (const auto &cell: dof_handler.active_cell_iterators()) {
             if(cell->is_locally_owned())
@@ -1610,12 +1609,12 @@ namespace SAND {
                                         * (1 - old_unfiltered_density_values[q_point]
                                            - old_upper_slack_values[q_point]));
 
-                        //rhs eqn 6
-                        cell_rhs(i) +=
-                                -1 * fe_values.JxW(q_point) * (
-                                        -1 * unfiltered_density_multiplier_phi_i
-                                        * (old_density_values[q_point] - filtered_unfiltered_density_values[q_point])
-                                );
+//                        //rhs eqn 6
+//                        cell_rhs(i) +=
+//                                -1 * fe_values.JxW(q_point) * (
+//                                        -1 * unfiltered_density_multiplier_phi_i
+//                                        * (old_density_values[q_point] - filtered_unfiltered_density_values[q_point])
+//                                );
 
                         //rhs eqn 7
                         cell_rhs(i) +=
