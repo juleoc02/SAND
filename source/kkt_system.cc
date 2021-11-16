@@ -642,7 +642,7 @@ namespace SAND {
 
         constraints.condense(dsp);
         sparsity_pattern.copy_from(dsp);
-
+        setup_filter_matrix();
         //adds the row into the sparsity pattern for the total volume constraint
         sparsity_pattern.block(SolutionBlocks::unfiltered_density,
                                SolutionBlocks::unfiltered_density_multiplier).copy_from(
@@ -1558,7 +1558,6 @@ namespace SAND {
         }
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
         system_rhs.print(std::cout);
-        std::abort();
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
