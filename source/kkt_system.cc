@@ -1174,7 +1174,6 @@ namespace SAND {
                     state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
         }
         std::cout << "norm " << norm << std::endl;
-        std::abort();
         return norm;
     }
 
@@ -1536,7 +1535,6 @@ namespace SAND {
 
         test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
 
-        test_rhs.print(std::cout);
         return test_rhs;
 
     }
@@ -1559,7 +1557,8 @@ namespace SAND {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
-
+        system_rhs.print(std::cout);
+        std::abort();
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
