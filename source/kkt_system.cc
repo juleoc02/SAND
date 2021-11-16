@@ -79,7 +79,7 @@ namespace SAND {
     void
     KktSystem<dim>::setup_filter_matrix() {
 
-        density_filter.initialize(triangulation);
+        density_filter.initialize(dof_handler);
     }
 
     //This triangulation matches the problem description -
@@ -697,21 +697,31 @@ namespace SAND {
             //adds the row into the sparsity pattern for the total volume constraint
             for (const auto &cell: dof_handler.active_cell_iterators())
             {
-                const unsigned int i = cell->active_cell_index();
-                dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0);
-                dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i);
+                if (cell->is_locally_owned())
+                {
+                    std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
+                    cell->get_dof_indices(i);
+                    dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i[16], 0);
+                    dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i[16]);
+                }
+
             }
 
             /*This finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
-            for (const auto &cell: triangulation.active_cell_iterators()) {
-                const unsigned int i = cell->active_cell_index();
-                for (const auto &neighbor_cell: density_filter.find_relevant_neighbors(cell))
+            for (const auto &cell : dof_handler.active_cell_iterators()) {
+                if (cell->is_locally_owned())
                 {
-                    const unsigned int j = neighbor_cell->active_cell_index();
-                    dsp.block(SolutionBlocks::unfiltered_density_multiplier, SolutionBlocks::unfiltered_density).add(i,
-                                                                                                                     j);
-                    dsp.block(SolutionBlocks::unfiltered_density, SolutionBlocks::unfiltered_density_multiplier).add(i,
-                                                                                                                     j);
+                    std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
+                    cell->get_dof_indices(i);
+                    for (const auto &neighbor_cell : density_filter.find_relevant_neighbors(cell)) {
+                        std::vector<types::global_dof_index> j(neighbor_cell->get_fe().n_dofs_per_cell());
+                        neighbor_cell->get_dof_indices(j);
+
+                        dsp.block(SolutionBlocks::unfiltered_density_multiplier,
+                                  SolutionBlocks::unfiltered_density).add(i[16], j[16]);
+                        dsp.block(SolutionBlocks::unfiltered_density,
+                                  SolutionBlocks::unfiltered_density_multiplier).add(i[16], j[16]);
+                    }
                 }
             }
 
@@ -795,40 +805,41 @@ namespace SAND {
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
 
         for (const auto &cell: dof_handler.active_cell_iterators()) {
-            const unsigned int i = cell->active_cell_index();
+            if(cell->is_locally_owned())
+            {
+                std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
+                cell->get_dof_indices(i);
+                typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
+                        i[16]);
+                for (; iter != density_filter.filter_matrix.end(i[16]); iter++) {
+                    unsigned int j = iter->column();
+                    double value = iter->value() * cell->measure();
 
-            typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
-                    i);
-            for (; iter != density_filter.filter_matrix.end(i); iter++) {
-                unsigned int j = iter->column();
-                double value = iter->value() * cell->measure();
+                    system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+                                        SolutionBlocks::unfiltered_density).add(i[16], j, value);
+                    system_matrix.block(SolutionBlocks::unfiltered_density,
+                                        SolutionBlocks::unfiltered_density_multiplier).add(j, i[16], value);
+                }
 
-                system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                                    SolutionBlocks::unfiltered_density).add(i, j, value);
-                system_matrix.block(SolutionBlocks::unfiltered_density,
-                                    SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
+                system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i[16],
+                                                                                                          cell->measure());
+                system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i[16], 0,
+                                                                                                          cell->measure());
             }
 
-            system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i,
-                                                                                                      cell->measure());
-            system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0,
-                                                                                                      cell->measure());
         }
+
+
+        std::cout << ":) :) :) :) " << std::endl;
 
         distributed_solution = distributed_state;
         LA::MPI::BlockVector filtered_unfiltered_density_solution = distributed_solution;
         LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = distributed_solution;
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
-
-        system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                            SolutionBlocks::unfiltered_density).vmult(
-                filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density),
-                distributed_solution.block(SolutionBlocks::unfiltered_density));
-        system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                            SolutionBlocks::unfiltered_density).Tvmult(filter_adjoint_unfiltered_density_multiplier_solution.block(
-                                                    SolutionBlocks::unfiltered_density_multiplier),
-                                            distributed_solution.block(SolutionBlocks::unfiltered_density_multiplier));
+        auto op_f = linear_operator<LA::MPI::Vector>(density_filter.filter_matrix);
+        filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = op_f * distributed_solution.block(SolutionBlocks::unfiltered_density);
+        filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = transpose_operator(op_f) *  distributed_solution.block(SolutionBlocks::unfiltered_density_multiplier);
 
         LA::MPI::BlockVector relevant_filtered_unfiltered_density_solution = locally_relevant_solution;
         LA::MPI::BlockVector relevant_filter_adjoint_unfiltered_density_multiplier_solution = locally_relevant_solution;
@@ -1385,41 +1396,19 @@ namespace SAND {
 
         locally_relevant_solution = state;
         distributed_solution = state;
-        LA::MPI::BlockVector filtered_unfiltered_density_solution (system_rhs);
-        LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution (system_rhs);
+        LA::MPI::BlockVector filtered_unfiltered_density_solution (distributed_solution);
+        LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution (distributed_solution);
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
         system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
                             SolutionBlocks::unfiltered_density) = 0;
         system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
                             SolutionBlocks::unfiltered_density) = 0;
-        for (const auto &cell: dof_handler.active_cell_iterators()) {
-            if(cell->is_locally_owned())
-            {
-                const unsigned int i = cell->active_cell_index();
 
-                typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
-                        i);
-                for (; iter != density_filter.filter_matrix.end(i); iter++)
-                {
-                    unsigned int j = iter->column();
-                    double value = iter->value() * cell->measure();
-
-                    system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                                        SolutionBlocks::unfiltered_density).add(i, j, value);
-                    system_matrix.block(SolutionBlocks::unfiltered_density,
-                                        SolutionBlocks::unfiltered_density_multiplier).add(j, i, value);
-                }
-            }
-        }
-
-        auto op_f = linear_operator<LA::MPI::Vector>(system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                                                                         SolutionBlocks::unfiltered_density));
+        auto op_f = linear_operator<LA::MPI::Vector>(density_filter.filter_matrix);
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = op_f * distributed_solution.block(SolutionBlocks::unfiltered_density);
-        filter_adjoint_unfiltered_density_multiplier_solution.block(
-                                                    SolutionBlocks::unfiltered_density_multiplier)
+        filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier)
                                                     = transpose_operator(op_f) * distributed_solution.block(SolutionBlocks::unfiltered_density_multiplier);
-
         LA::MPI::BlockVector relevant_filtered_unfiltered_density_solution (locally_relevant_solution);
         LA::MPI::BlockVector relevant_filter_adjoint_unfiltered_density_multiplier_solution (locally_relevant_solution);
         relevant_filtered_unfiltered_density_solution = filtered_unfiltered_density_solution;
@@ -1609,12 +1598,12 @@ namespace SAND {
                                         * (1 - old_unfiltered_density_values[q_point]
                                            - old_upper_slack_values[q_point]));
 
-//                        //rhs eqn 6
-//                        cell_rhs(i) +=
-//                                -1 * fe_values.JxW(q_point) * (
-//                                        -1 * unfiltered_density_multiplier_phi_i
-//                                        * (old_density_values[q_point] - filtered_unfiltered_density_values[q_point])
-//                                );
+                        //rhs eqn 6
+                        cell_rhs(i) +=
+                                -1 * fe_values.JxW(q_point) * (
+                                        -1 * unfiltered_density_multiplier_phi_i
+                                        * (old_density_values[q_point] - filtered_unfiltered_density_values[q_point])
+                                );
 
                         //rhs eqn 7
                         cell_rhs(i) +=
@@ -1867,7 +1856,6 @@ namespace SAND {
                 DataComponentInterpretation::component_is_scalar);
         DataOut<dim> data_out;
         data_out.attach_dof_handler(dof_handler);
-        std::cout << "+++++++++++++++++++++++++HERE++++++++++" << std::endl;
         data_out.add_data_vector(locally_relevant_solution,
                                  solution_names,
                                  DataOut<dim>::type_dof_data,
