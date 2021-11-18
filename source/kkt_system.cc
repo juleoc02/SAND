@@ -1136,6 +1136,7 @@ namespace SAND {
         for (unsigned int k = 0; k < vect_size; k++) {
             barrier_distance_log_sum += std::log(state.block(SolutionBlocks::density_upper_slack)[k]);
         }
+        std::cout << "barrier distance log sum: " << barrier_distance_log_sum << std::endl;
         return barrier_distance_log_sum;
     }
 
