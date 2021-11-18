@@ -1557,7 +1557,6 @@ namespace SAND {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
-        system_rhs.print(std::cout);
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {

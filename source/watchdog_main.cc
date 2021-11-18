@@ -99,6 +99,7 @@ namespace SAND {
                 step_size_z_high = step_size_z;
             }
         }
+        std::cout << "s step: " << step_size_s_low << "   z step: " << step_size_z_low << std::endl;
         return {step_size_s_low, step_size_z_low};
     }
 
