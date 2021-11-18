@@ -88,6 +88,27 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::create_triangulation() {
+
+        std::vector<unsigned int> sub_blocks(2*dim+8, 0);
+
+        sub_blocks[0]=0;
+        sub_blocks[1]=1;
+        sub_blocks[2]=2;
+        sub_blocks[3]=3;
+        sub_blocks[4]=4;
+        for(int i=0; i<dim; i++)
+        {
+            sub_blocks[5+i]=5;
+        }
+        for(int i=0; i<dim; i++)
+        {
+            sub_blocks[5+dim+i]=6;
+        }
+        sub_blocks[5+2*dim]=7;
+        sub_blocks[6+2*dim]=8;
+        sub_blocks[7+2*dim]=9;
+
+
         if (Input::geometry_base == GeometryOptions::mbb) {
             const double width = 6;
             const unsigned int width_refine = 6;
@@ -99,7 +120,8 @@ namespace SAND {
             const double downforce_x = 3;
             const double downforce_size = .3;
 
-            if (dim == 2) {
+            if (dim == 2)
+            {
                 GridGenerator::subdivided_hyper_rectangle(triangulation,
                                                           {width_refine, height_refine},
                                                           Point<dim>(0, 0),
@@ -140,10 +162,14 @@ namespace SAND {
                     }
                 }
 
+
+
                 dof_handler.distribute_dofs(fe_collection);
 
-                DoFRenumbering::component_wise(dof_handler);
-            } else if (dim == 3) {
+                DoFRenumbering::component_wise(dof_handler, sub_blocks);
+            }
+            else if (dim == 3)
+            {
                 GridGenerator::subdivided_hyper_rectangle(triangulation,
                                                           {width_refine, height_refine, depth_refine},
                                                           Point<dim>(0, 0, 0),
@@ -185,7 +211,7 @@ namespace SAND {
 
                 dof_handler.distribute_dofs(fe_collection);
 
-                DoFRenumbering::component_wise(dof_handler);
+                DoFRenumbering::component_wise(dof_handler, sub_blocks);
 
             } else {
                 throw;
@@ -246,7 +272,7 @@ namespace SAND {
 
                 dof_handler.distribute_dofs(fe_collection);
 
-                DoFRenumbering::component_wise(dof_handler);
+                DoFRenumbering::component_wise(dof_handler, sub_blocks);
 
             } else if (dim == 3) {
                 GridGenerator::subdivided_hyper_L(triangulation,
@@ -297,7 +323,7 @@ namespace SAND {
 
                 dof_handler.distribute_dofs(fe_collection);
 
-                DoFRenumbering::component_wise(dof_handler);
+                DoFRenumbering::component_wise(dof_handler, sub_blocks);
             } else {
                 throw;
             }
@@ -1121,6 +1147,7 @@ namespace SAND {
                 MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
                                                          cell_matrix, cell_rhs, true);
 
+
                 constraints.distribute_local_to_global(
                         cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
 
@@ -1138,6 +1165,7 @@ namespace SAND {
         /*Remove any values from old iterations*/
 
         locally_relevant_solution = distributed_state;
+
 
         QGauss<dim> nine_quadrature(fe_nine.degree + 1);
         QGauss<dim> ten_quadrature(fe_ten.degree + 1);
@@ -1304,6 +1332,29 @@ namespace SAND {
         LA::MPI::BlockVector test_rhs = calculate_rhs(state, Input::min_barrier_size);
         double norm = 0;
 
+        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++) {
+            if(state.block(SolutionBlocks::density_upper_slack).in_local_range(k))
+            {
+                norm += state.block(SolutionBlocks::density_upper_slack)[k] *
+                        state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
+                        * state.block(SolutionBlocks::density_upper_slack)[k] *
+                        state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+            }
+        }
+        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++) {
+            if(state.block(SolutionBlocks::density_lower_slack).in_local_range(k))
+            {
+                norm += state.block(SolutionBlocks::density_lower_slack)[k] *
+                        state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
+                        * state.block(SolutionBlocks::density_lower_slack)[k] *
+                        state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+            }
+        }
+
+        double pre_norm;
+        MPI_Allreduce(&norm, &pre_norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        norm = pre_norm;
+
         norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(), 2);
@@ -1313,18 +1364,6 @@ namespace SAND {
         norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(), 2);
 
-        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++) {
-            norm += state.block(SolutionBlocks::density_upper_slack)[k] *
-                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
-                    * state.block(SolutionBlocks::density_upper_slack)[k] *
-                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
-        }
-        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++) {
-            norm += state.block(SolutionBlocks::density_lower_slack)[k] *
-                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
-                    * state.block(SolutionBlocks::density_lower_slack)[k] *
-                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
-        }
         norm = std::pow(norm, .5);
 
         std::cout << "l2 norm: " << system_rhs.l2_norm() << std::endl;
@@ -1704,7 +1743,6 @@ namespace SAND {
         else {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
-        system_rhs.print(std::cout);
         locally_relevant_solution=state;
         distributed_solution = state;
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
@@ -1855,8 +1893,8 @@ namespace SAND {
                                  DataOut<dim>::type_dof_data,
                                  data_component_interpretation);
         data_out.build_patches();
-        std::ofstream output("solution" + std::to_string(j) + ".vtk");
-//        data_out.write_vtk(output);
+        std::string output("solution" + std::to_string(j) + ".vtu");
+        data_out.write_vtu_in_parallel(output, MPI_COMM_WORLD);
 
     }
 

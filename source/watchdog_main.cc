@@ -182,16 +182,34 @@ namespace SAND {
         {
             double loqo_min = 1000;
             double loqo_average;
+            double lower_prod;
+            double full_lower_prod;
+            double upper_prod;
+            double full_upper_prod;
             unsigned int vect_size = current_state.block(SolutionBlocks::density_lower_slack).size();
             for(unsigned int k = 0; k < vect_size; k++)
             {
-                if (current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k] < loqo_min)
+                lower_prod = 1;
+                if (current_state.block(SolutionBlocks::density_lower_slack).in_local_range(k))
+                    lower_prod=lower_prod * current_state.block(SolutionBlocks::density_lower_slack)[k];
+                if (current_state.block(SolutionBlocks::density_lower_slack_multiplier).in_local_range(k))
+                    lower_prod=lower_prod * current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+
+                upper_prod=1;
+                if (current_state.block(SolutionBlocks::density_upper_slack).in_local_range(k))
+                    upper_prod=upper_prod * current_state.block(SolutionBlocks::density_upper_slack)[k];
+                if (current_state.block(SolutionBlocks::density_upper_slack_multiplier).in_local_range(k))
+                    upper_prod=upper_prod * current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+
+                MPI_Allreduce(&lower_prod, &full_lower_prod, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
+                MPI_Allreduce(&upper_prod, &full_upper_prod, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
+                if (full_lower_prod < loqo_min)
                 {
-                    loqo_min = current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+                    loqo_min = full_lower_prod;
                 }
-                if (current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k] < loqo_min)
+                if (full_upper_prod < loqo_min)
                 {
-                    loqo_min = current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+                    loqo_min = full_upper_prod;
                 }
             }
             loqo_average = (current_state.block(SolutionBlocks::density_lower_slack)*current_state.block(SolutionBlocks::density_lower_slack_multiplier)
@@ -249,15 +267,31 @@ namespace SAND {
                 double loqo_min = 1000;
                 double loqo_average;
                 unsigned int vect_size = current_state.block(SolutionBlocks::density_lower_slack).size();
+                double lower_prod, full_lower_prod, upper_prod, full_upper_prod;
                 for(unsigned int k = 0; k < vect_size; k++)
                 {
-                    if (current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k] < loqo_min)
+                    lower_prod = 1;
+                    if (current_state.block(SolutionBlocks::density_lower_slack).in_local_range(k))
+                        lower_prod=lower_prod * current_state.block(SolutionBlocks::density_lower_slack)[k];
+                    if (current_state.block(SolutionBlocks::density_lower_slack_multiplier).in_local_range(k))
+                        lower_prod=lower_prod * current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+
+                    upper_prod=1;
+                    if (current_state.block(SolutionBlocks::density_upper_slack).in_local_range(k))
+                        upper_prod=upper_prod * current_state.block(SolutionBlocks::density_upper_slack)[k];
+                    if (current_state.block(SolutionBlocks::density_upper_slack_multiplier).in_local_range(k))
+                        upper_prod=upper_prod * current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+
+                    MPI_Allreduce(&lower_prod, &full_lower_prod, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
+                    MPI_Allreduce(&upper_prod, &full_upper_prod, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
+
+                    if (full_lower_prod < loqo_min)
                     {
-                        loqo_min = current_state.block(SolutionBlocks::density_lower_slack)[k]*current_state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+                        loqo_min = full_lower_prod;
                     }
-                    if (current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k] < loqo_min)
+                    if (full_upper_prod < loqo_min)
                     {
-                        loqo_min = current_state.block(SolutionBlocks::density_upper_slack)[k]*current_state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+                        loqo_min = full_upper_prod;
                     }
                 }
                 loqo_average = (current_state.block(SolutionBlocks::density_lower_slack)*current_state.block(SolutionBlocks::density_lower_slack_multiplier)
@@ -415,7 +449,7 @@ namespace SAND {
             }
 
         }
-        kkt_system.output_stl(current_state);
+//        kkt_system.output_stl(current_state);
     }
 
 } // namespace SAND

@@ -32,10 +32,6 @@ namespace SAND {
             {
                 std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
-
-                std::cout << i[16];
-
-                std::cout << std::endl;
                 for (const auto &neighbor_cell : find_relevant_neighbors(cell))
                 {
                     std::vector<types::global_dof_index> j(neighbor_cell->get_fe().n_dofs_per_cell());

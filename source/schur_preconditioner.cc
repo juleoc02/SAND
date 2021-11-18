@@ -145,54 +145,58 @@ namespace SAND {
             TimerOutput::Scope t(timer, "build diag matrices");
             for (const auto cell: dof_handler.active_cell_iterators())
             {
-                const unsigned int i = cell->active_cell_index();
-                const double m = cell->measure();
-                double l = 0;
-                double lm = 0;
-                double u = 0;
-                double um = 0;
-
-
-                double l_global;
-                double lm_global;
-                double u_global;
-                double um_global;
-
-
-                if(distributed_state.block(SolutionBlocks::density_lower_slack_multiplier).in_local_range(i))
+                if(cell->is_locally_owned())
                 {
-                    lm = distributed_state.block(SolutionBlocks::density_lower_slack_multiplier)[i];
-                }
+                    std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
+                    cell->get_dof_indices(i);
+                    const double m = cell->measure();
+                    double l = 0;
+                    double lm = 0;
+                    double u = 0;
+                    double um = 0;
 
-                MPI_Allreduce(&lm, &lm_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-                if(distributed_state.block(SolutionBlocks::density_lower_slack).in_local_range(i))
-                {
-                    l =  distributed_state.block(SolutionBlocks::density_lower_slack)[i];
-                }
-                MPI_Allreduce(&l, &l_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+                    double l_global;
+                    double lm_global;
+                    double u_global;
+                    double um_global;
 
-                if(distributed_state.block(SolutionBlocks::density_upper_slack_multiplier).in_local_range(i))
-                {
-                    um= distributed_state.block(SolutionBlocks::density_upper_slack_multiplier)[i];
-                }
-                MPI_Allreduce(&um, &um_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-                if(distributed_state.block(SolutionBlocks::density_upper_slack).in_local_range(i))
-                {
-                    u = distributed_state.block(SolutionBlocks::density_upper_slack)[i];
-                }
-                MPI_Allreduce(&u, &u_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+                    if(distributed_state.block(SolutionBlocks::density_lower_slack_multiplier).in_local_range(i[16]))
+                    {
+                        lm = distributed_state.block(SolutionBlocks::density_lower_slack_multiplier)[i[16]];
+                    }
 
-                if(distributed_state.block(SolutionBlocks::density_lower_slack_multiplier).in_local_range(i))
-                {
-                    d_3_mat.set(i, i, -1 * lm_global/(m*l_global));
-                    d_4_mat.set(i, i, -1 * um_global/(m*u_global));
-                    d_5_mat.set(i, i, lm_global/l_global);
-                    d_6_mat.set(i, i, um_global/u_global);
-                    d_7_mat.set(i, i, m*(lm_global*u_global + um_global*l_global)/(l_global*u_global));
-                    d_8_mat.set(i, i, l_global*u_global/(m*(lm_global*u_global + um_global*l_global)));
-                    d_m_inv_mat.set(i, i, 1 / m);
+                    MPI_Allreduce(&lm, &lm_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+                    if(distributed_state.block(SolutionBlocks::density_lower_slack).in_local_range(i[16]))
+                    {
+                        l =  distributed_state.block(SolutionBlocks::density_lower_slack)[i[16]];
+                    }
+                    MPI_Allreduce(&l, &l_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+                    if(distributed_state.block(SolutionBlocks::density_upper_slack_multiplier).in_local_range(i[16]))
+                    {
+                        um= distributed_state.block(SolutionBlocks::density_upper_slack_multiplier)[i[16]];
+                    }
+                    MPI_Allreduce(&um, &um_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+                    if(distributed_state.block(SolutionBlocks::density_upper_slack).in_local_range(i[16]))
+                    {
+                        u = distributed_state.block(SolutionBlocks::density_upper_slack)[i[16]];
+                    }
+                    MPI_Allreduce(&u, &u_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+                    if(distributed_state.block(SolutionBlocks::density_lower_slack_multiplier).in_local_range(i[16]))
+                    {
+                        d_3_mat.set(i[16], i[16], -1 * lm_global/(m*l_global));
+                        d_4_mat.set(i[16], i[16], -1 * um_global/(m*u_global));
+                        d_5_mat.set(i[16], i[16], lm_global/l_global);
+                        d_6_mat.set(i[16], i[16], um_global/u_global);
+                        d_7_mat.set(i[16], i[16], m*(lm_global*u_global + um_global*l_global)/(l_global*u_global));
+                        d_8_mat.set(i[16], i[16], l_global*u_global/(m*(lm_global*u_global + um_global*l_global)));
+                        d_m_inv_mat.set(i[16], i[16], 1 / m);
+                    }
                 }
             }
         }
