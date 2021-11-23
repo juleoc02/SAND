@@ -676,6 +676,7 @@ namespace SAND {
     KktSystem<dim>::assemble_block_system(const BlockVector<double> &state, const double barrier_size) {
         /*Remove any values from old iterations*/
         system_matrix.reinit(sparsity_pattern);
+        system_matrix = 0;
         linear_solution = 0;
         system_rhs = 0;
 
@@ -1561,12 +1562,7 @@ namespace SAND {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
-        TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
-
-        std::cout << std::endl;
-        state.print(std::cout);
-        std::cout << std::endl;
-
+        TopOptSchurPreconditioner<dim> preconditioner(system_matrix)
 
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
