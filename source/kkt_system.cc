@@ -1284,34 +1284,43 @@ namespace SAND {
     template<int dim>
     double
     KktSystem<dim>::calculate_feasibility(const LA::MPI::BlockVector &state, const double barrier_size) const {
-        LA::MPI::BlockVector test_rhs = calculate_rhs(state, barrier_size);
+       LA::MPI::BlockVector test_rhs = calculate_rhs(state, barrier_size);
 
-        double norm = 0;
+       double norm = 0;
 
-        distributed_solution = state;
-        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++)
-        {
-            if(distributed_solution.block(SolutionBlocks::density_upper_slack).in_local_range(k))
-            {
-                norm += distributed_solution.block(SolutionBlocks::density_upper_slack)[k] *
-                    distributed_solution.block(SolutionBlocks::density_upper_slack_multiplier)[k]
-                    * distributed_solution.block(SolutionBlocks::density_upper_slack)[k] *
-                    distributed_solution.block(SolutionBlocks::density_upper_slack_multiplier)[k];
-            }
-        }
-        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++)
-        {
-            if(distributed_solution.block(SolutionBlocks::density_lower_slack).in_local_range(k))
-            {
-                norm += distributed_solution.block(SolutionBlocks::density_lower_slack)[k] *
-                        distributed_solution.block(SolutionBlocks::density_lower_slack_multiplier)[k]
-                        * distributed_solution.block(SolutionBlocks::density_lower_slack)[k] *
-                        distributed_solution.block(SolutionBlocks::density_lower_slack_multiplier)[k];
-            }
-        }
-        double pre_norm;
-        MPI_Allreduce(&norm, &pre_norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        norm = pre_norm;
+       distributed_solution = state;
+       double full_prod1 =1;
+       double full_prod2 = 1;
+
+       for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++) {
+           double prod1 = 1;
+           double prod2 = 1;
+           if(state.block(SolutionBlocks::density_upper_slack).in_local_range(k))
+           {
+               prod1 = prod1 * state.block(SolutionBlocks::density_upper_slack)[k]
+                       * state.block(SolutionBlocks::density_upper_slack)[k];
+           }
+           if(state.block(SolutionBlocks::density_lower_slack).in_local_range(k))
+           {
+              prod2 = prod2 *  state.block(SolutionBlocks::density_lower_slack)[k]
+                      * state.block(SolutionBlocks::density_lower_slack)[k];
+           }
+           if(state.block(SolutionBlocks::density_upper_slack_multiplier).in_local_range(k))
+           {
+               prod1 = prod1 * state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
+                       * state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+           }
+           if(state.block(SolutionBlocks::density_lower_slack_multiplier).in_local_range(k))
+           {
+               prod2 = prod2 *  state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
+                       * state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+           }
+           MPI_Allreduce(&prod1, &full_prod1, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
+           MPI_Allreduce(&prod2, &full_prod2, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
+           norm = norm + full_prod1 + full_prod2;
+       }
+       std::cout << "pre-norm: " << norm << std::endl;
+
         norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(), 2);
