@@ -1120,6 +1120,7 @@ namespace SAND {
 
             }
         }
+        std::cout << "objective value: " << objective_value << std::endl;
         return objective_value;
     }
 
