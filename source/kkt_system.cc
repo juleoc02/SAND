@@ -1154,6 +1154,21 @@ namespace SAND {
         BlockVector<double> test_rhs = calculate_rhs(state, barrier_size);
 
         double norm = 0;
+
+        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++) {
+            norm += state.block(SolutionBlocks::density_lower_slack)[k] *
+                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
+                    * state.block(SolutionBlocks::density_lower_slack)[k] *
+                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+        }
+        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++) {
+            norm += state.block(SolutionBlocks::density_upper_slack)[k] *
+                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
+                    * state.block(SolutionBlocks::density_upper_slack)[k] *
+                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+        }
+
+        std::cout << "pre-norm: " << norm << std::endl;
         norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::unfiltered_density).l2_norm(), 2);
@@ -1162,19 +1177,8 @@ namespace SAND {
         norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(), 2);
-        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++) {
-            norm += state.block(SolutionBlocks::density_upper_slack)[k] *
-                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
-                    * state.block(SolutionBlocks::density_upper_slack)[k] *
-                    state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
-        }
-        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++) {
-            norm += state.block(SolutionBlocks::density_lower_slack)[k] *
-                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
-                    * state.block(SolutionBlocks::density_lower_slack)[k] *
-                    state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
-        }
-        std::cout << "norm " << norm << std::endl;
+
+        std::cout << "norm: " << norm << std::endl;
         return norm;
     }
 
