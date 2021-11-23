@@ -1545,8 +1545,6 @@ namespace SAND {
 
     }
 
-
-    ///A  direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
     template<int dim>
     BlockVector<double>
     KktSystem<dim>::solve(const BlockVector<double> &state, double barrier_size) {
@@ -1564,6 +1562,12 @@ namespace SAND {
         }
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+
+        std::cout << std::endl;
+        state.print(std::cout);
+        std::cout << std::endl;
+
+
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
                 SparseDirectUMFPACK A_direct;
