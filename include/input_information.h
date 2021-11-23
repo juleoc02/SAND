@@ -21,7 +21,7 @@ namespace SAND {
 
         //nonlinear algorithm options
         constexpr double initial_barrier_size = 25;
-        constexpr double min_barrier_size = .00000;
+        constexpr double min_barrier_size = 0;
         constexpr double fraction_to_boundary = .9;
         constexpr unsigned int max_steps=5;
         constexpr unsigned int barrier_reduction=BarrierOptions::loqo;

@@ -216,6 +216,7 @@ namespace SAND {
                             + current_state.block(SolutionBlocks::density_upper_slack)*current_state.block(SolutionBlocks::density_upper_slack_multiplier)
                            )/(2*vect_size);
             double loqo_complimentarity_deviation = loqo_min/loqo_average;
+            std::cout << "loqo cd: " << loqo_complimentarity_deviation << std::endl;
             double loqo_multiplier;
             if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
             {

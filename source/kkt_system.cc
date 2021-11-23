@@ -1341,28 +1341,38 @@ namespace SAND {
         LA::MPI::BlockVector test_rhs = calculate_rhs(state, Input::min_barrier_size);
         double norm = 0;
 
+        distributed_solution = state;
+        double full_prod1 =1;
+        double full_prod2 = 1;
+
         for (unsigned int k = 0; k < state.block(SolutionBlocks::density_upper_slack).size(); k++) {
+            double prod1 = 1;
+            double prod2 = 1;
             if(state.block(SolutionBlocks::density_upper_slack).in_local_range(k))
             {
-                norm += state.block(SolutionBlocks::density_upper_slack)[k] *
-                        state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
-                        * state.block(SolutionBlocks::density_upper_slack)[k] *
-                        state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+                prod1 = prod1 * state.block(SolutionBlocks::density_upper_slack)[k]
+                        * state.block(SolutionBlocks::density_upper_slack)[k];
             }
-        }
-        for (unsigned int k = 0; k < state.block(SolutionBlocks::density_lower_slack).size(); k++) {
             if(state.block(SolutionBlocks::density_lower_slack).in_local_range(k))
             {
-                norm += state.block(SolutionBlocks::density_lower_slack)[k] *
-                        state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
-                        * state.block(SolutionBlocks::density_lower_slack)[k] *
-                        state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+               prod2 = prod2 *  state.block(SolutionBlocks::density_lower_slack)[k]
+                       * state.block(SolutionBlocks::density_lower_slack)[k];
             }
+            if(state.block(SolutionBlocks::density_upper_slack_multiplier).in_local_range(k))
+            {
+                prod1 = prod1 * state.block(SolutionBlocks::density_upper_slack_multiplier)[k]
+                        * state.block(SolutionBlocks::density_upper_slack_multiplier)[k];
+            }
+            if(state.block(SolutionBlocks::density_lower_slack_multiplier).in_local_range(k))
+            {
+                prod2 = prod2 *  state.block(SolutionBlocks::density_lower_slack_multiplier)[k]
+                        * state.block(SolutionBlocks::density_lower_slack_multiplier)[k];
+            }
+            MPI_Allreduce(&prod1, &full_prod1, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
+            MPI_Allreduce(&prod2, &full_prod2, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
+            norm = norm + full_prod1 + full_prod2;
         }
-
-        double pre_norm;
-        MPI_Allreduce(&norm, &pre_norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        norm = pre_norm;
+        std::cout << "pre-norm: " << norm << std::endl;
 
         norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
@@ -1712,8 +1722,9 @@ namespace SAND {
         }
 
         test_rhs.compress(VectorOperation::add);
-        double total_volume = 0;
-        double goal_volume = 0;
+        double total_volume_temp = 0;
+        double goal_volume_temp = 0;
+        double total_volume, goal_volume;
 
         distributed_solution = state;
         for (const auto &cell: dof_handler.active_cell_iterators()) {
@@ -1721,11 +1732,15 @@ namespace SAND {
             {
                 if (distributed_solution.block(SolutionBlocks::density).in_local_range(cell->active_cell_index()))
                 {
-                    total_volume += cell->measure() * state.block(SolutionBlocks::density)[cell->active_cell_index()];
-                    goal_volume += cell->measure() * Input::volume_percentage;
+                    total_volume_temp += cell->measure() * state.block(SolutionBlocks::density)[cell->active_cell_index()];
+                    goal_volume_temp += cell->measure() * Input::volume_percentage;
                 }
             }
         }
+
+        MPI_Allreduce(&total_volume_temp, &total_volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(&goal_volume_temp, &goal_volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
         if (test_rhs.block(SolutionBlocks::total_volume_multiplier).in_local_range(0))
         {
             test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
