@@ -226,6 +226,7 @@ namespace SAND {
             {
                 loqo_multiplier = .8;
             }
+            std::cout << "loqo mult: " << loqo_multiplier << std::endl;
             if (loqo_multiplier< 0)
             {
                 barrier_size = .2 * loqo_average;

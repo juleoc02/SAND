@@ -1746,6 +1746,10 @@ namespace SAND {
             test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
         }
         test_rhs.compress(VectorOperation::insert);
+       std::cout << std::endl;
+       test_rhs.print(std::cout);
+       std::cout << std::endl;
+
         return test_rhs;
 
     }
