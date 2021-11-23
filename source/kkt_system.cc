@@ -1746,9 +1746,6 @@ namespace SAND {
             test_rhs.block(SolutionBlocks::total_volume_multiplier)[0] = goal_volume - total_volume;
         }
         test_rhs.compress(VectorOperation::insert);
-       std::cout << std::endl;
-       test_rhs.print(std::cout);
-       std::cout << std::endl;
 
         return test_rhs;
 
@@ -1775,6 +1772,12 @@ namespace SAND {
         distributed_solution = state;
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+
+        std::cout << std::endl;
+        system_rhs.print(std::cout);
+        std::cout << std::endl;
+
+
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
 //                SolverControl cn;
