@@ -831,32 +831,6 @@ namespace SAND {
 
         const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
 
-        for (const auto &cell: dof_handler.active_cell_iterators()) {
-            if(cell->is_locally_owned())
-            {
-                std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
-                cell->get_dof_indices(i);
-                typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
-                        i[16]);
-                for (; iter != density_filter.filter_matrix.end(i[16]); iter++) {
-                    unsigned int j = iter->column();
-                    double value = iter->value() * cell->measure();
-
-                    system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                                        SolutionBlocks::unfiltered_density).add(i[16], j, value);
-                    system_matrix.block(SolutionBlocks::unfiltered_density,
-                                        SolutionBlocks::unfiltered_density_multiplier).add(j, i[16], value);
-                }
-
-                system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i[16],
-                                                                                                          cell->measure());
-                system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i[16], 0,
-                                                                                                          cell->measure());
-            }
-
-        }
-
-
         distributed_solution = distributed_state;
         LA::MPI::BlockVector filtered_unfiltered_density_solution = distributed_solution;
         LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = distributed_solution;
@@ -1155,8 +1129,37 @@ namespace SAND {
 
         }
         system_matrix.compress(VectorOperation::add);
+
+
+        for (const auto &cell: dof_handler.active_cell_iterators()) {
+            if(cell->is_locally_owned())
+            {
+                std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
+                cell->get_dof_indices(i);
+                typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
+                        i[16]);
+                for (; iter != density_filter.filter_matrix.end(i[16]); iter++) {
+                    unsigned int j = iter->column();
+                    double value = iter->value() * cell->measure();
+
+                    system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+                                        SolutionBlocks::unfiltered_density).add(i[16], j, value);
+                    system_matrix.block(SolutionBlocks::unfiltered_density,
+                                        SolutionBlocks::unfiltered_density_multiplier).add(j, i[16], value);
+                }
+
+                system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i[16],
+                                                                                                          cell->measure());
+                system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i[16], 0,
+                                                                                                          cell->measure());
+                std::cout << "i16: " << i[16] << std::endl;
+            }
+
+        }
+        system_matrix.compress(VectorOperation::add);
         system_rhs = calculate_rhs(distributed_state, barrier_size);
         std::cout << "assembled" << std::endl;
+
     }
 
     template<int dim>
