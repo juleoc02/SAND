@@ -84,6 +84,27 @@ namespace SAND {
     template<int dim>
     void
     KktSystem<dim>::create_triangulation() {
+        std::vector<unsigned int> sub_blocks(2*dim+8, 0);
+
+
+                sub_blocks[0]=0;
+                sub_blocks[1]=1;
+                sub_blocks[2]=2;
+                sub_blocks[3]=3;
+                sub_blocks[4]=4;
+                for(int i=0; i<dim; i++)
+                {
+                    sub_blocks[5+i]=5;
+                }
+
+                for(int i=0; i<dim; i++)
+                {
+                    sub_blocks[5+dim+i]=6;
+                }
+                sub_blocks[5+2*dim]=7;
+                sub_blocks[6+2*dim]=8;
+                sub_blocks[7+2*dim]=9;
+
         if (Input::geometry_base == GeometryOptions::mbb) {
             const double width = 6;
             const unsigned int width_refine = 6;
@@ -135,7 +156,7 @@ namespace SAND {
 
                 dof_handler.distribute_dofs(fe_collection);
 
-                DoFRenumbering::component_wise(dof_handler);
+                DoFRenumbering::component_wise(dof_handler,sub_blocks);
             } else if (dim == 3) {
                 GridGenerator::subdivided_hyper_rectangle(triangulation,
                                                           {width_refine, height_refine, depth_refine},
@@ -175,7 +196,7 @@ namespace SAND {
 
                 dof_handler.distribute_dofs(fe_collection);
 
-                DoFRenumbering::component_wise(dof_handler);
+                DoFRenumbering::component_wise(dof_handler,sub_blocks);
 
             } else {
                 throw;
@@ -233,7 +254,7 @@ namespace SAND {
 
                 dof_handler.distribute_dofs(fe_collection);
 
-                DoFRenumbering::component_wise(dof_handler);
+                DoFRenumbering::component_wise(dof_handler,sub_blocks);
 
             } else if (dim == 3) {
                 GridGenerator::subdivided_hyper_L(triangulation,
@@ -281,7 +302,7 @@ namespace SAND {
 
                 dof_handler.distribute_dofs(fe_collection);
 
-                DoFRenumbering::component_wise(dof_handler);
+                DoFRenumbering::component_wise(dof_handler,sub_blocks);
             } else {
                 throw;
             }
@@ -1010,7 +1031,6 @@ namespace SAND {
 
             }
 
-
             MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
                                                      cell_matrix, cell_rhs, true);
 
@@ -1019,7 +1039,7 @@ namespace SAND {
 
 
         }
-        system_rhs = calculate_rhs(state, barrier_size);
+
 
         for (const auto &cell: dof_handler.active_cell_iterators()) {
             const unsigned int i = cell->active_cell_index();
@@ -1041,6 +1061,9 @@ namespace SAND {
             system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i, 0,
                                                                                                       cell->measure());
         }
+
+
+        system_rhs = calculate_rhs(state, barrier_size);
         std::cout << "assembled" << std::endl;
     }
 
@@ -1562,7 +1585,11 @@ namespace SAND {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
-        TopOptSchurPreconditioner<dim> preconditioner(system_matrix)
+        TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+
+//        std::cout << std::endl;
+//        system_rhs.print(std::cout);
+//        std::cout << std::endl;
 
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
@@ -1595,6 +1622,7 @@ namespace SAND {
             default:
                 throw;
         }
+
         constraints.distribute(linear_solution);
 
         if (Input::output_parts_of_matrix) {
@@ -1622,6 +1650,12 @@ namespace SAND {
 //            }
 //            Mat.close();
         }
+
+
+        std::cout << "solution" << std::endl;
+        linear_solution.print(std::cout);
+        std::cout << std::endl;
+
         return linear_solution;
     }
 
