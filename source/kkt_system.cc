@@ -1587,41 +1587,48 @@ namespace SAND {
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
 
-//        std::cout << std::endl;
-//        system_rhs.print(std::cout);
-//        std::cout << std::endl;
+        std::cout << "rhs" << std::endl;
+        system_rhs.print(std::cout);
+        std::cout << std::endl;
 
-        switch (Input::solver_choice) {
-            case SolverOptions::direct_solve: {
-                SparseDirectUMFPACK A_direct;
-                A_direct.initialize(system_matrix);
-                A_direct.vmult(linear_solution, system_rhs);
-                break;
-            }
-            case SolverOptions::exact_preconditioner_with_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
-                A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-                break;
-            }
-            case SolverOptions::inexact_K_with_exact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES<BlockVector<double>> B_fgmres(solver_control);
-                B_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-                break;
-            }
-            case SolverOptions::inexact_K_with_inexact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
-                SolverFGMRES<BlockVector<double>> C_fgmres(solver_control);
-                C_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
-                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-                break;
-            }
-            default:
-                throw;
-        }
+        preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+        preconditioner.vmult(linear_solution,system_rhs);
+
+        std::cout << "linear solution" << std::endl;
+        linear_solution.print(std::cout);
+        std::cout << std::endl;
+
+//        switch (Input::solver_choice) {
+//            case SolverOptions::direct_solve: {
+//                SparseDirectUMFPACK A_direct;
+//                A_direct.initialize(system_matrix);
+//                A_direct.vmult(linear_solution, system_rhs);
+//                break;
+//            }
+//            case SolverOptions::exact_preconditioner_with_gmres: {
+//                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+//                SolverFGMRES<BlockVector<double>> A_fgmres(solver_control);
+//                A_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+//                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+//                break;
+//            }
+//            case SolverOptions::inexact_K_with_exact_A_gmres: {
+//                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+//                SolverFGMRES<BlockVector<double>> B_fgmres(solver_control);
+//                B_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+//                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+//                break;
+//            }
+//            case SolverOptions::inexact_K_with_inexact_A_gmres: {
+//                preconditioner.initialize(system_matrix, boundary_values, dof_handler, barrier_size, state);
+//                SolverFGMRES<BlockVector<double>> C_fgmres(solver_control);
+//                C_fgmres.solve(system_matrix, linear_solution, system_rhs, preconditioner);
+//                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+//                break;
+//            }
+//            default:
+//                throw;
+//        }
 
         constraints.distribute(linear_solution);
 

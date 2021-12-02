@@ -234,6 +234,8 @@ namespace SAND {
             vmult_step_1(dst, src);
             temp_src = dst;
         }
+//        std::cout << std::endl << "vmult stuff pt 1:"<< std::endl;
+//        dst.print(std::cout);
 
         {
             TimerOutput::Scope t(timer, "part 2");
@@ -253,8 +255,7 @@ namespace SAND {
         }
         vmult_step_5(dst, temp_src);
 
-        std::cout << std::endl << "vmult stuff:"<< std::endl;
-        dst.print(std::cout);
+
     }
 
     template<int dim>
