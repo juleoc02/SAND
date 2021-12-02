@@ -1562,7 +1562,19 @@ namespace SAND {
             gmres_tolerance = Input::default_gmres_tolerance;
         }
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
-        TopOptSchurPreconditioner<dim> preconditioner(system_matrix)
+        TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+
+
+        for(unsigned int i=0; i<10; i++)
+        {
+            for(unsigned int j=0; j<10; j++)
+            {
+                std::cout << i << ", " << j << std::endl;
+                std::cout << system_matrix.block(i,j).frobenius_norm() << std::endl;
+            }
+        }
+
+
 
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
