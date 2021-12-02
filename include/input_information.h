@@ -41,7 +41,7 @@ namespace SAND {
         //Linear solver options
         constexpr unsigned int solver_choice = SolverOptions::inexact_K_with_exact_A_gmres;
         constexpr bool use_eisenstat_walker = false;
-        constexpr double default_gmres_tolerance = 1e-6;
+        constexpr double default_gmres_tolerance = 1e-9;
 
 
     }

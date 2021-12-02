@@ -284,6 +284,8 @@ namespace SAND {
             vmult_step_1(dst, src);
             temp_src = dst;
         }
+        std::cout << std::endl << "vmult stuff pt 1:" << std::endl;
+        dst.print(std::cout);
 
         {
             TimerOutput::Scope t(timer, "part 2");
@@ -302,6 +304,7 @@ namespace SAND {
             temp_src = dst;
         }
         vmult_step_5(dst, temp_src);
+
     }
 
     template<int dim>
@@ -336,6 +339,13 @@ namespace SAND {
     void TopOptSchurPreconditioner<dim>::vmult_step_2(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
         auto dst_temp = dst;
+//        auto temp = src.block(SolutionBlocks::unfiltered_density);
+//        temp = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
+//        std::cout <<std::endl <<std::endl<< "temp output:" << std::endl;
+//        temp.print(std::cout);
+//        std::cout << std::endl;
+
+
         dst.block(SolutionBlocks::unfiltered_density_multiplier) = dst_temp.block(SolutionBlocks::unfiltered_density_multiplier)
                 - linear_operator<VectorType,VectorType,PayloadType>(f_mat)*linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
 

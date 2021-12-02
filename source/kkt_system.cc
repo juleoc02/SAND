@@ -1118,6 +1118,7 @@ namespace SAND {
                     }
                 }
 
+
                 MatrixTools::local_apply_boundary_values(boundary_values, local_dof_indices,
                                                          cell_matrix, cell_rhs, true);
 
@@ -1129,7 +1130,7 @@ namespace SAND {
 
         }
         system_matrix.compress(VectorOperation::add);
-
+        system_rhs = calculate_rhs(distributed_state, barrier_size);
 
         for (const auto &cell: dof_handler.active_cell_iterators()) {
             if(cell->is_locally_owned())
@@ -1150,14 +1151,14 @@ namespace SAND {
 
                 system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i[16],
                                                                                                           cell->measure());
+
                 system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i[16], 0,
                                                                                                           cell->measure());
-                std::cout << "i16: " << i[16] << std::endl;
             }
-
         }
         system_matrix.compress(VectorOperation::add);
-        system_rhs = calculate_rhs(distributed_state, barrier_size);
+
+
         std::cout << "assembled" << std::endl;
 
     }
@@ -1455,10 +1456,6 @@ namespace SAND {
         LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution (distributed_solution);
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
         filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
-        system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                            SolutionBlocks::unfiltered_density) = 0;
-        system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                            SolutionBlocks::unfiltered_density) = 0;
 
         auto op_f = linear_operator<LA::MPI::Vector>(density_filter.filter_matrix);
         filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = op_f * distributed_solution.block(SolutionBlocks::unfiltered_density);
@@ -1755,7 +1752,6 @@ namespace SAND {
     }
 
 
-    ///A  direct solver, for now. The complexity of the system means that an iterative solver algorithm will take some more work in the future.
     template<int dim>
     LA::MPI::BlockVector
     KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
@@ -1776,44 +1772,53 @@ namespace SAND {
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
 
-        std::cout << std::endl;
+        std::cout << " rhs " << std::endl;
         system_rhs.print(std::cout);
         std::cout << std::endl;
 
+        preconditioner.initialize(system_matrix, boundary_values, dof_handler, locally_relevant_solution, distributed_solution);
+        preconditioner.vmult(distributed_solution,system_rhs);
 
-        switch (Input::solver_choice) {
-            case SolverOptions::direct_solve: {
-//                SolverControl cn;
-//                std::string solver_type;
-//                TrilinosWrappers::SolverDirect::AdditionalData additional_data(false, "Amesos_Klu");
-//                TrilinosWrappers::SolverDirect solver(cn, mpi_communicator, system_matrix);
-//                solver.solve(distributed_solution, system_rhs);
-                break;
-            }
-            case SolverOptions::exact_preconditioner_with_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, locally_relevant_solution, distributed_solution);
-                SolverFGMRES<LA::MPI::BlockVector> A_fgmres(solver_control);
-                A_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
-                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-                break;
-            }
-            case SolverOptions::inexact_K_with_exact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  state, distributed_solution);
-                SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
-                B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
-                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-                break;
-            }
-            case SolverOptions::inexact_K_with_inexact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  state, distributed_solution);
-                SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
-                C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
-                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-                break;
-            }
-            default:
-                throw;
-        }
+        std::cout << "solution" <<  std::endl;
+        distributed_solution.print(std::cout);
+        std::cout << std::endl;
+
+//        switch (Input::solver_choice) {
+//            case SolverOptions::direct_solve: {
+////                SolverControl cn;
+////                std::string solver_type;
+////                TrilinosWrappers::SolverDirect::AdditionalData additional_data(false, "Amesos_Lapack");
+////                TrilinosWrappers::SolverDirect solver(cn, additional_data);
+////                solver.initialize(system_matrix);
+////                solver.solve(distributed_solution, system_rhs);
+//                break;
+//            }
+//            case SolverOptions::exact_preconditioner_with_gmres: {
+//                preconditioner.initialize(system_matrix, boundary_values, dof_handler, locally_relevant_solution, distributed_solution);
+//                SolverFGMRES<LA::MPI::BlockVector> A_fgmres(solver_control);
+//                A_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
+//                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+//                break;
+//            }
+//            case SolverOptions::inexact_K_with_exact_A_gmres: {
+//                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  locally_relevant_solution, distributed_solution);
+//                SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
+//                B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
+//                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+//                break;
+//            }
+//            case SolverOptions::inexact_K_with_inexact_A_gmres: {
+//                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  locally_relevant_solution, distributed_solution);
+//                SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
+//                C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
+//                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+//                break;
+//            }
+//            default:
+//                throw;
+//        }
+
+
         constraints.distribute(distributed_solution);
 
         if (Input::output_parts_of_matrix) {
@@ -1841,6 +1846,11 @@ namespace SAND {
 //            }
 //            Mat.close();
         }
+
+        std::cout << "solution" << std::endl;
+        distributed_solution.print(std::cout);
+        std::cout << std::endl;
+
         return distributed_solution;
     }
 
