@@ -15,7 +15,7 @@
 namespace SAND {
     namespace LA
     {
-        using namespace dealii::LinearAlgebraPETSc;
+        using namespace dealii::LinearAlgebraTrilinos;
     }
 
 
