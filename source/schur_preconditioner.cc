@@ -149,6 +149,8 @@ namespace SAND {
             std::cout << "np: " << n_p << std::endl;
 
 
+
+
             double l_global[n_p]= {0};
             double lm_global[n_p]= {0};
             double u_global[n_p]= {0};
