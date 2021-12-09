@@ -25,11 +25,11 @@ namespace SAND {
         std::set<unsigned int> neighbor_ids;
         std::set<typename DoFHandler<dim>::cell_iterator> cells_to_check;
         std::set<typename DoFHandler<dim>::cell_iterator> cells_to_check_temp;
-
         /*finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             if(cell->is_locally_owned())
             {
+
                 std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
                 for (const auto &neighbor_cell : find_relevant_neighbors(cell))

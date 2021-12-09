@@ -1788,14 +1788,14 @@ namespace SAND {
 //        std::cout << std::endl;
 
 
-        for (unsigned int k=0; k<10; k++)
-        {
-            for (unsigned int j=0; j<10; j++)
-            {
-                std::cout << k << ", " << j << std::endl;
-                std::cout << system_matrix.block(k,j).frobenius_norm() << std::endl;
-            }
-        }
+//        for (unsigned int k=0; k<10; k++)
+//        {
+//            for (unsigned int j=0; j<10; j++)
+//            {
+//                std::cout << k << ", " << j << std::endl;
+//                std::cout << system_matrix.block(k,j).frobenius_norm() << std::endl;
+//            }
+//        }
 
         switch (Input::solver_choice) {
             case SolverOptions::direct_solve: {
@@ -1861,9 +1861,9 @@ namespace SAND {
 //            Mat.close();
         }
 
-        std::cout << "solution" << std::endl;
-        distributed_solution.print(std::cout);
-        std::cout << std::endl;
+//        std::cout << "solution" << std::endl;
+//        distributed_solution.print(std::cout);
+//        std::cout << std::endl;
 
         return distributed_solution;
     }
