@@ -9,6 +9,8 @@
 #include <deal.II/lac/generic_linear_algebra.h>
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 #include <deal.II/lac/generic_linear_algebra.h>
+#include <deal.II/base/conditional_ostream.h>
+#include <deal.II/base/utilities.h>
 
 ///Above are fairly normal files to include.  I also use the sparse direct package, which requiresBLAS/LAPACK
 /// to  perform  a  direct  solve  while  I  work  on  a  fast  iterative  solver  for  this problem.
@@ -32,7 +34,7 @@ namespace SAND {
         run();
 
     private:
-
+        MPI_Comm  mpi_communicator;
         std::pair<double,double>
         calculate_max_step_size(const LA::MPI::BlockVector &state, const LA::MPI::BlockVector &step) const;
 
@@ -51,13 +53,17 @@ namespace SAND {
         KktSystem<dim> kkt_system;
         MarkovFilter markov_filter;
         double barrier_size;
-        TimerOutput overall_timer;
         bool mixed_barrier_monotone_mode;
+        ConditionalOStream pcout;
+        TimerOutput overall_timer;
     };
 
     template<int dim>
     SANDTopOpt<dim>::SANDTopOpt()
-            :overall_timer(std::cout, TimerOutput::never, TimerOutput::wall_times)
+            :
+              mpi_communicator(MPI_COMM_WORLD),
+              pcout(std::cout,(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
+              overall_timer(pcout, TimerOutput::never, TimerOutput::wall_times)
     {
     }
 
@@ -103,7 +109,7 @@ namespace SAND {
                 step_size_z_high = step_size_z;
             }
         }
-        std::cout << "s step : " << step_size_s_low << " z size : " << step_size_z_low << std::endl;
+        pcout << "s step : " << step_size_s_low << " z size : " << step_size_z_low << std::endl;
         return {step_size_s_low, step_size_z_low};
     }
 
@@ -114,8 +120,9 @@ namespace SAND {
     SANDTopOpt<dim>::find_max_step(const LA::MPI::BlockVector &state)
     {
         kkt_system.assemble_block_system(state, barrier_size);
+        pcout << "pre" << std::endl;
         const LA::MPI::BlockVector step = kkt_system.solve(state);
-
+        pcout << "post" << std::endl;
         const auto max_step_sizes= calculate_max_step_size(state,step);
         const double step_size_s = max_step_sizes.first;
         const double step_size_z = max_step_sizes.second;
@@ -132,6 +139,7 @@ namespace SAND {
         max_step.block(SolutionBlocks::displacement_multiplier) = step_size_z * step.block(SolutionBlocks::displacement_multiplier);
         max_step.block(SolutionBlocks::total_volume_multiplier) = step_size_z * step.block(SolutionBlocks::total_volume_multiplier);
 
+        pcout << "here" << std::endl;
         return max_step;
     }
 
@@ -216,7 +224,7 @@ namespace SAND {
                             + current_state.block(SolutionBlocks::density_upper_slack)*current_state.block(SolutionBlocks::density_upper_slack_multiplier)
                            )/(2*vect_size);
             double loqo_complimentarity_deviation = loqo_min/loqo_average;
-            std::cout << "loqo cd: " << loqo_complimentarity_deviation << std::endl;
+            pcout << "loqo cd: " << loqo_complimentarity_deviation << std::endl;
             double loqo_multiplier;
             if((.05 * (1-loqo_complimentarity_deviation)/loqo_complimentarity_deviation)<2)
             {
@@ -226,7 +234,7 @@ namespace SAND {
             {
                 loqo_multiplier = .8;
             }
-            std::cout << "loqo mult: " << loqo_multiplier << std::endl;
+            pcout << "loqo mult: " << loqo_multiplier << std::endl;
             if (loqo_multiplier< 0)
             {
                 barrier_size = std::abs(loqo_multiplier) * loqo_average;
@@ -261,7 +269,7 @@ namespace SAND {
                 {
                     barrier_size = barrier_size * .8;
                     mixed_barrier_monotone_mode=false;
-                    std::cout << "monotone mode turned off" << std::endl;
+                    pcout << "monotone mode turned off" << std::endl;
                 }
             }
             else
@@ -309,7 +317,7 @@ namespace SAND {
                 {
                     loqo_multiplier = 1/.8;
                     mixed_barrier_monotone_mode = true;
-                    std::cout << "monotone mode turned on" << std::endl;
+                    pcout << "monotone mode turned on" << std::endl;
                 }
                 if (loqo_multiplier<.01)
                 {
@@ -336,7 +344,7 @@ namespace SAND {
         barrier_size = Input::initial_barrier_size;
         kkt_system.create_triangulation();
         kkt_system.setup_boundary_values();
-        std::cout << "setup kkt system" << std::endl;
+        pcout << "setup kkt system" << std::endl;
         kkt_system.setup_block_system();
 
         if (Input::barrier_reduction==BarrierOptions::mixed)
@@ -389,7 +397,7 @@ namespace SAND {
                         //iterate number of steps by number of steps taken in this process
                         iteration_number = iteration_number + k + 1;
                         found_step = true;
-                        std::cout << "found workable step after " << k+1 << " iterations"<<std::endl;
+                        pcout << "found workable step after " << k+1 << " iterations"<<std::endl;
                         //break for loop
                         markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
                         break;
@@ -442,7 +450,7 @@ namespace SAND {
                 converged = check_convergence(current_state);
                 update_barrier(current_state);
                 markov_filter.update_barrier_value(barrier_size);
-                std::cout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
+                pcout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
 
                 overall_timer.leave_subsection();
                 overall_timer.print_summary();

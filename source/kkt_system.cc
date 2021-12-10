@@ -35,6 +35,9 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
 
+
+#include <deal.II/base/conditional_ostream.h>
+
 #include "../include/input_information.h"
 
 #include <iostream>
@@ -65,7 +68,8 @@ namespace SAND {
                    FE_DGQ<dim>(0) ^ 1),
             density_ratio(Input::volume_percentage),
             density_penalty_exponent(Input::density_penalty_exponent),
-            density_filter()
+            density_filter(),
+            pcout(std::cout,(Utilities::MPI::this_mpi_process(mpi_communicator) == 0))
     {
         fe_collection.push_back(fe_nine);
         fe_collection.push_back(fe_ten);
@@ -612,7 +616,7 @@ namespace SAND {
         const unsigned int n_p = dofs_per_block[0];
         const unsigned int n_u = dofs_per_block[1];
 
-        std::cout << "n_p:  " << n_p << "   n_u:  " << n_u << std::endl;
+        pcout << "n_p:  " << n_p << "   n_u:  " << n_u << std::endl;
 
         IndexSet locally_owned_dofs = dof_handler.locally_owned_dofs();
         IndexSet locally_relevant_dofs;
@@ -1129,7 +1133,7 @@ namespace SAND {
             }
 
         }
-        std::cout << "compress 1" << std::endl;
+        pcout << "compress 1" << std::endl;
         system_matrix.compress(VectorOperation::add);
         system_rhs = calculate_rhs(distributed_state, barrier_size);
 
@@ -1140,32 +1144,31 @@ namespace SAND {
                 cell->get_dof_indices(i);
 
                 const types::global_dof_index dof_index_lower_slack =
-                        i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)];
-                Assert (cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>,0)==16, ExcInternalError());
+                        i[cell->get_fe().component_to_system_index(0, 0)];
                 typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
-                        i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)]);
-                for (; iter != density_filter.filter_matrix.end(i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)]); iter++) {
+                        i[cell->get_fe().component_to_system_index(0, 0)]);
+                for (; iter != density_filter.filter_matrix.end(i[cell->get_fe().component_to_system_index(0, 0)]); iter++) {
                     unsigned int j = iter->column();
                     double value = iter->value() * cell->measure();
 
                     system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                                        SolutionBlocks::unfiltered_density).add(i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)], j, value);
+                                        SolutionBlocks::unfiltered_density).add(i[cell->get_fe().component_to_system_index(0, 0)], j, value);
                     system_matrix.block(SolutionBlocks::unfiltered_density,
-                                        SolutionBlocks::unfiltered_density_multiplier).add(j, i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)], value);
+                                        SolutionBlocks::unfiltered_density_multiplier).add(j, i[cell->get_fe().component_to_system_index(0, 0)], value);
                 }
 
-                system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)],
+                system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i[cell->get_fe().component_to_system_index(0, 0)],
                                                                                                           cell->measure());
 
-                system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)], 0,
+                system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i[cell->get_fe().component_to_system_index(0, 0)], 0,
                                                                                                           cell->measure());
             }
         }
-        std::cout << "compress 2" << std::endl;
+        pcout << "compress 2" << std::endl;
         system_matrix.compress(VectorOperation::add);
 
 
-        std::cout << "assembled" << std::endl;
+        pcout << "assembled" << std::endl;
 
     }
 
@@ -1255,7 +1258,7 @@ namespace SAND {
         double objective_value_out;
         MPI_Allreduce(&objective_value, &objective_value_out, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-        std::cout << "objective value: " << objective_value_out << std::endl;
+        pcout << "objective value: " << objective_value_out << std::endl;
         return objective_value;
     }
 
@@ -1278,7 +1281,7 @@ namespace SAND {
         double out_barrier_distance_log_sum;
         MPI_Allreduce(&barrier_distance_log_sum, &out_barrier_distance_log_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-        std::cout << "Barrier distance log sum: " << out_barrier_distance_log_sum << std::endl;
+        pcout << "Barrier distance log sum: " << out_barrier_distance_log_sum << std::endl;
 
         return out_barrier_distance_log_sum;
     }
@@ -1329,7 +1332,7 @@ namespace SAND {
            MPI_Allreduce(&prod2, &full_prod2, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
            norm = norm + full_prod1 + full_prod2;
        }
-       std::cout << "pre-norm: " << norm << std::endl;
+       pcout << "pre-norm: " << norm << std::endl;
 
         norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
@@ -1340,7 +1343,7 @@ namespace SAND {
         norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(), 2);
 
-        std::cout << "norm: " << norm << std::endl;
+        pcout << "norm: " << norm << std::endl;
 
         return norm;
     }
@@ -1382,7 +1385,7 @@ namespace SAND {
             MPI_Allreduce(&prod2, &full_prod2, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
             norm = norm + full_prod1 + full_prod2;
         }
-        std::cout << "pre-norm: " << norm << std::endl;
+        pcout << "pre-norm: " << norm << std::endl;
 
         norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
         norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
@@ -1395,8 +1398,8 @@ namespace SAND {
 
         norm = std::pow(norm, .5);
 
-        std::cout << "l2 norm: " << system_rhs.l2_norm() << std::endl;
-        std::cout << "KKT norm: " << norm << std::endl;
+        pcout << "l2 norm: " << system_rhs.l2_norm() << std::endl;
+        pcout << "KKT norm: " << norm << std::endl;
         return norm;
     }
 
@@ -1778,56 +1781,21 @@ namespace SAND {
         SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
 
-//        std::cout << " rhs " << std::endl;
-//        system_rhs.print(std::cout);
-//        std::cout << std::endl;
-
-//        preconditioner.initialize(system_matrix, boundary_values, dof_handler, locally_relevant_solution, distributed_solution);
-//        preconditioner.vmult(distributed_solution,system_rhs);
-
-//        std::cout << "solution" <<  std::endl;
-//        distributed_solution.print(std::cout);
-//        std::cout << std::endl;
-
-
-//        for (unsigned int k=0; k<10; k++)
-//        {
-//            for (unsigned int j=0; j<10; j++)
-//            {
-//                std::cout << k << ", " << j << std::endl;
-//                std::cout << system_matrix.block(k,j).frobenius_norm() << std::endl;
-//            }
-//        }
 
         switch (Input::solver_choice) {
-            case SolverOptions::direct_solve: {
-//                SolverControl cn;
-//                std::string solver_type;
-//                TrilinosWrappers::SolverDirect::AdditionalData additional_data(false, "Amesos_Lapack");
-//                TrilinosWrappers::SolverDirect solver(cn, additional_data);
-//                solver.initialize(system_matrix);
-//                solver.solve(distributed_solution, system_rhs);
-                break;
-            }
-            case SolverOptions::exact_preconditioner_with_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler, locally_relevant_solution, distributed_solution);
-                SolverFGMRES<LA::MPI::BlockVector> A_fgmres(solver_control);
-                A_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
-                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-                break;
-            }
+
             case SolverOptions::inexact_K_with_exact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler,  locally_relevant_solution, distributed_solution);
                 SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
                 B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
-                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+                pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_inexact_A_gmres: {
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler,  locally_relevant_solution, distributed_solution);
                 SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
                 C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
-                std::cout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+                pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             default:
@@ -1837,35 +1805,7 @@ namespace SAND {
 
         constraints.distribute(distributed_solution);
 
-        if (Input::output_parts_of_matrix) {
-            preconditioner.print_stuff();
-        }
-
-        if (Input::output_full_preconditioned_matrix) {
-//            FullMatrix<double> preconditioned_full_mat(system_matrix.n(), system_matrix.n());
-//            const auto op_preconditioned_full_mat = linear_operator(preconditioner) * linear_operator(system_matrix);
-//            build_matrix_element_by_element(op_preconditioned_full_mat, preconditioned_full_mat);
-//            print_matrix("preconditioned_full_block_matrix.csv",preconditioned_full_mat);
-        }
-
-        if (Input::output_full_matrix) {
-//            const unsigned int vec_size = system_matrix.n();
-//            FullMatrix<double> full_mat(vec_size, vec_size);
-//            build_matrix_element_by_element(system_matrix,full_mat);
-//            std::ofstream Mat("full_block_matrix.csv");
-//            for (unsigned int i = 0; i < vec_size; i++) {
-//                Mat << full_mat(i, 0);
-//                for (unsigned int j = 1; j < vec_size; j++) {
-//                    Mat << "," << full_mat(i, j);
-//                }
-//                Mat << "\n";
-//            }
-//            Mat.close();
-        }
-
-//        std::cout << "solution" << std::endl;
-//        distributed_solution.print(std::cout);
-//        std::cout << std::endl;
+        pcout << "here" << std::endl;
 
         return distributed_solution;
     }

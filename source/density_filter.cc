@@ -36,7 +36,7 @@ namespace SAND {
                 {
                     std::vector<types::global_dof_index> j(neighbor_cell->get_fe().n_dofs_per_cell());
                     neighbor_cell->get_dof_indices(j);
-                    filter_dsp.add(i[16], j[16]);
+                    filter_dsp.add(i[cell->get_fe().component_to_system_index(0, 0)], j[cell->get_fe().component_to_system_index(0, 0)]);
                 }
             }
 
@@ -61,7 +61,7 @@ namespace SAND {
                             cell->center().distance(neighbor_cell->center());
                     /*value should be (max radius - distance between cells)*cell measure */
                     double value = (Input::filter_r - d)*neighbor_cell->measure();
-                    filter_matrix.add(i[16], j[16], value);
+                    filter_matrix.add(i[cell->get_fe().component_to_system_index(0, 0)], j[cell->get_fe().component_to_system_index(0, 0)], value);
                 }
             }
         }
@@ -75,13 +75,13 @@ namespace SAND {
                 cell->get_dof_indices(i);
                 double denominator = 0;
                 typename LA::MPI::SparseMatrix::iterator iter = filter_matrix.begin(
-                        i[16]);
-                for (; iter != filter_matrix.end(i[16]); iter++)
+                        i[cell->get_fe().component_to_system_index(0, 0)]);
+                for (; iter != filter_matrix.end(i[cell->get_fe().component_to_system_index(0, 0)]); iter++)
                 {
                     denominator = denominator + iter->value();
                 }
-                iter = filter_matrix.begin(i[16]);
-                for (; iter != filter_matrix.end(i[16]); iter++)
+                iter = filter_matrix.begin(i[cell->get_fe().component_to_system_index(0, 0)]);
+                for (; iter != filter_matrix.end(i[cell->get_fe().component_to_system_index(0, 0)]); iter++)
                 {
                     iter->value() = iter->value() / denominator;
                 }

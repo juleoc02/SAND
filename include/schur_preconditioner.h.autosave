@@ -170,7 +170,7 @@ namespace SAND
         mutable VmultTrilinosSolverDirect a_inv_direct;
 //        TrilinosWrappers::SolverDirect a_inv_direct;
         mutable TimerOutput timer;
-        ConditionalOStream pcout;
+//        ConditionalOStream pcout;
 
     };
 

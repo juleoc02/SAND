@@ -66,7 +66,6 @@ namespace SAND {
 
     private:
 
-
     };
 }
 #endif //SAND_DENSITY_FILTER_H

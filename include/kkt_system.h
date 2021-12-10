@@ -56,6 +56,8 @@
 #include "../include/schur_preconditioner.h"
 #include "../include/density_filter.h"
 
+#include <deal.II/base/conditional_ostream.h>
+
 #include <iostream>
 #include <fstream>
 #include <algorithm>
@@ -144,7 +146,7 @@ namespace SAND {
         mutable DensityFilter<dim> density_filter;
 
         std::map<types::global_dof_index, double> boundary_values;
-
+        ConditionalOStream pcout;
 
         double initial_rhs_error;
 

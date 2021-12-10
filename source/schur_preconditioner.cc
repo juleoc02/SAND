@@ -23,6 +23,7 @@ namespace SAND {
     template<int dim>
     TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in)
             :
+            mpi_communicator(MPI_COMM_WORLD),
             system_matrix(matrix_in),
             n_rows(0),
             n_columns(0),
@@ -45,6 +46,7 @@ namespace SAND {
             additional_data(false, solver_type),
             direct_solver_control(1, 0),
             a_inv_direct(direct_solver_control, additional_data),
+            pcout(std::cout,(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
             timer(std::cout, TimerOutput::summary, TimerOutput::wall_times)
     {
 
@@ -140,13 +142,13 @@ namespace SAND {
             d_7_mat=0;
             d_8_mat=0;
             d_m_inv_mat=0;
-            std::cout << "diag reinit" << std::endl;
+            pcout << "diag reinit" << std::endl;
         }
         {
             const types::global_dof_index n_p = system_matrix.block(SolutionBlocks::density,
                                                                     SolutionBlocks::density).m();
 
-            std::cout << "np: " << n_p << std::endl;
+            pcout << "np: " << n_p << std::endl;
 
 
 
@@ -226,7 +228,7 @@ namespace SAND {
         d_8_mat.compress(VectorOperation::insert);
         d_m_inv_mat.compress(VectorOperation::insert);
 
-        std::cout << "compressed" << std::endl;
+        pcout << "compressed" << std::endl;
 
         pre_j=distributed_state.block(SolutionBlocks::density);
         pre_k=distributed_state.block(SolutionBlocks::density);
@@ -240,7 +242,7 @@ namespace SAND {
         op_d_8 = linear_operator<VectorType,VectorType,PayloadType>(d_8_mat);
         op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * transpose_operator<VectorType, VectorType, PayloadType>(linear_operator<VectorType,VectorType,PayloadType>(f_mat));
 
-        std::cout << "ops made" << std::endl;
+        pcout << "ops made" << std::endl;
 
         if (Input::solver_choice==SolverOptions::inexact_K_with_inexact_A_gmres)
         {
@@ -300,7 +302,7 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         LA::MPI::BlockVector temp_src;
-        std::cout << "vmult" << std::endl;
+        pcout << "vmult" << std::endl;
         {
             TimerOutput::Scope t(timer, "part 1");
             vmult_step_1(dst, src);
@@ -360,9 +362,9 @@ namespace SAND {
         auto dst_temp = dst;
 //        auto temp = src.block(SolutionBlocks::unfiltered_density);
 //        temp = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
-//        std::cout <<std::endl <<std::endl<< "temp output:" << std::endl;
-//        temp.print(std::cout);
-//        std::cout << std::endl;
+//        pcout <<std::endl <<std::endl<< "temp output:" << std::endl;
+//        temp.print(pcout);
+//        pcout << std::endl;
 
 
         dst.block(SolutionBlocks::unfiltered_density_multiplier) = dst_temp.block(SolutionBlocks::unfiltered_density_multiplier)
@@ -446,8 +448,8 @@ namespace SAND {
             catch (std::exception &exc)
             {
                 std::cerr << "Failure of linear solver step_4_gmres_1" << std::endl;
-                std::cout << "first residual: " << step_4_gmres_control_1.initial_value() << std::endl;
-                std::cout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
+                pcout << "first residual: " << step_4_gmres_control_1.initial_value() << std::endl;
+                pcout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
                 throw;
             }
             SolverControl step_4_gmres_control_2 (100000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
@@ -458,8 +460,8 @@ namespace SAND {
             } catch (std::exception &exc)
             {
                 std::cerr << "Failure of linear solver step_4_gmres_2" << std::endl;
-                std::cout << "first residual: " << step_4_gmres_control_2.initial_value() << std::endl;
-                std::cout << "last residual: " << step_4_gmres_control_2.last_value() << std::endl;
+                pcout << "first residual: " << step_4_gmres_control_2.initial_value() << std::endl;
+                pcout << "last residual: " << step_4_gmres_control_2.last_value() << std::endl;
                 throw;
             }
         }
@@ -491,8 +493,8 @@ namespace SAND {
             } catch (std::exception &exc)
             {
                 std::cerr << "Failure of linear solver step_4_gmres_1" << std::endl;
-                std::cout << "first residual: " << step_4_gmres_control_1.initial_value() << std::endl;
-                std::cout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
+                pcout << "first residual: " << step_4_gmres_control_1.initial_value() << std::endl;
+                pcout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
                 throw;
             }
 
@@ -505,14 +507,14 @@ namespace SAND {
             } catch (std::exception &exc)
             {
                 std::cerr << "Failure of linear solver step_4_gmres_2" << std::endl;
-                std::cout << "first residual: " << step_4_gmres_control_2.initial_value() << std::endl;
-                std::cout << "last residual: " << step_4_gmres_control_2.last_value() << std::endl;
+                pcout << "first residual: " << step_4_gmres_control_2.initial_value() << std::endl;
+                pcout << "last residual: " << step_4_gmres_control_2.last_value() << std::endl;
                 throw;
             }
         }
         else
         {
-            std::cout << "shouldn't get here";
+            pcout << "shouldn't get here";
             throw;
         }
 
@@ -607,8 +609,8 @@ namespace SAND {
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_1" << std::endl;
-                    std::cout << "first residual: " << step_5_gmres_control_1.initial_value() << std::endl;
-                    std::cout << "last residual: " << step_5_gmres_control_1.last_value() << std::endl;
+                    pcout << "first residual: " << step_5_gmres_control_1.initial_value() << std::endl;
+                    pcout << "last residual: " << step_5_gmres_control_1.last_value() << std::endl;
                     throw;
                 }
 
@@ -620,8 +622,8 @@ namespace SAND {
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_2" << std::endl;
-                    std::cout << "first residual: " << step_5_gmres_control_2.initial_value() << std::endl;
-                    std::cout << "last residual: " << step_5_gmres_control_2.last_value() << std::endl;
+                    pcout << "first residual: " << step_5_gmres_control_2.initial_value() << std::endl;
+                    pcout << "last residual: " << step_5_gmres_control_2.last_value() << std::endl;
                     throw;
                 }
             }
@@ -652,8 +654,8 @@ namespace SAND {
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_1" << std::endl;
-                    std::cout << "first residual: " << step_5_gmres_control_1.initial_value() << std::endl;
-                    std::cout << "last residual: " << step_5_gmres_control_1.last_value() << std::endl;
+                    pcout << "first residual: " << step_5_gmres_control_1.initial_value() << std::endl;
+                    pcout << "last residual: " << step_5_gmres_control_1.last_value() << std::endl;
                     throw;
                 }
 
@@ -665,14 +667,14 @@ namespace SAND {
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_2" << std::endl;
-                    std::cout << "first residual: " << step_5_gmres_control_2.initial_value() << std::endl;
-                    std::cout << "last residual: " << step_5_gmres_control_2.last_value() << std::endl;
+                    pcout << "first residual: " << step_5_gmres_control_2.initial_value() << std::endl;
+                    pcout << "last residual: " << step_5_gmres_control_2.last_value() << std::endl;
                     throw;
                 }
             }
             else
             {
-                std::cout << "shouldn't get here";
+                pcout << "shouldn't get here";
                 throw;
             }
 
