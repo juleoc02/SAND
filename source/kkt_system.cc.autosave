@@ -1141,7 +1141,6 @@ namespace SAND {
 
                 const types::global_dof_index dof_index_lower_slack =
                         i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)];
-                Assert (cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>,0)==16, ExcInternalError());
                 typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
                         i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)]);
                 for (; iter != density_filter.filter_matrix.end(i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)]); iter++) {
