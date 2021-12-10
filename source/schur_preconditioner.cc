@@ -234,68 +234,7 @@ namespace SAND {
         pre_k=distributed_state.block(SolutionBlocks::density);
         g_d_m_inv_density=distributed_state.block(SolutionBlocks::density);
         k_g_d_m_inv_density=distributed_state.block(SolutionBlocks::density);
-        LinearOperator<VectorType,VectorType,PayloadType> op_g;
-        LinearOperator<VectorType,VectorType,PayloadType> op_h;
-        LinearOperator<VectorType,VectorType,PayloadType> op_f;
-        LinearOperator<VectorType,VectorType,PayloadType> op_d_8;
-        op_f = linear_operator<VectorType,VectorType,PayloadType>(f_mat);
-        op_d_8 = linear_operator<VectorType,VectorType,PayloadType>(d_8_mat);
-        op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * transpose_operator<VectorType, VectorType, PayloadType>(linear_operator<VectorType,VectorType,PayloadType>(f_mat));
 
-        pcout << "ops made" << std::endl;
-
-        if (Input::solver_choice==SolverOptions::inexact_K_with_inexact_A_gmres)
-        {
-            SolverControl            solver_control(100000, 1e-6);
-            SolverCG<LA::MPI::Vector> a_solver_cg(solver_control);
-            auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg,PreconditionIdentity());
-            op_h = linear_operator<VectorType,VectorType,PayloadType>(b_mat)
-                   - transpose_operator<VectorType, VectorType, PayloadType>(linear_operator<VectorType, VectorType, PayloadType>(c_mat)) * a_inv_op * linear_operator<VectorType,VectorType,PayloadType>(e_mat)
-                   - transpose_operator<VectorType, VectorType, PayloadType>(linear_operator<VectorType, VectorType, PayloadType>(e_mat)) * a_inv_op * linear_operator<VectorType,VectorType,PayloadType>(c_mat);
-        }
-        else
-        {
-            auto a_inv_op =linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct);
-            op_h = linear_operator<VectorType,VectorType,PayloadType>(b_mat)
-                   - transpose_operator<VectorType, VectorType, PayloadType>(c_mat) * a_inv_op * linear_operator<VectorType, VectorType, PayloadType>(e_mat)
-                   - transpose_operator<VectorType, VectorType, PayloadType>(e_mat) * a_inv_op * linear_operator<VectorType, VectorType, PayloadType>(c_mat);
-        }
-
-
-        if(Input::solver_choice == SolverOptions::inexact_K_with_inexact_A_gmres || Input::solver_choice == SolverOptions::inexact_K_with_exact_A_gmres)
-        {
-
-        }
-        else
-        {
-//            {
-//                TimerOutput::Scope t(timer, "build g_mat");
-//                g_mat.reinit(b_mat.n(), b_mat.n());
-//                build_matrix_element_by_element(op_g, g_mat);
-//            }
-//
-//
-//            {
-//                TimerOutput::Scope t(timer, "build h_mat");
-//                h_mat.reinit(b_mat.n(), b_mat.n());
-//                build_matrix_element_by_element(op_h, h_mat);
-//            }
-//
-//            {
-//                TimerOutput::Scope t(timer, "build k_inv_mat");
-//                auto op_k_inv = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * op_h -
-//                                linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
-//                k_inv_mat.reinit(b_mat.n(), b_mat.n());
-//                build_matrix_element_by_element(op_k_inv, k_inv_mat);
-//            }
-        }
-
-        if (Input::solver_choice == SolverOptions::exact_preconditioner_with_gmres)
-        {
-            TimerOutput::Scope t(timer, "invert k_mat");
-            k_mat.copy_from(k_inv_mat);
-            k_mat.invert();
-        }
     }
 
 
@@ -360,12 +299,6 @@ namespace SAND {
     void TopOptSchurPreconditioner<dim>::vmult_step_2(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
         auto dst_temp = dst;
-//        auto temp = src.block(SolutionBlocks::unfiltered_density);
-//        temp = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
-//        pcout <<std::endl <<std::endl<< "temp output:" << std::endl;
-//        temp.print(pcout);
-//        pcout << std::endl;
-
 
         dst.block(SolutionBlocks::unfiltered_density_multiplier) = dst_temp.block(SolutionBlocks::unfiltered_density_multiplier)
                 - linear_operator<VectorType,VectorType,PayloadType>(f_mat)*linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
