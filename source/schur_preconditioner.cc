@@ -235,6 +235,31 @@ namespace SAND {
         g_d_m_inv_density=distributed_state.block(SolutionBlocks::density);
         k_g_d_m_inv_density=distributed_state.block(SolutionBlocks::density);
 
+
+        op_d_8 = linear_operator<VectorType,VectorType,PayloadType>(d_8_mat);
+        op_f = linear_operator<VectorType,VectorType,PayloadType>(f_mat);
+        op_b = linear_operator<VectorType,VectorType,PayloadType>(b_mat);
+        op_c = linear_operator<VectorType,VectorType,PayloadType>(c_mat);
+        op_a_inv = linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct);
+        op_e = linear_operator<VectorType,VectorType,PayloadType>(e_mat);
+        op_d_m= linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
+        op_d_m_inv= linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat);
+
+        op_g = op_f * op_d_8 *
+                transpose_operator(op_f);
+
+
+        op_h = op_b
+               - transpose_operator(op_c) * op_a_inv * op_e
+               - transpose_operator(op_e) * op_a_inv * op_c;
+
+//        TrilinosWrappers::internal::LinearOperatorImplementation::TrilinosPayload inv_payload = inverse_payload(TrilinosWrappers::SolverGMRES(),TrilinosWrappers::PreconditionIdentity());
+
+        op_k_inv = (-1 * op_g *op_d_m_inv * op_h - op_d_m);
+
+
+
+
     }
 
 
@@ -352,24 +377,6 @@ namespace SAND {
 
         else if (Input::solver_choice == SolverOptions::inexact_K_with_exact_A_gmres)
         {
-            auto op_d_8 = linear_operator<VectorType,VectorType,PayloadType>(d_8_mat);
-            auto op_f = linear_operator<VectorType,VectorType,PayloadType>(f_mat);
-            auto op_b = linear_operator<VectorType,VectorType,PayloadType>(b_mat);
-            auto op_c = linear_operator<VectorType,VectorType,PayloadType>(c_mat);
-            auto op_a_inv = linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct);
-            auto op_e = linear_operator<VectorType,VectorType,PayloadType>(e_mat);
-            auto op_d_m= linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
-            auto op_d_m_inv= linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat);
-
-            auto op_g = op_f * op_d_8 *
-                    transpose_operator(op_f);
-
-
-            auto op_h = op_b
-                   - transpose_operator(op_c) * op_a_inv * op_e
-                   - transpose_operator(op_e) * op_a_inv * op_c;
-
-            auto op_k_inv = -1 * op_g *op_d_m_inv * op_h - op_d_m;
 
             g_d_m_inv_density = op_g * op_d_m_inv * src.block(SolutionBlocks::density);
             SolverControl step_4_gmres_control_1 (100000, g_d_m_inv_density.l2_norm()*1e-6);
@@ -518,21 +525,10 @@ namespace SAND {
 
             else if (Input::solver_choice == SolverOptions::inexact_K_with_exact_A_gmres)
             {
-                auto op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) *
-                            transpose_operator(linear_operator<VectorType,VectorType,PayloadType>(f_mat));
-
-                auto op_h = linear_operator<VectorType,VectorType,PayloadType>(b_mat)
-                            - transpose_operator<VectorType, VectorType, PayloadType>(c_mat) *
-                                    linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct) * linear_operator<VectorType,VectorType,PayloadType>(e_mat)
-                            - transpose_operator<VectorType, VectorType, PayloadType>(e_mat) * linear_operator<VectorType,VectorType,PayloadType>(a_inv_direct) * linear_operator<VectorType,VectorType,PayloadType>(c_mat);
-
-                auto op_k_inv = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * op_h - linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
-
                 pre_j = src.block(SolutionBlocks::density) + op_h * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
                 auto pre_pre_k = pre_k;
                 pre_pre_k = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
                 pre_k =  pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
-
 
                 SolverControl step_5_gmres_control_1 (100000, pre_j.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
@@ -580,7 +576,7 @@ namespace SAND {
                 pre_k = -1* op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density) + src.block(SolutionBlocks::unfiltered_density_multiplier);
 
                 SolverControl step_5_gmres_control_1 (10000, std::max(pre_j.l2_norm()*1e-6,1e-6));
-                SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
+                TrilinosWrappers::SolverGMRES step_5_gmres_1 (step_5_gmres_control_1);
                 try {
                     dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType,VectorType,PayloadType>(op_k_inv), step_5_gmres_1, PreconditionIdentity()) *
                                                                                pre_j;
@@ -593,7 +589,7 @@ namespace SAND {
                 }
 
                 SolverControl step_5_gmres_control_2 (10000, std::max(pre_k.l2_norm()*1e-6,1e-6));
-                SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
+                TrilinosWrappers::SolverGMRES step_5_gmres_2 (step_5_gmres_control_2);
                 try {
                     dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2, PreconditionIdentity()) *
                                                          pre_k;

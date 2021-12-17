@@ -69,6 +69,10 @@
 
 namespace SAND
 {
+    using MatrixType  = dealii::TrilinosWrappers::SparseMatrix;
+    using VectorType  = dealii::TrilinosWrappers::MPI::Vector;
+    using PayloadType = dealii::TrilinosWrappers::internal::LinearOperatorImplementation::TrilinosPayload;
+    using PayloadVectorType = typename PayloadType::VectorType;
     namespace LA
     {
         using namespace dealii::LinearAlgebraTrilinos;
@@ -171,6 +175,19 @@ namespace SAND
 //        TrilinosWrappers::SolverDirect a_inv_direct;
         mutable TimerOutput timer;
         ConditionalOStream pcout;
+
+        LinearOperator<VectorType,VectorType,PayloadType> op_d_8;
+        LinearOperator<VectorType,VectorType,PayloadType> op_f;
+        LinearOperator<VectorType,VectorType,PayloadType> op_b;
+        LinearOperator<VectorType,VectorType,PayloadType> op_c;
+        LinearOperator<VectorType,VectorType,PayloadType> op_a_inv;
+        LinearOperator<VectorType,VectorType,PayloadType> op_e;
+        LinearOperator<VectorType,VectorType,PayloadType> op_d_m;
+        LinearOperator<VectorType,VectorType,PayloadType> op_d_m_inv;
+        LinearOperator<VectorType,VectorType,PayloadType> op_g;
+        LinearOperator<VectorType,VectorType,PayloadType> op_h;
+        LinearOperator<VectorType,VectorType,PayloadType> op_k_inv;
+
 
     };
 
