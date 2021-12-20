@@ -200,7 +200,7 @@ namespace SAND {
                 }
             }
 
-            MPI_Allreduce(&lm, &lm_global, n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(lm.data(), &lm_global, n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
             MPI_Allreduce(&l, &l_global, n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
             MPI_Allreduce(&um, &um_global, n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
             MPI_Allreduce(&u, &u_global, n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
