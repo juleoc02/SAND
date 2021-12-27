@@ -382,8 +382,10 @@ namespace SAND {
             SolverControl step_4_gmres_control_1 (100000, g_d_m_inv_density.l2_norm()*1e-6);
             SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
             try {
-                k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, PreconditionIdentity()) *
-                                      g_d_m_inv_density;
+                TimerOutput::Scope u(timer, "actual inv");
+//                k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, PreconditionIdentity()) *
+//                                      g_d_m_inv_density;
+                step_4_gmres_1.solve(op_k_inv,k_g_d_m_inv_density,g_d_m_inv_density, PreconditionIdentity() );
             }
             catch (std::exception &exc)
             {
@@ -395,8 +397,10 @@ namespace SAND {
             SolverControl step_4_gmres_control_2 (100000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
             SolverGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
             try {
-                k_density_mult = inverse_operator(op_k_inv,step_4_gmres_2, PreconditionIdentity()) *
-                                 src.block(SolutionBlocks::unfiltered_density_multiplier);
+                TimerOutput::Scope u(timer, "actual inv");
+//                k_density_mult = inverse_operator(op_k_inv,step_4_gmres_2, PreconditionIdentity()) *
+//                                 src.block(SolutionBlocks::unfiltered_density_multiplier);
+                step_4_gmres_2.solve(op_k_inv,k_density_mult,src.block(SolutionBlocks::unfiltered_density_multiplier), PreconditionIdentity() );
             } catch (std::exception &exc)
             {
                 std::cerr << "Failure of linear solver step_4_gmres_2" << std::endl;
@@ -413,7 +417,9 @@ namespace SAND {
 
             auto preconditioner = PreconditionIdentity();
 
-            auto a_inv_op = inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg, preconditioner);
+            auto a_inv_op = op_d_8;
+
+                    inverse_operator(linear_operator<VectorType,VectorType,PayloadType>(a_mat),a_solver_cg, preconditioner);
 
 
             auto op_g = linear_operator<VectorType,VectorType,PayloadType>(f_mat) * linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) *
@@ -423,13 +429,16 @@ namespace SAND {
                         - transpose_operator<VectorType, VectorType, PayloadType>(c_mat) * a_inv_op * linear_operator<VectorType,VectorType,PayloadType>(e_mat)
                         - transpose_operator<VectorType, VectorType, PayloadType>(e_mat) * a_inv_op * linear_operator<VectorType,VectorType,PayloadType>(c_mat);
 
-            auto op_k_inv = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * op_h - linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
+            auto op_k_inv = op_d_8;
+
+                    -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * op_h - linear_operator<VectorType,VectorType,PayloadType>(d_m_mat);
 
             SolverControl step_4_gmres_control_1 (10000, std::max(g_d_m_inv_density.l2_norm()*1e-6,1e-6));
             SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
             try {
-                k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, PreconditionIdentity()) *
-                                      g_d_m_inv_density;
+//                k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, PreconditionIdentity()) *
+//                                      g_d_m_inv_density;
+//                step_4_gmres_1.solve(op_k_inv,k_g_d_m_inv_density,g_d_m_inv_density, PreconditionIdentity() );
             } catch (std::exception &exc)
             {
                 std::cerr << "Failure of linear solver step_4_gmres_1" << std::endl;
@@ -533,8 +542,9 @@ namespace SAND {
                 SolverControl step_5_gmres_control_1 (100000, pre_j.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
                 try {
-                    dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv), step_5_gmres_1, PreconditionIdentity()) *
-                                                                               pre_j;
+//                    dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv), step_5_gmres_1, PreconditionIdentity()) *
+//                                                                               pre_j;
+                    step_5_gmres_1.solve(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv),dst.block(SolutionBlocks::unfiltered_density_multiplier), pre_j , PreconditionIdentity());
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_1" << std::endl;
@@ -547,7 +557,8 @@ namespace SAND {
                 SolverControl step_5_gmres_control_2 (100000, pre_k.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
                 try {
-                    dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2, PreconditionIdentity()) * pre_k;
+//                    dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2, PreconditionIdentity()) * pre_k;
+                        step_5_gmres_1.solve(op_k_inv,dst.block(SolutionBlocks::density), pre_k , PreconditionIdentity());
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_2" << std::endl;
