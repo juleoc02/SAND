@@ -153,17 +153,17 @@ namespace SAND {
 
 
 
-            double l_global[n_p]= {0};
-            double lm_global[n_p]= {0};
-            double u_global[n_p]= {0};
-            double um_global[n_p]= {0};
-            double m_global[n_p]= {0};
+            std::vector<double> l_global(n_p);
+            std::vector<double> lm_global(n_p);
+            std::vector<double> u_global(n_p);
+            std::vector<double> um_global(n_p);
+            std::vector<double> m_global(n_p);
 
-            double l[n_p]= {0};
-            double lm[n_p]= {0};
-            double u[n_p]= {0};
-            double um[n_p]= {0};
-            double m[n_p]= {0};
+            std::vector<double> l(n_p);
+            std::vector<double> lm(n_p);
+            std::vector<double> u(n_p);
+            std::vector<double> um(n_p);
+            std::vector<double> m(n_p);
 
             TimerOutput::Scope t(timer, "build diag matrices");
             for (const auto cell: dof_handler.active_cell_iterators())
@@ -200,11 +200,11 @@ namespace SAND {
                 }
             }
 
-            MPI_Allreduce(&lm, &lm_global, n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            MPI_Allreduce(&l, &l_global, n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            MPI_Allreduce(&um, &um_global, n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            MPI_Allreduce(&u, &u_global, n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            MPI_Allreduce(&m, &m_global, n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(lm.data(), lm_global.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(l.data(), l_global.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(um.data(), um_global.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(u.data(), u_global.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(m.data(), m_global.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
             for (unsigned int k=0; k< n_p; k++)
             {
@@ -257,7 +257,7 @@ namespace SAND {
 
         op_k_inv = (-1 * op_g *op_d_m_inv * op_h - op_d_m);
 
-
+        op_j_inv = transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv);
 
 
     }
@@ -538,13 +538,13 @@ namespace SAND {
                 auto pre_pre_k = pre_k;
                 pre_pre_k = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
                 pre_k =  pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
-
                 SolverControl step_5_gmres_control_1 (100000, pre_j.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
                 try {
+                    TimerOutput::Scope t(timer, "actual inverse 4.1");
 //                    dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv), step_5_gmres_1, PreconditionIdentity()) *
 //                                                                               pre_j;
-                    step_5_gmres_1.solve(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv),dst.block(SolutionBlocks::unfiltered_density_multiplier), pre_j , PreconditionIdentity());
+                    step_5_gmres_1.solve(op_j_inv, dst.block(SolutionBlocks::unfiltered_density_multiplier), pre_j , PreconditionIdentity());
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_1" << std::endl;
@@ -557,8 +557,9 @@ namespace SAND {
                 SolverControl step_5_gmres_control_2 (100000, pre_k.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
                 try {
+                    TimerOutput::Scope t(timer, "actual inverse 4.2");
 //                    dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2, PreconditionIdentity()) * pre_k;
-                        step_5_gmres_1.solve(op_k_inv,dst.block(SolutionBlocks::density), pre_k , PreconditionIdentity());
+                        step_5_gmres_2.solve(op_k_inv,dst.block(SolutionBlocks::density), pre_k , PreconditionIdentity());
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_2" << std::endl;

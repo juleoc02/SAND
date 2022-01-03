@@ -187,8 +187,7 @@ namespace SAND
         LinearOperator<VectorType,VectorType,PayloadType> op_g;
         LinearOperator<VectorType,VectorType,PayloadType> op_h;
         LinearOperator<VectorType,VectorType,PayloadType> op_k_inv;
-
-
+        LinearOperator<VectorType,VectorType,PayloadType> op_j_inv;
     };
 
 }
