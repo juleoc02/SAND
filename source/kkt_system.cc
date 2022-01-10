@@ -1143,8 +1143,6 @@ namespace SAND {
                 std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
 
-                const types::global_dof_index dof_index_lower_slack =
-                        i[cell->get_fe().component_to_system_index(0, 0)];
                 typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
                         i[cell->get_fe().component_to_system_index(0, 0)]);
                 for (; iter != density_filter.filter_matrix.end(i[cell->get_fe().component_to_system_index(0, 0)]); iter++) {
@@ -1785,14 +1783,14 @@ namespace SAND {
         switch (Input::solver_choice) {
 
             case SolverOptions::inexact_K_with_exact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  locally_relevant_solution, distributed_solution);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
                 SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
                 B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
                 pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
                 break;
             }
             case SolverOptions::inexact_K_with_inexact_A_gmres: {
-                preconditioner.initialize(system_matrix, boundary_values, dof_handler,  locally_relevant_solution, distributed_solution);
+                preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
                 SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
                 C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
                 pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;

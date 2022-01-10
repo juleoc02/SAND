@@ -23,8 +23,8 @@ namespace SAND {
     template<int dim>
     TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in)
             :
-            mpi_communicator(MPI_COMM_WORLD),
             system_matrix(matrix_in),
+            mpi_communicator(MPI_COMM_WORLD),
             n_rows(0),
             n_columns(0),
             n_block_rows(0),
@@ -53,7 +53,7 @@ namespace SAND {
     }
 
     template<int dim>
-    void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &locally_relevant_state, const LA::MPI::BlockVector &distributed_state)
+    void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &distributed_state)
     {
         TimerOutput::Scope t(timer, "initialize");
         {
