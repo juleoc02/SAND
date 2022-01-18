@@ -257,7 +257,7 @@ namespace SAND {
 
         op_k_inv = (-1 * op_g *op_d_m_inv * op_h - op_d_m);
 
-        op_j_inv = transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv);
+
 
 
     }
@@ -365,8 +365,6 @@ namespace SAND {
         dst = src;
         auto dst_temp = dst;
         auto k_density_mult =  src.block(SolutionBlocks::density);
-
-
 
         if (Input::solver_choice == SolverOptions::exact_preconditioner_with_gmres)
         {
@@ -534,20 +532,23 @@ namespace SAND {
 
             else if (Input::solver_choice == SolverOptions::inexact_K_with_exact_A_gmres)
             {
-                pre_j = src.block(SolutionBlocks::density) + op_h * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
                 auto pre_pre_k = pre_k;
-                pre_pre_k = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
-                pre_k =  pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
+                {
+                    TimerOutput::Scope t(timer, "not inverse 5.1");
+                    pre_j = src.block(SolutionBlocks::density) + op_h * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
+                    pre_pre_k = -1 * op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density);
+                    pre_k =  pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
+                }
                 SolverControl step_5_gmres_control_1 (100000, pre_j.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
                 try {
-                    TimerOutput::Scope t(timer, "actual inverse 4.1");
+                    TimerOutput::Scope t(timer, "actual inverse 5.1");
 //                    dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv), step_5_gmres_1, PreconditionIdentity()) *
 //                                                                               pre_j;
-                    step_5_gmres_1.solve(op_j_inv, dst.block(SolutionBlocks::unfiltered_density_multiplier), pre_j , PreconditionIdentity());
+                    step_5_gmres_1.solve(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv), dst.block(SolutionBlocks::unfiltered_density_multiplier), pre_j , PreconditionIdentity());
                 } catch (std::exception &exc)
                 {
-                    std::cerr << "Failure of linear solver step_5_gmres_1" << std::endl;
+                    std::cerr << "Failure of linear solver step_5_gmres_1 again" << std::endl;
                     pcout << "first residual: " << step_5_gmres_control_1.initial_value() << std::endl;
                     pcout << "last residual: " << step_5_gmres_control_1.last_value() << std::endl;
                     throw;
@@ -557,9 +558,9 @@ namespace SAND {
                 SolverControl step_5_gmres_control_2 (100000, pre_k.l2_norm()*1e-6);
                 SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
                 try {
-                    TimerOutput::Scope t(timer, "actual inverse 4.2");
+                    TimerOutput::Scope t(timer, "actual inverse 5.2");
 //                    dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2, PreconditionIdentity()) * pre_k;
-                        step_5_gmres_2.solve(op_k_inv,dst.block(SolutionBlocks::density), pre_k , PreconditionIdentity());
+                    step_5_gmres_2.solve(op_k_inv,dst.block(SolutionBlocks::density), pre_k , PreconditionIdentity());
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_2" << std::endl;
