@@ -1737,9 +1737,9 @@ namespace SAND {
         for (const auto &cell: dof_handler.active_cell_iterators()) {
             if(cell->is_locally_owned())
             {
-                if (distributed_solution.block(SolutionBlocks::density).in_local_range(cell->active_cell_index()))
+                if (distributed_solution.block(SolutionBlocks::density).in_local_range(cell->get_fe().component_to_system_index(0, 0)))
                 {
-                    total_volume_temp += cell->measure() * state.block(SolutionBlocks::density)[cell->active_cell_index()];
+                    total_volume_temp += cell->measure() * state.block(SolutionBlocks::density)[cell->get_fe().component_to_system_index(0, 0)];
                     goal_volume_temp += cell->measure() * Input::volume_percentage;
                 }
             }
@@ -1907,7 +1907,7 @@ namespace SAND {
 
         for (const auto &cell: dof_handler.active_cell_iterators()) {
             if (state.block(
-                    SolutionBlocks::density)[cell->active_cell_index()] > 0.5) {
+                    SolutionBlocks::density)[cell->get_fe().component_to_system_index(0, 0)] > 0.5) {
                 const Tensor<1, dim> edge_directions[2] = {cell->vertex(1) -
                                                            cell->vertex(0),
                                                            cell->vertex(2) -
@@ -2020,7 +2020,7 @@ namespace SAND {
                     if ((face->at_boundary()) ||
                         (!face->at_boundary() &&
                          (state.block(
-                                 SolutionBlocks::density)[cell->neighbor(face_number)->active_cell_index()] <
+                                 SolutionBlocks::density)[cell->neighbor(face_number)->get_fe().component_to_system_index(0, 0)] <
                           0.5))) {
                         const Tensor<1, dim> normal_vector =
                                 (face->center() - cell->center());
@@ -2126,7 +2126,7 @@ namespace SAND {
         for (const auto &cell : dof_handler.active_cell_iterators())
         {
             if (state.block(
-                    SolutionBlocks::unfiltered_density)[cell->active_cell_index()] > 0.5)
+                    SolutionBlocks::unfiltered_density)[cell->get_fe().component_to_system_index(0, 0)] > 0.5)
             {
                 for (const auto n : cell->face_indices())
                 {
@@ -2136,7 +2136,7 @@ namespace SAND {
                         create_boundary = true;
                     }
                     else if (state.block(
-                            SolutionBlocks::unfiltered_density)[cell->neighbor(n)->active_cell_index()] <= 0.5)
+                            SolutionBlocks::unfiltered_density)[cell->neighbor(n)->get_fe().component_to_system_index(0, 0)] <= 0.5)
                     {
                         create_boundary = true;
                     }
