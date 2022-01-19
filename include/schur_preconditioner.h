@@ -104,7 +104,7 @@ namespace SAND
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
         TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in);
-        void initialize (LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &state, const LA::MPI::BlockVector &distributed_state);
+        void initialize (LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &distributed_state);
         void vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
         void Tvmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
         void vmult_add(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
@@ -173,8 +173,9 @@ namespace SAND
         SolverControl direct_solver_control;
         mutable VmultTrilinosSolverDirect a_inv_direct;
 //        TrilinosWrappers::SolverDirect a_inv_direct;
-        mutable TimerOutput timer;
         ConditionalOStream pcout;
+        mutable TimerOutput timer;
+
 
         LinearOperator<VectorType,VectorType,PayloadType> op_d_8;
         LinearOperator<VectorType,VectorType,PayloadType> op_f;
@@ -187,8 +188,7 @@ namespace SAND
         LinearOperator<VectorType,VectorType,PayloadType> op_g;
         LinearOperator<VectorType,VectorType,PayloadType> op_h;
         LinearOperator<VectorType,VectorType,PayloadType> op_k_inv;
-
-
+        LinearOperator<VectorType,VectorType,PayloadType> op_j_inv;
     };
 
 }

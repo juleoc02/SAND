@@ -134,7 +134,7 @@ namespace SAND {
         mutable LA::MPI::BlockVector locally_relevant_solution;
         mutable LA::MPI::BlockVector distributed_solution;
         LA::MPI::BlockVector system_rhs;
-        parallel::shared::Triangulation<dim> triangulation;
+        parallel::distributed::Triangulation<dim> triangulation;
         DoFHandler<dim> dof_handler;
         AffineConstraints<double> constraints;
         FESystem<dim> fe_nine;

@@ -7,6 +7,7 @@
 #include <deal.II/lac/block_sparse_matrix.h>
 #include <deal.II/lac/precondition.h>
 #include <deal.II/grid/tria.h>
+#include <deal.II/grid/cell_id.h>
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
 
@@ -94,9 +95,9 @@ namespace SAND {
     template<int dim>
     std::set<typename DoFHandler<dim>::cell_iterator>
     DensityFilter<dim>::find_relevant_neighbors(typename DoFHandler<dim>::cell_iterator cell) const {
-        std::set<unsigned int> neighbor_ids;
+        std::set<CellId> neighbor_ids;
         std::set<typename DoFHandler<dim>::cell_iterator> cells_to_check;
-        neighbor_ids.insert(cell->active_cell_index());
+        neighbor_ids.insert(cell->id());
         cells_to_check.insert(cell);
         bool new_neighbors_found;
         do {
@@ -110,10 +111,10 @@ namespace SAND {
                         const double distance =
                                 cell->center().distance(neighbor->center());
                         if ((distance < Input::filter_r) &&
-                            !(neighbor_ids.count(neighbor->active_cell_index())))
+                            !(neighbor_ids.count(neighbor->id())))
                         {
                             cells_to_check.insert(neighbor);
-                            neighbor_ids.insert(neighbor->active_cell_index());
+                            neighbor_ids.insert(neighbor->id());
                             new_neighbors_found = true;
                         }
                     }
