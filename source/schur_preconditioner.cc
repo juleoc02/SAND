@@ -63,7 +63,8 @@ namespace SAND {
                     SolutionBlocks::displacement);
             const types::global_dof_index disp_mult_start_index = system_matrix.get_row_indices().block_start(
                     SolutionBlocks::displacement_multiplier);
-            for (auto&[dof_index, boundary_value]: boundary_values) {
+            for (auto &pair: boundary_values) {
+                const auto dof_index=pair.first;
 
                 const types::global_dof_index n_u = system_matrix.block(SolutionBlocks::displacement,
                                                                         SolutionBlocks::displacement).m();
@@ -83,7 +84,8 @@ namespace SAND {
             }
 
             //set diagonal to 0?
-            for (auto&[dof_index, boundary_value]: boundary_values) {
+            for (auto &pair: boundary_values) {
+                const auto dof_index=pair.first;
                 const types::global_dof_index disp_start_index = system_matrix.get_row_indices().block_start(
                         SolutionBlocks::displacement);
                 const types::global_dof_index disp_mult_start_index = system_matrix.get_row_indices().block_start(

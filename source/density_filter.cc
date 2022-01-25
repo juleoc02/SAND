@@ -64,10 +64,10 @@ namespace SAND
                 }
              }
          }
-         x_coord.compress(VectorOperation::add);
-         y_coord.compress(VectorOperation::add);
-         z_coord.compress(VectorOperation::add);
-         cell_m.compress(VectorOperation::add);
+         x_coord.compress(VectorOperation::insert);
+         y_coord.compress(VectorOperation::insert);
+         z_coord.compress(VectorOperation::insert);
+         cell_m.compress(VectorOperation::insert);
 
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             if(cell->is_locally_owned())
