@@ -70,10 +70,14 @@ namespace SAND {
         std::set<types::global_dof_index> find_relevant_neighbors(types::global_dof_index cell_index) const;
 
     private:
-        LA::MPI::Vector cell_m;
-        LA::MPI::Vector x_coord;
-        LA::MPI::Vector y_coord;
-        LA::MPI::Vector z_coord;
+        std::vector<double> cell_m;
+        std::vector<double> x_coord;
+        std::vector<double> y_coord;
+        std::vector<double> z_coord;
+        std::vector<double> cell_m_part;
+        std::vector<double> x_coord_part;
+        std::vector<double> y_coord_part;
+        std::vector<double> z_coord_part;
 
     };
 }

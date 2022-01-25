@@ -22,7 +22,6 @@ namespace SAND
     DensityFilter<dim>::DensityFilter() :
         mpi_communicator(MPI_COMM_WORLD)
     {
-
     }
 
 
@@ -36,10 +35,14 @@ namespace SAND
                 DoFTools::count_dofs_per_fe_block(dof_handler, block_component);
         const unsigned int n_p = dofs_per_block[0];
         IndexSet local_owned = dof_handler.locally_owned_dofs().get_view(0, n_p);
-        x_coord.reinit(local_owned,mpi_communicator);
-        y_coord.reinit(local_owned,mpi_communicator);
-        z_coord.reinit(local_owned,mpi_communicator);
-        cell_m.reinit(local_owned,mpi_communicator);
+        x_coord.resize(n_p);
+        y_coord.resize(n_p);
+        z_coord.resize(n_p);
+        cell_m.resize(n_p);
+        x_coord_part.resize(n_p);
+        y_coord_part.resize(n_p);
+        z_coord_part.resize(n_p);
+        cell_m_part.resize(n_p);
 
         filter_dsp.reinit(dofs_per_block[0],
                           dofs_per_block[0]);
@@ -55,19 +58,20 @@ namespace SAND
                 std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
                 const unsigned int i_val = i[cell->get_fe().component_to_system_index(0, 0)];
-                x_coord[i_val] = cell->center()[0] ;
-                y_coord[i_val] = cell->center()[1] ;
-                cell_m[i_val] = cell->measure();
+                x_coord_part[i_val] = cell->center()[0] ;
+                y_coord_part[i_val] = cell->center()[1] ;
+                cell_m_part[i_val] = cell->measure();
                 if (dim==3)
                 {
-                    z_coord[i_val] = cell->center()[2] ;
+                    z_coord_part[i_val] = cell->center()[2] ;
                 }
              }
          }
-         x_coord.compress(VectorOperation::insert);
-         y_coord.compress(VectorOperation::insert);
-         z_coord.compress(VectorOperation::insert);
-         cell_m.compress(VectorOperation::insert);
+
+        MPI_Allreduce(x_coord_part.data(), x_coord.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(y_coord_part.data(), y_coord.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(z_coord_part.data(), z_coord.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(cell_m_part.data(), cell_m.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
         for (const auto &cell : dof_handler.active_cell_iterators()) {
             if(cell->is_locally_owned())
@@ -147,8 +151,6 @@ namespace SAND
     {
         double d_x,d_y,d_z;
         std::set<types::global_dof_index> relevant_cells;
-        if(x_coord.in_local_range(cell_index))
-        {
             for (unsigned int i=0; i < x_coord.size(); i++)
             {
                 d_x = std::abs(x_coord[cell_index]-x_coord[i]);
@@ -176,12 +178,6 @@ namespace SAND
 
                     }
                 }
-
-            }
-        }
-        else
-        {
-             throw;
         }
 
         return relevant_cells;
