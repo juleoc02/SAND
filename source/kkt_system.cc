@@ -744,14 +744,13 @@ namespace SAND {
                 {
                     std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
                     cell->get_dof_indices(i);
-                    for (const auto &neighbor_cell : density_filter.find_relevant_neighbors(cell)) {
-                        std::vector<types::global_dof_index> j(neighbor_cell->get_fe().n_dofs_per_cell());
-                        neighbor_cell->get_dof_indices(j);
-
+                    const unsigned int cell_index = i[cell->get_fe().component_to_system_index(0, 0)];
+                    for (const auto &neighbor_cell_index : density_filter.find_relevant_neighbors(cell_index))
+                    {
                         dsp.block(SolutionBlocks::unfiltered_density_multiplier,
-                                  SolutionBlocks::unfiltered_density).add(i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)], j[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)]);
+                                  SolutionBlocks::unfiltered_density).add(cell_index, neighbor_cell_index);
                         dsp.block(SolutionBlocks::unfiltered_density,
-                                  SolutionBlocks::unfiltered_density_multiplier).add(j[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)], i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)]);
+                                  SolutionBlocks::unfiltered_density_multiplier).add(neighbor_cell_index, cell_index);
                     }
                 }
             }

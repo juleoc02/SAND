@@ -11,7 +11,8 @@
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
 
-namespace SAND {
+namespace SAND
+{
     using namespace dealii;
 
     /* When initialized, this function takes the current triangulation and creates a matrix corresponding to a
@@ -49,19 +50,17 @@ namespace SAND {
         /*finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
          for (const auto &cell : dof_handler.active_cell_iterators())
          {
-
-
              if(cell->is_locally_owned())
              {
                 std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
-                const int i_ind = cell->get_fe().component_to_system_index(0, 0);
-                x_coord.set(i[i_ind],cell->center()[0]) ;
-                y_coord.set(i[i_ind],cell->center()[1]) ;
-                cell_m.set(i[i_ind],cell->measure());
+                const unsigned int i_val = i[cell->get_fe().component_to_system_index(0, 0)];
+                x_coord[i_val] = cell->center()[0] ;
+                y_coord[i_val] = cell->center()[1] ;
+                cell_m[i_val] = cell->measure();
                 if (dim==3)
                 {
-                    z_coord.set(i[i_ind],cell->center()[2]) ;
+                    z_coord[i_val] = cell->center()[2] ;
                 }
              }
          }
@@ -95,15 +94,14 @@ namespace SAND {
             {
                 std::vector<unsigned int> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
-                const int i_ind = &cell->get_fe().component_to_system_index(0, 0);
-                for (const auto &neighbor_cell_index : find_relevant_neighbors(i[i_ind]))
+                for (const auto &neighbor_cell_index : find_relevant_neighbors(i[cell->get_fe().component_to_system_index(0, 0)]))
                 {
-                    double d_x = std::abs(x_coord[i[i_ind]]-x_coord[neighbor_cell_index]);
-                    double d_y = std::abs(y_coord[i[i_ind]]-y_coord[neighbor_cell_index]);
+                    double d_x = std::abs(x_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-x_coord[neighbor_cell_index]);
+                    double d_y = std::abs(y_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-y_coord[neighbor_cell_index]);
                     double d;
                     if (dim==3)
                     {
-                        double d_z = std::abs(z_coord[i[i_ind]]-z_coord[neighbor_cell_index]);
+                        double d_z = std::abs(z_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-z_coord[neighbor_cell_index]);
                         d = std::pow(d_x*d_x + d_y*d_y + d_z*d_z , .5);
                     }
                     else
@@ -112,7 +110,7 @@ namespace SAND {
                     }
                     /*value should be (max radius - distance between cells)*cell measure */
                     double value = (Input::filter_r - d)*cell_m[neighbor_cell_index];
-                    filter_matrix.add(i[i_ind], neighbor_cell_index, value);
+                    filter_matrix.add(i[cell->get_fe().component_to_system_index(0, 0)], neighbor_cell_index, value);
                 }
             }
         }
@@ -185,6 +183,9 @@ namespace SAND {
         {
              throw;
         }
+
+        return relevant_cells;
+
     }
 
 }//SAND namespace
