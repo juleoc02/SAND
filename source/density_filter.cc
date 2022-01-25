@@ -49,16 +49,19 @@ namespace SAND {
         /*finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
          for (const auto &cell : dof_handler.active_cell_iterators())
          {
+
+
              if(cell->is_locally_owned())
              {
                 std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
-                x_coord.set(i[cell->get_fe().component_to_system_index(0, 0)],cell->center(0)) ;
-                y_coord.set(i[cell->get_fe().component_to_system_index(0, 0)],cell->center(1)) ;
-                cell_m.set(i[cell->get_fe().component_to_system_index(0, 0)],cell->measure());
+                const int i_ind = cell->get_fe().component_to_system_index(0, 0);
+                x_coord.set(i[i_ind],cell->center()[0]) ;
+                y_coord.set(i[i_ind],cell->center()[1]) ;
+                cell_m.set(i[i_ind],cell->measure());
                 if (dim==3)
                 {
-                    z_coord.set(i[cell->get_fe().component_to_system_index(0, 0)],cell->center(2)) ;
+                    z_coord.set(i[i_ind],cell->center()[2]) ;
                 }
              }
          }
@@ -72,9 +75,9 @@ namespace SAND {
             {
                 std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
-                for (const auto &neighbor_cell_index : find_relevant_neighbors(cell))
+                for (const auto &neighbor_cell_index : find_relevant_neighbors(i[cell->get_fe().component_to_system_index(0, 0)]))
                 {
-                    filter_dsp.set(i[cell->get_fe().component_to_system_index(0, 0)], neighbor_cell_index);
+                    filter_dsp.add(i[cell->get_fe().component_to_system_index(0, 0)], neighbor_cell_index);
                 }
             }
         }
@@ -90,15 +93,17 @@ namespace SAND {
         {
             if(cell->is_locally_owned())
             {
-                std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
+                std::vector<unsigned int> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
-                for (const auto &neighbor_cell_index : find_relevant_neighbors(cell)) {
-                    double d_x = std::abs(x_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-x_coord[neighbor_cell_index]);
-                    double d_y = std::abs(y_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-y_coord[neighbor_cell_index]);
+                const int i_ind = &cell->get_fe().component_to_system_index(0, 0);
+                for (const auto &neighbor_cell_index : find_relevant_neighbors(i[i_ind]))
+                {
+                    double d_x = std::abs(x_coord[i[i_ind]]-x_coord[neighbor_cell_index]);
+                    double d_y = std::abs(y_coord[i[i_ind]]-y_coord[neighbor_cell_index]);
                     double d;
                     if (dim==3)
                     {
-                        double d_z = std::abs(z_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-z_coord[neighbor_cell_index]);
+                        double d_z = std::abs(z_coord[i[i_ind]]-z_coord[neighbor_cell_index]);
                         d = std::pow(d_x*d_x + d_y*d_y + d_z*d_z , .5);
                     }
                     else
@@ -107,7 +112,7 @@ namespace SAND {
                     }
                     /*value should be (max radius - distance between cells)*cell measure */
                     double value = (Input::filter_r - d)*cell_m[neighbor_cell_index];
-                    filter_matrix.add(i[cell->get_fe().component_to_system_index(0, 0)], neighbor_cell_index, value);
+                    filter_matrix.add(i[i_ind], neighbor_cell_index, value);
                 }
             }
         }
@@ -119,15 +124,16 @@ namespace SAND {
             {
                 std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
+                const int i_ind = cell->get_fe().component_to_system_index(0, 0);
                 double denominator = 0;
                 typename LA::MPI::SparseMatrix::iterator iter = filter_matrix.begin(
-                        i[cell->get_fe().component_to_system_index(0, 0)]);
-                for (; iter != filter_matrix.end(i[cell->get_fe().component_to_system_index(0, 0)]); iter++)
+                        i[i_ind]);
+                for (; iter != filter_matrix.end(i[i_ind]); iter++)
                 {
                     denominator = denominator + iter->value();
                 }
-                iter = filter_matrix.begin(i[cell->get_fe().component_to_system_index(0, 0)]);
-                for (; iter != filter_matrix.end(i[cell->get_fe().component_to_system_index(0, 0)]); iter++)
+                iter = filter_matrix.begin(i[i_ind]);
+                for (; iter != filter_matrix.end(i[i_ind]); iter++)
                 {
                     iter->value() = iter->value() / denominator;
                 }
@@ -138,15 +144,12 @@ namespace SAND {
 
     /*This function finds which neighbors are within a certain radius of the initial cell.*/
     template<int dim>
-    std::set<unsigned int>
-    DensityFilter<dim>::find_relevant_neighbors(typename DoFHandler<dim>::cell_iterator cell) const
+    std::set<types::global_dof_index>
+    DensityFilter<dim>::find_relevant_neighbors(types::global_dof_index cell_index) const
     {
-        std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
-        cell->get_dof_indices(i);
         double d_x,d_y,d_z;
-        std::set<unsigned int> relevant_cells;
-        auto cell_index = i[cell->get_fe().component_to_system_index(0, 0)];
-        if(cell->is_locally_owned())
+        std::set<types::global_dof_index> relevant_cells;
+        if(x_coord.in_local_range(cell_index))
         {
             for (unsigned int i=0; i < x_coord.size(); i++)
             {

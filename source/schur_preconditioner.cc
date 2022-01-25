@@ -125,12 +125,11 @@ namespace SAND {
         {
             TimerOutput::Scope t(timer, "build A inv");
 
-            if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-            {
-                std::string name = "a_mat";
-                print_matrix(name, a_mat);
-            }
-
+//            if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+//            {
+//                std::string name = "a_mat";
+//                print_matrix(name, a_mat);
+//            }
             a_inv_direct.initialize(a_mat);
         }
         {

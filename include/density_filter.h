@@ -67,7 +67,7 @@ namespace SAND {
         LA::MPI::SparseMatrix filter_matrix;
         SparsityPattern filter_sparsity_pattern;
         void initialize(DoFHandler<dim> &dof_handler);
-        std::set<unsigned int> find_relevant_neighbors(typename DoFHandler<dim>::cell_iterator cell) const;
+        std::set<types::global_dof_index> find_relevant_neighbors(types::global_dof_index cell_index) const;
 
     private:
         LA::MPI::Vector cell_m;
