@@ -47,7 +47,6 @@ namespace SAND
 
         filter_dsp.reinit(dofs_per_block[0],
                           dofs_per_block[0]);
-        std::cout << "initialized with " << dofs_per_block[0] << std::endl;
         std::set<unsigned int> neighbor_ids;
         std::set<typename DoFHandler<dim>::cell_iterator> cells_to_check;
         std::set<typename DoFHandler<dim>::cell_iterator> cells_to_check_temp;
@@ -142,7 +141,6 @@ namespace SAND
                 }
             }
         }
-        std::cout << "density nonzero entries" << filter_matrix.n_nonzero_elements() << std::endl;
     }
 
     /*This function finds which neighbors are within a certain radius of the initial cell.*/
