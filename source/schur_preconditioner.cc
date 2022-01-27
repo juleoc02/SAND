@@ -62,12 +62,9 @@ namespace SAND {
                         SolutionBlocks::displacement);
                 const types::global_dof_index disp_mult_start_index = system_matrix.get_row_indices().block_start(
                         SolutionBlocks::displacement_multiplier);
-                std::cout << "displacement start: " << disp_start_index << std::endl;
-                std::cout << "displacement multiplier start: " << disp_mult_start_index << std::endl;
 
                 for (auto &pair: boundary_values) {
                     const auto dof_index=pair.first;
-                    std::cout << "constraint index: " << dof_index << " on process: " << Utilities::MPI::this_mpi_process(mpi_communicator) << std::endl;
                     const types::global_dof_index n_u = system_matrix.block(SolutionBlocks::displacement,
                                                                             SolutionBlocks::displacement).m();
                     if ((dof_index >= disp_start_index) && (dof_index < disp_start_index + n_u)) {
