@@ -1736,9 +1736,11 @@ namespace SAND {
         for (const auto &cell: dof_handler.active_cell_iterators()) {
             if(cell->is_locally_owned())
             {
-                if (distributed_solution.block(SolutionBlocks::density).in_local_range(cell->get_fe().component_to_system_index(0, 0)))
+                std::vector<unsigned int> i(cell->get_fe().n_dofs_per_cell());
+                cell->get_dof_indices(i);
+                if (distributed_solution.block(SolutionBlocks::density).in_local_range(i[cell->get_fe().component_to_system_index(0, 0)]))
                 {
-                    total_volume_temp += cell->measure() * state.block(SolutionBlocks::density)[cell->get_fe().component_to_system_index(0, 0)];
+                    total_volume_temp += cell->measure() * state.block(SolutionBlocks::density)[i[cell->get_fe().component_to_system_index(0, 0)]];
                     goal_volume_temp += cell->measure() * Input::volume_percentage;
                 }
             }
@@ -1746,6 +1748,8 @@ namespace SAND {
 
         MPI_Allreduce(&total_volume_temp, &total_volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         MPI_Allreduce(&goal_volume_temp, &goal_volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+        pcout << "total_volume: " << total_volume  << " and goal_volume: " << goal_volume << std::endl;
 
         if (test_rhs.block(SolutionBlocks::total_volume_multiplier).in_local_range(0))
         {

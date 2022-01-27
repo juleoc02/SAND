@@ -20,7 +20,8 @@ namespace SAND
 
     template<int dim>
     DensityFilter<dim>::DensityFilter() :
-        mpi_communicator(MPI_COMM_WORLD)
+        mpi_communicator(MPI_COMM_WORLD),
+        pcout(std::cout,(Utilities::MPI::this_mpi_process(mpi_communicator) == 0))
     {
     }
 

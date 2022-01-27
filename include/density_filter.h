@@ -79,6 +79,8 @@ namespace SAND {
         std::vector<double> y_coord_part;
         std::vector<double> z_coord_part;
 
+        ConditionalOStream pcout;
+
     };
 }
 #endif //SAND_DENSITY_FILTER_H

@@ -58,67 +58,58 @@ namespace SAND {
         TimerOutput::Scope t(timer, "initialize");
         {
 
-            TimerOutput::Scope t(timer, "diag stuff");
-            const types::global_dof_index disp_start_index = system_matrix.get_row_indices().block_start(
-                    SolutionBlocks::displacement);
-            const types::global_dof_index disp_mult_start_index = system_matrix.get_row_indices().block_start(
-                    SolutionBlocks::displacement_multiplier);
-            for (auto &pair: boundary_values) {
-                const auto dof_index=pair.first;
-
-                const types::global_dof_index n_u = system_matrix.block(SolutionBlocks::displacement,
-                                                                        SolutionBlocks::displacement).m();
-                if ((dof_index >= disp_start_index) && (dof_index < disp_start_index + n_u)) {
-                    double diag_val = system_matrix.block(SolutionBlocks::displacement,
-                                                          SolutionBlocks::displacement).el(
-                            dof_index - disp_start_index, dof_index - disp_start_index);
-                    system_matrix.block(SolutionBlocks::displacement, SolutionBlocks::displacement_multiplier).set(
-                            dof_index - disp_start_index, dof_index - disp_start_index, diag_val);
-                } else if ((dof_index >= disp_mult_start_index) && (dof_index < disp_mult_start_index + n_u)) {
-                    double diag_val = system_matrix.block(SolutionBlocks::displacement_multiplier,
-                                                          SolutionBlocks::displacement_multiplier).el(
-                            dof_index - disp_mult_start_index, dof_index - disp_mult_start_index);
-                    system_matrix.block(SolutionBlocks::displacement_multiplier, SolutionBlocks::displacement).set(
-                            dof_index - disp_mult_start_index, dof_index - disp_mult_start_index, diag_val);
-                }
-            }
-
-            //set diagonal to 0?
-            for (auto &pair: boundary_values) {
-                const auto dof_index=pair.first;
+            if(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
+            {
+                TimerOutput::Scope t(timer, "diag stuff");
                 const types::global_dof_index disp_start_index = system_matrix.get_row_indices().block_start(
                         SolutionBlocks::displacement);
                 const types::global_dof_index disp_mult_start_index = system_matrix.get_row_indices().block_start(
                         SolutionBlocks::displacement_multiplier);
-                const types::global_dof_index n_u = system_matrix.block(SolutionBlocks::displacement,
-                                                                        SolutionBlocks::displacement).m();
-                if ((dof_index >= disp_start_index) && (dof_index < disp_start_index + n_u)) {
-                    system_matrix.block(SolutionBlocks::displacement, SolutionBlocks::displacement).set(
-                            dof_index - disp_start_index, dof_index - disp_start_index, 0);
-                } else if ((dof_index >= disp_mult_start_index) && (dof_index < disp_mult_start_index + n_u)) {
-                    system_matrix.block(SolutionBlocks::displacement_multiplier,
-                                        SolutionBlocks::displacement_multiplier).set(
-                            dof_index - disp_mult_start_index, dof_index - disp_mult_start_index, 0);
+                for (auto &pair: boundary_values) {
+                    const auto dof_index=pair.first;
+
+                    const types::global_dof_index n_u = system_matrix.block(SolutionBlocks::displacement,
+                                                                            SolutionBlocks::displacement).m();
+                    if ((dof_index >= disp_start_index) && (dof_index < disp_start_index + n_u)) {
+                        double diag_val = system_matrix.block(SolutionBlocks::displacement,
+                                                              SolutionBlocks::displacement).el(
+                                dof_index - disp_start_index, dof_index - disp_start_index);
+                        system_matrix.block(SolutionBlocks::displacement, SolutionBlocks::displacement_multiplier).set(
+                                dof_index - disp_start_index, dof_index - disp_start_index, diag_val);
+                    } else if ((dof_index >= disp_mult_start_index) && (dof_index < disp_mult_start_index + n_u)) {
+                        double diag_val = system_matrix.block(SolutionBlocks::displacement_multiplier,
+                                                              SolutionBlocks::displacement_multiplier).el(
+                                dof_index - disp_mult_start_index, dof_index - disp_mult_start_index);
+                        system_matrix.block(SolutionBlocks::displacement_multiplier, SolutionBlocks::displacement).set(
+                                dof_index - disp_mult_start_index, dof_index - disp_mult_start_index, diag_val);
+                    }
+                }
+
+                //set diagonal to 0?
+                for (auto &pair: boundary_values) {
+                    const auto dof_index=pair.first;
+                    const types::global_dof_index disp_start_index = system_matrix.get_row_indices().block_start(
+                            SolutionBlocks::displacement);
+                    const types::global_dof_index disp_mult_start_index = system_matrix.get_row_indices().block_start(
+                            SolutionBlocks::displacement_multiplier);
+                    const types::global_dof_index n_u = system_matrix.block(SolutionBlocks::displacement,
+                                                                            SolutionBlocks::displacement).m();
+                    if ((dof_index >= disp_start_index) && (dof_index < disp_start_index + n_u)) {
+                        system_matrix.block(SolutionBlocks::displacement, SolutionBlocks::displacement).set(
+                                dof_index - disp_start_index, dof_index - disp_start_index, 0);
+                    } else if ((dof_index >= disp_mult_start_index) && (dof_index < disp_mult_start_index + n_u)) {
+                        system_matrix.block(SolutionBlocks::displacement_multiplier,
+                                            SolutionBlocks::displacement_multiplier).set(
+                                dof_index - disp_mult_start_index, dof_index - disp_mult_start_index, 0);
+                    }
                 }
             }
 
-//            system_matrix.compress(VectorOperation::insert);
-
-//            const unsigned int m = a_mat.m();
-//            const unsigned int n = a_mat.n();
-//            std::ofstream Xmat("a_mat_par.csv");
-//            for (unsigned int i = 0; i < m; i++)
-//            {
-//                Xmat << a_mat.el(i, 0);
-//                for (unsigned int j = 1; j < n; j++)
-//                {
-//                    Xmat << "," << a_mat.el(i, j);
-//                }
-//                Xmat << "\n";
-//            }
-//            Xmat.close();
-
+            system_matrix.compress(VectorOperation::insert);
         }
+
+
+
         if (Input::solver_choice==SolverOptions::inexact_K_with_inexact_A_gmres)
         {
 
@@ -126,12 +117,6 @@ namespace SAND {
         else
         {
             TimerOutput::Scope t(timer, "build A inv");
-
-//            if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-//            {
-//                std::string name = "a_mat";
-//                print_matrix(name, a_mat);
-//            }
             a_inv_direct.initialize(a_mat);
         }
         {
