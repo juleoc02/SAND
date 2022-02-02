@@ -17,8 +17,8 @@ namespace SAND {
         //geometry options
         constexpr unsigned int geometry_base = GeometryOptions::mbb;
 
-        constexpr unsigned int dim = 2;
-        constexpr unsigned int refinements =  4;
+        constexpr unsigned int dim = 3;
+        constexpr unsigned int refinements =  3;
 
         //nonlinear algorithm options
         constexpr double initial_barrier_size = 25;
@@ -31,7 +31,7 @@ namespace SAND {
         constexpr double required_norm = .0001;
 
         //density filter options
-        constexpr double filter_r = .1;
+        constexpr double filter_r = .25;
 
         //other options
         constexpr double density_penalty_exponent = 3;
