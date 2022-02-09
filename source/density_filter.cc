@@ -178,7 +178,6 @@ namespace SAND
                     }
                 }
         }
-
         return relevant_cells;
 
     }

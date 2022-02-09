@@ -136,9 +136,9 @@ namespace SAND
         LA::MPI::BlockSparseMatrix approx_h_mat;
 
         SolverControl other_solver_control;
-        mutable SolverBicgstab<Vector<double>> other_bicgstab;
-        mutable SolverGMRES<Vector<double>> other_gmres;
-        mutable SolverCG<Vector<double>> other_cg;
+        mutable SolverBicgstab<LA::MPI::Vector> other_bicgstab;
+        mutable SolverGMRES<LA::MPI::Vector> other_gmres;
+        mutable SolverCG<LA::MPI::Vector> other_cg;
 
         LA::MPI::SparseMatrix &a_mat;
         const LA::MPI::SparseMatrix &b_mat;
@@ -176,12 +176,14 @@ namespace SAND
         ConditionalOStream pcout;
         mutable TimerOutput timer;
 
+        mutable TrilinosWrappers::PreconditionAMG pre_amg;
 
         LinearOperator<VectorType,VectorType,PayloadType> op_d_8;
         LinearOperator<VectorType,VectorType,PayloadType> op_f;
         LinearOperator<VectorType,VectorType,PayloadType> op_b;
         LinearOperator<VectorType,VectorType,PayloadType> op_c;
         LinearOperator<VectorType,VectorType,PayloadType> op_a_inv;
+        LinearOperator<VectorType,VectorType,PayloadType> op_a_inv_ind;
         LinearOperator<VectorType,VectorType,PayloadType> op_e;
         LinearOperator<VectorType,VectorType,PayloadType> op_d_m;
         LinearOperator<VectorType,VectorType,PayloadType> op_d_m_inv;
