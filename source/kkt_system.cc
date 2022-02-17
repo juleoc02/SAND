@@ -1779,13 +1779,15 @@ namespace SAND {
         }
         locally_relevant_solution=state;
         distributed_solution = state;
-        SolverControl solver_control(10000, gmres_tolerance * system_rhs.l2_norm());
+        SolverControl solver_control(1000000, gmres_tolerance * system_rhs.l2_norm());
         TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
-
+        pcout << "about to solve" << std::endl;
 
         switch (Input::solver_choice) {
 
             case SolverOptions::inexact_K_with_exact_A_gmres: {
+
+
                 preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
                 SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
                 B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
@@ -1802,7 +1804,6 @@ namespace SAND {
             default:
                 throw;
         }
-
 
         constraints.distribute(distributed_solution);
 

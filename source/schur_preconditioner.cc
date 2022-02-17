@@ -47,7 +47,11 @@ namespace SAND {
             direct_solver_control(1, 0),
             a_inv_direct(direct_solver_control, additional_data),
             pcout(std::cout,(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
-            timer(pcout, TimerOutput::summary, TimerOutput::wall_times)
+            timer(pcout, TimerOutput::summary, TimerOutput::wall_times),
+            g_mat(f_mat, d_8_mat),
+            h_mat(a_mat, b_mat, c_mat, e_mat, pre_amg),
+            j_inv_mat(h_mat, g_mat, d_m_mat, d_m_inv_mat),
+            k_inv_mat(h_mat, g_mat, d_m_mat, d_m_inv_mat)
     {
 
     }
@@ -158,9 +162,6 @@ namespace SAND {
 
             pcout << "np: " << n_p << std::endl;
 
-
-
-
             std::vector<double> l_global(n_p);
             std::vector<double> lm_global(n_p);
             std::vector<double> u_global(n_p);
@@ -180,8 +181,6 @@ namespace SAND {
                 {
                     std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
                     cell->get_dof_indices(i);
-
-
 
                     const int i_ind = cell->get_fe().component_to_system_index(0,0);
 
@@ -264,7 +263,13 @@ namespace SAND {
 
         op_k_inv = (-1 * op_g *op_d_m_inv * op_h - op_d_m);
 
+        LA::MPI::Vector density_exemplar = distributed_state.block(SolutionBlocks::density);
+        LA::MPI::Vector displacement_exemplar = distributed_state.block(SolutionBlocks::displacement);
 
+        g_mat.initialize(density_exemplar);
+        h_mat.initialize(density_exemplar, displacement_exemplar);
+        j_inv_mat.initialize(density_exemplar);
+        k_inv_mat.initialize(density_exemplar);
 
 
     }
@@ -291,12 +296,12 @@ namespace SAND {
             vmult_step_3(dst, temp_src);
             temp_src = dst;
         }
-        {
-            TimerOutput::Scope t(timer, "part 4");
-            vmult_step_4(dst, temp_src);
-            temp_src = dst;
-        }
-        vmult_step_5(dst, temp_src);        
+//        {
+//            TimerOutput::Scope t(timer, "part 4");
+//            vmult_step_4(dst, temp_src);
+//            temp_src = dst;
+//        }
+//        vmult_step_5(dst, temp_src);
     }
 
     template<int dim>
@@ -366,12 +371,12 @@ namespace SAND {
 
             g_d_m_inv_density = op_g * op_d_m_inv * src.block(SolutionBlocks::density);
             SolverControl step_4_gmres_control_1 (100000, g_d_m_inv_density.l2_norm()*1e-6);
-            SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
+            SolverFGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
             try {
                 TimerOutput::Scope u(timer, "actual inv");
 //                k_g_d_m_inv_density = inverse_operator(op_k_inv, step_4_gmres_1, PreconditionIdentity()) *
 //                                      g_d_m_inv_density;
-                step_4_gmres_1.solve(op_k_inv,k_g_d_m_inv_density,g_d_m_inv_density, preconditioner );
+                step_4_gmres_1.solve(k_inv_mat,k_g_d_m_inv_density,g_d_m_inv_density, preconditioner );
             }
             catch (std::exception &exc)
             {
@@ -381,12 +386,12 @@ namespace SAND {
                 throw;
             }
             SolverControl step_4_gmres_control_2 (100000, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*1e-6);
-            SolverGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
+            SolverFGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
             try {
                 TimerOutput::Scope u(timer, "actual inv");
 //                k_density_mult = inverse_operator(op_k_inv,step_4_gmres_2, PreconditionIdentity()) *
 //                                 src.block(SolutionBlocks::unfiltered_density_multiplier);
-                step_4_gmres_2.solve(op_k_inv,k_density_mult,src.block(SolutionBlocks::unfiltered_density_multiplier), PreconditionIdentity());
+                step_4_gmres_2.solve(k_inv_mat,k_density_mult,src.block(SolutionBlocks::unfiltered_density_multiplier), PreconditionIdentity());
             } catch (std::exception &exc)
             {
                 std::cerr << "Failure of linear solver step_4_gmres_2" << std::endl;
@@ -469,12 +474,12 @@ namespace SAND {
                     pre_k =  pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
                 }
                 SolverControl step_5_gmres_control_1 (100000, pre_j.l2_norm()*1e-6);
-                SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
+                SolverFGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
                 try {
                     TimerOutput::Scope t(timer, "actual inverse 5.1");
 //                    dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv), step_5_gmres_1, PreconditionIdentity()) *
 //                                                                               pre_j;
-                    step_5_gmres_1.solve(transpose_operator<VectorType, VectorType, PayloadType>(op_k_inv), dst.block(SolutionBlocks::unfiltered_density_multiplier), pre_j , preconditioner);
+                    step_5_gmres_1.solve(j_inv_mat, dst.block(SolutionBlocks::unfiltered_density_multiplier), pre_j , preconditioner);
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_1 again" << std::endl;
@@ -485,11 +490,11 @@ namespace SAND {
 
 
                 SolverControl step_5_gmres_control_2 (100000, pre_k.l2_norm()*1e-6);
-                SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
+                SolverFGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
                 try {
                     TimerOutput::Scope t(timer, "actual inverse 5.2");
 //                    dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2, PreconditionIdentity()) * pre_k;
-                    step_5_gmres_2.solve(op_k_inv,dst.block(SolutionBlocks::density), pre_k , preconditioner);
+                    step_5_gmres_2.solve(k_inv_mat,dst.block(SolutionBlocks::density), pre_k , preconditioner);
                 } catch (std::exception &exc)
                 {
                     std::cerr << "Failure of linear solver step_5_gmres_2" << std::endl;
@@ -517,7 +522,7 @@ namespace SAND {
                 pre_j = src.block(SolutionBlocks::density) + op_h * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::unfiltered_density_multiplier);
                 pre_k = -1* op_g * linear_operator<VectorType,VectorType,PayloadType>(d_m_inv_mat) * src.block(SolutionBlocks::density) + src.block(SolutionBlocks::unfiltered_density_multiplier);
 
-                SolverControl step_5_gmres_control_1 (10000, std::max(pre_j.l2_norm()*1e-6,1e-6));
+                SolverControl step_5_gmres_control_1 (10000, std::max(pre_j.l2_norm()*1e-4,1e-4));
                 TrilinosWrappers::SolverGMRES step_5_gmres_1 (step_5_gmres_control_1);
                 try {
                     dst.block(SolutionBlocks::unfiltered_density_multiplier) = inverse_operator(transpose_operator<VectorType,VectorType,PayloadType>(op_k_inv), step_5_gmres_1, PreconditionIdentity()) *
@@ -530,7 +535,7 @@ namespace SAND {
                     throw;
                 }
 
-                SolverControl step_5_gmres_control_2 (10000, std::max(pre_k.l2_norm()*1e-6,1e-6));
+                SolverControl step_5_gmres_control_2 (10000, std::max(pre_k.l2_norm()*1e-4,1e-4));
                 TrilinosWrappers::SolverGMRES step_5_gmres_2 (step_5_gmres_control_2);
                 try {
                     dst.block(SolutionBlocks::density) = inverse_operator(op_k_inv, step_5_gmres_2, PreconditionIdentity()) *
@@ -589,6 +594,8 @@ namespace SAND {
 
     }
 
+
+
     void VmultTrilinosSolverDirect::initialize(LA::MPI::SparseMatrix &a_mat)
     {
         reinit(a_mat);
@@ -626,6 +633,294 @@ namespace SAND {
 
     }
 
+    // ******************     GMATRIX     ***********************
+
+    GMatrix::GMatrix(const LA::MPI::SparseMatrix &f_mat_in, LA::MPI::SparseMatrix &d_8_mat_in)
+            :
+            f_mat(f_mat_in),
+            d_8_mat(d_8_mat_in)
+    {
+
+    }
+
+    void
+    GMatrix::initialize(LA::MPI::Vector &exemplar_density_vector)
+    {
+        temp_vect_1 = exemplar_density_vector;
+        temp_vect_2 = exemplar_density_vector;
+    }
+
+    void
+    GMatrix::vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+//        f_mat.Tvmult(temp_vect_1,src);
+//        d_8_mat.vmult(temp_vect_2, temp_vect_1);
+//        f_mat.vmult(dst,temp_vect_2);
+    }
+
+    void GMatrix::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        f_mat.Tvmult(temp_vect_1,src);
+        d_8_mat.vmult(temp_vect_2, temp_vect_1);
+        f_mat.vmult(dst,temp_vect_2);
+    }
+
+    void
+    GMatrix::Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+//        f_mat.Tvmult(temp_vect_1,src);
+//        d_8_mat.vmult(temp_vect_2, temp_vect_1);
+//        f_mat.vmult(dst,temp_vect_2);
+    }
+
+    void GMatrix::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        f_mat.Tvmult(temp_vect_1,src);
+        d_8_mat.vmult(temp_vect_2, temp_vect_1);
+        f_mat.vmult(dst,temp_vect_2);
+    }
+
+
+    // ******************     HMatrix     ***********************
+
+    HMatrix::HMatrix(LA::MPI::SparseMatrix &a_mat_in, const LA::MPI::SparseMatrix &b_mat_in, const LA::MPI::SparseMatrix &c_mat_in, const LA::MPI::SparseMatrix &e_mat_in,TrilinosWrappers::PreconditionAMG &pre_amg_in)
+            :
+            a_mat(a_mat_in),
+            b_mat(b_mat_in),
+            c_mat(c_mat_in),
+            e_mat(e_mat_in),
+            pre_amg(pre_amg_in)
+    {
+
+    }
+
+    void
+    HMatrix::initialize(LA::MPI::Vector &exemplar_density_vector,  LA::MPI::Vector &exemplar_displacement_vector)
+    {
+        temp_vect_1 = exemplar_displacement_vector;
+        temp_vect_2 = exemplar_displacement_vector;
+        temp_vect_3 = exemplar_displacement_vector;
+        temp_vect_4 = exemplar_displacement_vector;
+        temp_vect_5 = exemplar_density_vector;
+        temp_vect_6 = exemplar_density_vector;
+        temp_vect_7 = exemplar_density_vector;
+
+
+    }
+
+    void
+    HMatrix::vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+
+//        c_mat.vmult(temp_vect_1,src);
+//        e_mat.vmult(temp_vect_2,src);
+
+//        SolverControl            solver_control(1000, 1e-2*temp_vect_2.l2_norm());
+//        SolverCG<LA::MPI::Vector> a_solver_cg(solver_control);
+
+//        a_solver_cg.solve(a_mat,temp_vect_3,temp_vect_1,pre_amg);
+//        a_solver_cg.solve(a_mat,temp_vect_4,temp_vect_2,pre_amg);
+
+//        c_mat.Tvmult(temp_vect_6,temp_vect_4);
+//        e_mat.Tvmult(temp_vect_5,temp_vect_3);
+
+//        b_mat.vmult(temp_vect_7,src);
+//        dst =  temp_vect_7 - temp_vect_6 - temp_vect_5;
+
+    }
+
+    void HMatrix::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        c_mat.vmult(temp_vect_1,src);
+        e_mat.vmult(temp_vect_2,src);
+
+//        SolverControl            solver_control(1000, 1e-4*temp_vect_2.l2_norm());
+//        SolverCG<LA::MPI::Vector> a_solver_cg(solver_control);
+
+//        a_solver_cg.solve(a_mat,temp_vect_3,temp_vect_1,pre_amg);
+//        a_solver_cg.solve(a_mat,temp_vect_4,temp_vect_2,pre_amg);
+
+        pre_amg.vmult(temp_vect_3,temp_vect_1);
+        pre_amg.vmult(temp_vect_4,temp_vect_2);
+
+        c_mat.Tvmult(temp_vect_6,temp_vect_4);
+        e_mat.Tvmult(temp_vect_5,temp_vect_3);
+
+        b_mat.vmult(temp_vect_7,src);
+        dst =  temp_vect_7 - temp_vect_6 - temp_vect_5;
+    }
+
+    void
+    HMatrix::Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+//        c_mat.vmult(temp_vect_1,src);
+//        e_mat.vmult(temp_vect_2,src);
+
+//        SolverControl            solver_control(1000, 1e-2*temp_vect_2.l2_norm());
+//        SolverCG<LA::MPI::Vector> a_solver_cg(solver_control);
+
+//        a_solver_cg.solve(a_mat,temp_vect_3,temp_vect_1,pre_amg);
+//        a_solver_cg.solve(a_mat,temp_vect_4,temp_vect_2,pre_amg);
+
+//        c_mat.Tvmult(temp_vect_6,temp_vect_4);
+//        e_mat.Tvmult(temp_vect_5,temp_vect_3);
+
+//        b_mat.vmult(temp_vect_7,src);
+//        dst =  temp_vect_7 - temp_vect_6 - temp_vect_5;
+    }
+
+    void HMatrix::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        c_mat.vmult(temp_vect_1,src);
+        e_mat.vmult(temp_vect_2,src);
+
+//        SolverControl            solver_control(100, 1e-3*temp_vect_2.l2_norm());
+//        SolverCG<LA::MPI::Vector> a_solver_cg(solver_control);
+
+//        a_solver_cg.solve(a_mat,temp_vect_3,temp_vect_1,pre_amg);
+//        a_solver_cg.solve(a_mat,temp_vect_4,temp_vect_2,pre_amg);
+
+        pre_amg.vmult(temp_vect_3,temp_vect_1);
+        pre_amg.vmult(temp_vect_4,temp_vect_2);
+
+        c_mat.Tvmult(temp_vect_6,temp_vect_4);
+        e_mat.Tvmult(temp_vect_5,temp_vect_3);
+
+        b_mat.vmult(temp_vect_7,src);
+        dst =  temp_vect_7 - temp_vect_6 - temp_vect_5;
+    }
+
+
+    // ******************     JMatrix     ***********************
+    JinvMatrix::JinvMatrix(HMatrix &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in)
+            :
+            h_mat(h_mat_in),
+            g_mat(g_mat_in),
+            d_m_mat(d_m_mat_in),
+            d_m_inv_mat(d_m_inv_mat_in)
+    {
+
+    }
+
+    void
+    JinvMatrix::initialize( LA::MPI::Vector &exemplar_density_vector)
+    {
+        temp_vect_1 = exemplar_density_vector;
+        temp_vect_2 = exemplar_density_vector;
+        temp_vect_3 = exemplar_density_vector;
+        temp_vect_4 = exemplar_density_vector;
+    }
+
+    void
+    JinvMatrix::vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+//        g_mat.vmult(temp_vect_1,src);
+//        d_m_inv_mat.vmult(temp_vect_2,temp_vect_1);
+//        h_mat.vmult(temp_vect_3,temp_vect_2);
+//        d_m_mat.vmult(temp_vect_4,src);
+
+//        dst = -1*temp_vect_4 - temp_vect_3;
+    }
+
+    void JinvMatrix::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        g_mat.vmult(temp_vect_1,src);
+        d_m_inv_mat.vmult(temp_vect_2,temp_vect_1);
+        h_mat.vmult(temp_vect_3,temp_vect_2);
+        d_m_mat.vmult(temp_vect_4,src);
+
+        dst = -1*temp_vect_4 - temp_vect_3;
+    }
+
+    void
+    JinvMatrix::Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+//        h_mat.vmult(temp_vect_1,src);
+//        d_m_inv_mat.vmult(temp_vect_2,temp_vect_1);
+//        g_mat.vmult(temp_vect_3,temp_vect_2);
+//        d_m_mat.vmult(temp_vect_4,src);
+
+//        dst = -1*temp_vect_4 - temp_vect_3;
+    }
+
+    void JinvMatrix::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        h_mat.vmult(temp_vect_1,src);
+        d_m_inv_mat.vmult(temp_vect_2,temp_vect_1);
+        g_mat.vmult(temp_vect_3,temp_vect_2);
+        d_m_mat.vmult(temp_vect_4,src);
+
+        dst = -1*temp_vect_4 - temp_vect_3;
+    }
+
+
+    // ******************     KinvMatrix     ***********************
+    KinvMatrix::KinvMatrix(HMatrix &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in)
+            :
+            h_mat(h_mat_in),
+            g_mat(g_mat_in),
+            d_m_mat(d_m_mat_in),
+            d_m_inv_mat(d_m_inv_mat_in)
+    {
+
+    }
+
+    void
+    KinvMatrix::initialize(LA::MPI::Vector &exemplar_density_vector)
+    {
+        temp_vect_1 = exemplar_density_vector;
+        temp_vect_2 = exemplar_density_vector;
+        temp_vect_3 = exemplar_density_vector;
+        temp_vect_4 = exemplar_density_vector;
+
+    }
+
+    void
+    KinvMatrix::vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+//        h_mat.vmult(temp_vect_1,src);
+//        d_m_inv_mat.vmult(temp_vect_2,temp_vect_1);
+//        g_mat.vmult(temp_vect_3,temp_vect_2);
+//        d_m_mat.vmult(temp_vect_4,src);
+
+//        dst = -1*temp_vect_4 - temp_vect_3;
+    }
+
+    void KinvMatrix::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        h_mat.vmult(temp_vect_1,src);
+        d_m_inv_mat.vmult(temp_vect_2,temp_vect_1);
+        g_mat.vmult(temp_vect_3,temp_vect_2);
+        d_m_mat.vmult(temp_vect_4,src);
+
+        dst = -1*temp_vect_4 - temp_vect_3;
+    }
+
+    void
+    KinvMatrix::Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+
+//        g_mat.vmult(temp_vect_1,src);
+//        d_m_inv_mat.vmult(temp_vect_2,temp_vect_1);
+//        h_mat.vmult(temp_vect_3,temp_vect_2);
+//        d_m_mat.vmult(temp_vect_4,src);
+
+//        dst = -1*temp_vect_4 - temp_vect_3;
+    }
+
+    void KinvMatrix::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        g_mat.vmult(temp_vect_1,src);
+        d_m_inv_mat.vmult(temp_vect_2,temp_vect_1);
+        h_mat.vmult(temp_vect_3,temp_vect_2);
+        d_m_mat.vmult(temp_vect_4,src);
+
+        dst = -1*temp_vect_4 - temp_vect_3;
+    }
+
 }
+
+
+
 template class SAND::TopOptSchurPreconditioner<2>;
 template class SAND::TopOptSchurPreconditioner<3>;

@@ -100,6 +100,94 @@ namespace SAND
             int size;
     };
 
+
+    class GMatrix : public TrilinosWrappers::SparseMatrix {
+        public:
+            GMatrix(const LA::MPI::SparseMatrix &f_mat_in, LA::MPI::SparseMatrix &d_8_mat_in);
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void initialize(LA::MPI::Vector &exemplar_density_vector);
+            unsigned int m() const;
+            unsigned int n() const;
+        private:
+            const LA::MPI::SparseMatrix &f_mat;
+            LA::MPI::SparseMatrix &d_8_mat;
+            mutable LA::MPI::Vector temp_vect_1;
+            mutable LA::MPI::Vector temp_vect_2;
+
+
+    };
+
+    class HMatrix : public TrilinosWrappers::SparseMatrix {
+        public:
+            HMatrix(LA::MPI::SparseMatrix &a_mat_in, const LA::MPI::SparseMatrix &b_mat_in, const LA::MPI::SparseMatrix &c_mat_in, const LA::MPI::SparseMatrix &e_mat_in,TrilinosWrappers::PreconditionAMG &pre_amg_in);
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void initialize(LA::MPI::Vector &exemplar_density_vector,  LA::MPI::Vector &exemplar_displacement_vector);
+            unsigned int m() const;
+            unsigned int n() const;
+        private:
+            LA::MPI::SparseMatrix &a_mat;
+            const LA::MPI::SparseMatrix &b_mat;
+            const LA::MPI::SparseMatrix &c_mat;
+            const LA::MPI::SparseMatrix &e_mat;
+            TrilinosWrappers::PreconditionAMG &pre_amg;
+            mutable LA::MPI::Vector temp_vect_1;
+            mutable LA::MPI::Vector temp_vect_2;
+            mutable LA::MPI::Vector temp_vect_3;
+            mutable LA::MPI::Vector temp_vect_4;
+            mutable LA::MPI::Vector temp_vect_5;
+            mutable LA::MPI::Vector temp_vect_6;
+            mutable LA::MPI::Vector temp_vect_7;
+
+    };
+
+    class KinvMatrix : public TrilinosWrappers::SparseMatrix {
+        public:
+            KinvMatrix(HMatrix &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void initialize(LA::MPI::Vector &exemplar_density_vector);
+            unsigned int m() const;
+            unsigned int n() const;
+        private:
+            HMatrix &h_mat;
+            GMatrix &g_mat;
+            const LA::MPI::SparseMatrix &d_m_mat;
+            LA::MPI::SparseMatrix &d_m_inv_mat;
+            mutable LA::MPI::Vector temp_vect_1;
+            mutable LA::MPI::Vector temp_vect_2;
+            mutable LA::MPI::Vector temp_vect_3;
+            mutable LA::MPI::Vector temp_vect_4;
+    };
+
+    class JinvMatrix : public TrilinosWrappers::SparseMatrix {
+        public:
+            JinvMatrix(HMatrix &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void initialize(LA::MPI::Vector &exemplar_density_vector);
+            unsigned int m() const;
+            unsigned int n() const;
+        private:
+            HMatrix &h_mat;
+            GMatrix &g_mat;
+            const LA::MPI::SparseMatrix &d_m_mat;
+            LA::MPI::SparseMatrix &d_m_inv_mat;
+            mutable LA::MPI::Vector temp_vect_1;
+            mutable LA::MPI::Vector temp_vect_2;
+            mutable LA::MPI::Vector temp_vect_3;
+            mutable LA::MPI::Vector temp_vect_4;
+    };
+
     template<int dim>
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
@@ -158,11 +246,6 @@ namespace SAND
         LA::MPI::SparseMatrix d_8_mat;
         LA::MPI::SparseMatrix d_m_inv_mat;
 
-        FullMatrix<double> g_mat;
-        FullMatrix<double> h_mat;
-        FullMatrix<double> k_inv_mat;
-        LAPACKFullMatrix<double> k_mat;
-
         mutable LA::MPI::Vector pre_j;
         mutable LA::MPI::Vector pre_k;
         mutable LA::MPI::Vector g_d_m_inv_density;
@@ -172,11 +255,18 @@ namespace SAND
         TrilinosWrappers::SolverDirect::AdditionalData additional_data;
         SolverControl direct_solver_control;
         mutable VmultTrilinosSolverDirect a_inv_direct;
-//        TrilinosWrappers::SolverDirect a_inv_direct;
         ConditionalOStream pcout;
         mutable TimerOutput timer;
 
         mutable TrilinosWrappers::PreconditionAMG pre_amg;
+
+        GMatrix g_mat;
+        HMatrix h_mat;
+
+        JinvMatrix j_inv_mat;
+        KinvMatrix k_inv_mat;
+
+
 
         LinearOperator<VectorType,VectorType,PayloadType> op_d_8;
         LinearOperator<VectorType,VectorType,PayloadType> op_f;
@@ -192,6 +282,7 @@ namespace SAND
         LinearOperator<VectorType,VectorType,PayloadType> op_k_inv;
         LinearOperator<VectorType,VectorType,PayloadType> op_j_inv;
     };
+
 
 }
 #endif //SAND_SCHUR_PRECONDITIONER_H
