@@ -120,7 +120,7 @@ namespace SAND
 
     class HMatrix : public TrilinosWrappers::SparseMatrix {
         public:
-            HMatrix(LA::MPI::SparseMatrix &a_mat_in, const LA::MPI::SparseMatrix &b_mat_in, const LA::MPI::SparseMatrix &c_mat_in, const LA::MPI::SparseMatrix &e_mat_in,TrilinosWrappers::PreconditionAMG &pre_amg_in);
+            HMatrix(LA::MPI::SparseMatrix &a_mat_in, const LA::MPI::SparseMatrix &b_mat_in, const LA::MPI::SparseMatrix &c_mat_in, const LA::MPI::SparseMatrix &e_mat_in,TrilinosWrappers::PreconditionAMG &pre_amg_in, VmultTrilinosSolverDirect &a_inv_direct_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void initialize(LA::MPI::Vector &exemplar_density_vector,  LA::MPI::Vector &exemplar_displacement_vector);
@@ -132,6 +132,7 @@ namespace SAND
             const LA::MPI::SparseMatrix &c_mat;
             const LA::MPI::SparseMatrix &e_mat;
             TrilinosWrappers::PreconditionAMG &pre_amg;
+            VmultTrilinosSolverDirect &a_inv_direct;
             mutable LA::MPI::Vector temp_vect_1;
             mutable LA::MPI::Vector temp_vect_2;
             mutable LA::MPI::Vector temp_vect_3;
