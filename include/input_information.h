@@ -17,15 +17,15 @@ namespace SAND {
         //geometry options
         constexpr unsigned int geometry_base = GeometryOptions::mbb;
 
-        constexpr unsigned int dim = 2;
-        constexpr unsigned int refinements = 5;
+        constexpr unsigned int dim = 3;
+        constexpr unsigned int refinements = 4;
 
         //nonlinear algorithm options
         constexpr double initial_barrier_size = 25;
         constexpr double min_barrier_size = 0;
 
         constexpr double fraction_to_boundary = .7;
-        constexpr unsigned int max_steps=30;
+        constexpr unsigned int max_steps=2;
 
         constexpr unsigned int barrier_reduction=BarrierOptions::loqo;
         constexpr double required_norm = .0001;
@@ -45,6 +45,9 @@ namespace SAND {
         constexpr unsigned int solver_choice = SolverOptions::inexact_K_with_exact_A_gmres;
         constexpr bool use_eisenstat_walker = false;
         constexpr double default_gmres_tolerance = 1e-9;
+
+        constexpr unsigned int a_inv_iterations = 25;
+        constexpr unsigned int k_inv_iterations = 25;
 
 
     }
