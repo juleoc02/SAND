@@ -21,7 +21,7 @@ namespace SAND {
     using size_type         = dealii::types::global_dof_index;
     using namespace dealii;
     template<int dim>
-    TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in)
+    TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in, DoFHandler<dim> &big_dof_handler_in)
             :
             system_matrix(matrix_in),
             mpi_communicator(MPI_COMM_WORLD),
@@ -51,7 +51,8 @@ namespace SAND {
             g_mat(f_mat, d_8_mat),
             h_mat(a_mat, b_mat, c_mat, e_mat, pre_amg, a_inv_direct),
             j_inv_mat(h_mat, g_mat, d_m_mat, d_m_inv_mat),
-            k_inv_mat(h_mat, g_mat, d_m_mat, d_m_inv_mat)
+            k_inv_mat(h_mat, g_mat, d_m_mat, d_m_inv_mat),
+            big_dof_handler(big_dof_handler_in)
     {
 
     }

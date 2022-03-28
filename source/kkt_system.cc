@@ -1780,7 +1780,7 @@ namespace SAND {
         locally_relevant_solution=state;
         distributed_solution = state;
         SolverControl solver_control(1000000, gmres_tolerance * system_rhs.l2_norm());
-        TopOptSchurPreconditioner<dim> preconditioner(system_matrix);
+        TopOptSchurPreconditioner<dim> preconditioner(system_matrix, dof_handler);
         pcout << "about to solve" << std::endl;
 
         switch (Input::solver_choice) {

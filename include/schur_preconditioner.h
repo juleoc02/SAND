@@ -184,7 +184,7 @@ namespace SAND
     template<int dim>
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
-        TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in);
+        TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in, DoFHandler<dim> &big_dof_handler_in);
         void initialize (LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &distributed_state);
         void vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
         void Tvmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
@@ -230,6 +230,7 @@ namespace SAND
         const LA::MPI::SparseMatrix &d_1_mat;
         const LA::MPI::SparseMatrix &d_2_mat;
         const LA::MPI::SparseMatrix &m_vect;
+        const DoFHandler<dim> &big_dof_handler;
 
         LA::MPI::SparseMatrix d_3_mat;
         LA::MPI::SparseMatrix d_4_mat;
@@ -261,19 +262,19 @@ namespace SAND
 
 
 
-        LinearOperator<VectorType,VectorType,PayloadType> op_d_8;
-        LinearOperator<VectorType,VectorType,PayloadType> op_f;
-        LinearOperator<VectorType,VectorType,PayloadType> op_b;
-        LinearOperator<VectorType,VectorType,PayloadType> op_c;
-        LinearOperator<VectorType,VectorType,PayloadType> op_a_inv;
-        LinearOperator<VectorType,VectorType,PayloadType> op_a_inv_ind;
-        LinearOperator<VectorType,VectorType,PayloadType> op_e;
-        LinearOperator<VectorType,VectorType,PayloadType> op_d_m;
-        LinearOperator<VectorType,VectorType,PayloadType> op_d_m_inv;
-        LinearOperator<VectorType,VectorType,PayloadType> op_g;
-        LinearOperator<VectorType,VectorType,PayloadType> op_h;
-        LinearOperator<VectorType,VectorType,PayloadType> op_k_inv;
-        LinearOperator<VectorType,VectorType,PayloadType> op_j_inv;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_d_8;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_f;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_b;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_c;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_a_inv;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_a_inv_ind;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_e;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_d_m;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_d_m_inv;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_g;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_h;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_k_inv;
+//        LinearOperator<VectorType,VectorType,PayloadType> op_j_inv;
     };
 
 

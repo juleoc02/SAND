@@ -49,6 +49,9 @@ namespace SAND {
         constexpr unsigned int a_inv_iterations = 25;
         constexpr unsigned int k_inv_iterations = 25;
 
+        //Material Options
+        constexpr double material_lambda = 1;
+        constexpr double material_mu = 1;
 
     }
 }
