@@ -53,8 +53,21 @@
 #include <deal.II/distributed/tria.h>
 #include <deal.II/distributed/grid_refinement.h>
 
+#include <deal.II/multigrid/multigrid.h>
+#include <deal.II/multigrid/mg_transfer_matrix_free.h>
+#include <deal.II/multigrid/mg_tools.h>
+#include <deal.II/multigrid/mg_coarse.h>
+#include <deal.II/multigrid/mg_smoother.h>
+#include <deal.II/multigrid/mg_matrix.h>
+
+#include <deal.II/matrix_free/matrix_free.h>
+#include <deal.II/matrix_free/operators.h>
+#include <deal.II/matrix_free/fe_evaluation.h>
+
+
 #include "../include/schur_preconditioner.h"
 #include "../include/density_filter.h"
+#include "matrix_free_elasticity.h"
 
 #include <deal.II/base/conditional_ostream.h>
 
@@ -62,6 +75,9 @@
 #include <fstream>
 #include <algorithm>
 namespace SAND {
+
+
+
     namespace LA
     {
         using namespace dealii::LinearAlgebraTrilinos;
@@ -71,6 +87,8 @@ namespace SAND {
     template<int dim>
     class KktSystem {
 
+    using SystemMFMatrixType = MF_Elasticity_Operator<dim, 1, double>;
+    using LevelMFMatrixType = MF_Elasticity_Operator<dim, 1, double>;
     public:
         MPI_Comm  mpi_communicator;
         std::vector<IndexSet> owned_partitioning;
@@ -128,6 +146,9 @@ namespace SAND {
         LA::MPI::BlockVector
         calculate_rhs(const LA::MPI::BlockVector &test_solution, const double barrier_size) const;
 
+       PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>
+            build_mf_gmg_preconditioner();
+
         BlockDynamicSparsityPattern dsp;
         BlockSparsityPattern sparsity_pattern;
         mutable LA::MPI::BlockSparseMatrix system_matrix;
@@ -136,19 +157,48 @@ namespace SAND {
         LA::MPI::BlockVector system_rhs;
         parallel::distributed::Triangulation<dim> triangulation;
         DoFHandler<dim> dof_handler;
+        DoFHandler<dim> dof_handler_displacement;
+        DoFHandler<dim> dof_handler_density;
+
         AffineConstraints<double> constraints;
         FESystem<dim> fe_nine;
         FESystem<dim> fe_ten;
         hp::FECollection<dim> fe_collection;
+        FESystem<dim> fe_displacement;
+        FE_DGQ<dim> fe_density;
         const double density_ratio;
         const double density_penalty_exponent;
 
         mutable DensityFilter<dim> density_filter;
 
         std::map<types::global_dof_index, double> boundary_values;
+        MGLevelObject<std::map<types::global_dof_index, double>> level_boundary_values;
         ConditionalOStream pcout;
 
         double initial_rhs_error;
+
+        MGConstrainedDoFs mg_constrained_dofs;
+        SystemMFMatrixType elasticity_system_mf;
+        MGLevelObject<LevelMFMatrixType> mg_matrices;
+
+
+        OperatorCellData<dim, GMGNumberType> active_cell_data;
+        MGLevelObject<OperatorCellData<dim, GMGNumberType>> level_cell_data;
+        dealii::LinearAlgebra::distributed::Vector<double> active_density_vector;
+        MGLevelObject<dealii::LinearAlgebra::distributed::Vector<double>> level_density_vector;
+        MGTransferMatrixFree<dim,GMGNumberType> transfer;
+        MGTransferMatrixFree<dim, double> mg_transfer;
+
+        using SmootherType = PreconditionChebyshev<LevelMFMatrixType, LinearAlgebra::distributed::Vector<double>>;
+        mg::SmootherRelaxation<SmootherType,LinearAlgebra::distributed::Vector<double>> mg_smoother;
+        MGLevelObject<typename SmootherType::AdditionalData> smoother_data;
+        MGCoarseGridApplySmoother<LinearAlgebra::distributed::Vector<double>> mg_coarse;
+        MGLevelObject<MatrixFreeOperators::MGInterfaceOperator<LevelMFMatrixType>> mg_interface_matrices;
+
+        std::set<types::boundary_id> dirichlet_boundary;
+
+        LinearAlgebra::distributed::Vector<double> distributed_displacement_sol;
+        LinearAlgebra::distributed::Vector<double> distributed_displacement_rhs;
 
     };
 }

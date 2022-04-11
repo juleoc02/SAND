@@ -60,6 +60,7 @@
 
 
 #include "../include/parameters_and_components.h"
+#include "matrix_free_elasticity.h"
 
 #include <deal.II/base/conditional_ostream.h>
 
@@ -100,6 +101,22 @@ namespace SAND
             int size;
     };
 
+    class AInvMatGMGMF : public TrilinosWrappers::SparseMatrix {
+        public:
+            AInvMatGMGMF();
+            void vmult() const;
+            void Tvmult() const;
+            void initialize();
+            unsigned int m() const;
+            unsigned int n() const;
+        private:
+            const LA::MPI::SparseMatrix &f_mat;
+            LA::MPI::SparseMatrix &d_8_mat;
+            mutable LA::MPI::Vector temp_vect_1;
+            mutable LA::MPI::Vector temp_vect_2;
+
+
+    };
 
     class GMatrix : public TrilinosWrappers::SparseMatrix {
         public:
@@ -184,7 +201,8 @@ namespace SAND
     template<int dim>
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
-        TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in, DoFHandler<dim> &big_dof_handler_in);
+        TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in, DoFHandler<dim> &big_dof_handler_in, MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>
+                                  &mf_gmg_preconditioner_in);
         void initialize (LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &distributed_state);
         void vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
         void Tvmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
@@ -260,21 +278,8 @@ namespace SAND
         JinvMatrix j_inv_mat;
         KinvMatrix k_inv_mat;
 
-
-
-//        LinearOperator<VectorType,VectorType,PayloadType> op_d_8;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_f;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_b;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_c;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_a_inv;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_a_inv_ind;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_e;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_d_m;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_d_m_inv;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_g;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_h;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_k_inv;
-//        LinearOperator<VectorType,VectorType,PayloadType> op_j_inv;
+        MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator;
+        PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>  &mf_gmg_preconditioner;
     };
 
 
