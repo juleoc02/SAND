@@ -193,6 +193,7 @@ namespace SAND {
         mg::SmootherRelaxation<SmootherType,LinearAlgebra::distributed::Vector<double>> mg_smoother;
         MGLevelObject<typename SmootherType::AdditionalData> smoother_data;
         MGCoarseGridApplySmoother<LinearAlgebra::distributed::Vector<double>> mg_coarse;
+        MGLevelObject<std::set<types::boundary_id>> level_dirichlet_boundaries;
         MGLevelObject<MatrixFreeOperators::MGInterfaceOperator<LevelMFMatrixType>> mg_interface_matrices;
 
         std::set<types::boundary_id> dirichlet_boundary;
