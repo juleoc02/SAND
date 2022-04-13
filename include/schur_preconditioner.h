@@ -101,20 +101,24 @@ namespace SAND
             int size;
     };
 
-    class AInvMatGMGMF : public TrilinosWrappers::SparseMatrix {
+    template<int dim>
+    class AInvMatMFGMG : public TrilinosWrappers::SparseMatrix {
         public:
-            AInvMatGMGMF();
-            void vmult() const;
-            void Tvmult() const;
-            void initialize();
+            AInvMatMFGMG(MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>
+                         &mf_gmg_preconditioner_in);
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             unsigned int m() const;
             unsigned int n() const;
+            void set_tol(double tolerance_in);
+            void set_iter(unsigned int iterations_in);
         private:
-            const LA::MPI::SparseMatrix &f_mat;
-            LA::MPI::SparseMatrix &d_8_mat;
-            mutable LA::MPI::Vector temp_vect_1;
-            mutable LA::MPI::Vector temp_vect_2;
-
+            MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator;
+            PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>> &mf_gmg_preconditioner;
+            double tolerance = 1e-6;
+            unsigned int iterations = 10;
+            mutable dealii::LinearAlgebra::distributed::Vector<double> temp_src;
+            mutable dealii::LinearAlgebra::distributed::Vector<double> temp_dst;
 
     };
 
@@ -135,9 +139,10 @@ namespace SAND
 
     };
 
+    template<int dim>
     class HMatrix : public TrilinosWrappers::SparseMatrix {
         public:
-            HMatrix(LA::MPI::SparseMatrix &a_mat_in, const LA::MPI::SparseMatrix &b_mat_in, const LA::MPI::SparseMatrix &c_mat_in, const LA::MPI::SparseMatrix &e_mat_in,TrilinosWrappers::PreconditionAMG &pre_amg_in, VmultTrilinosSolverDirect &a_inv_direct_in);
+            HMatrix(LA::MPI::SparseMatrix &a_mat_in, const LA::MPI::SparseMatrix &b_mat_in, const LA::MPI::SparseMatrix &c_mat_in, const LA::MPI::SparseMatrix &e_mat_in,TrilinosWrappers::PreconditionAMG &pre_amg_in, VmultTrilinosSolverDirect &a_inv_direct_in, AInvMatMFGMG<dim> &a_inv_mf_gmg_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void initialize(LA::MPI::Vector &exemplar_density_vector,  LA::MPI::Vector &exemplar_displacement_vector);
@@ -157,19 +162,21 @@ namespace SAND
             mutable LA::MPI::Vector temp_vect_5;
             mutable LA::MPI::Vector temp_vect_6;
             mutable LA::MPI::Vector temp_vect_7;
+            AInvMatMFGMG<dim> &a_inv_mf_gmg;
 
     };
 
+    template<int dim>
     class KinvMatrix : public TrilinosWrappers::SparseMatrix {
         public:
-            KinvMatrix(HMatrix &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            KinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void initialize(LA::MPI::Vector &exemplar_density_vector);
             unsigned int m() const;
             unsigned int n() const;
         private:
-            HMatrix &h_mat;
+            HMatrix<dim> &h_mat;
             GMatrix &g_mat;
             const LA::MPI::SparseMatrix &d_m_mat;
             LA::MPI::SparseMatrix &d_m_inv_mat;
@@ -179,16 +186,17 @@ namespace SAND
             mutable LA::MPI::Vector temp_vect_4;
     };
 
+    template<int dim>
     class JinvMatrix : public TrilinosWrappers::SparseMatrix {
         public:
-            JinvMatrix(HMatrix &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            JinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void initialize(LA::MPI::Vector &exemplar_density_vector);
             unsigned int m() const;
             unsigned int n() const;
         private:
-            HMatrix &h_mat;
+            HMatrix<dim> &h_mat;
             GMatrix &g_mat;
             const LA::MPI::SparseMatrix &d_m_mat;
             LA::MPI::SparseMatrix &d_m_inv_mat;
@@ -267,19 +275,19 @@ namespace SAND
         TrilinosWrappers::SolverDirect::AdditionalData additional_data;
         SolverControl direct_solver_control;
         mutable VmultTrilinosSolverDirect a_inv_direct;
+
+        AInvMatMFGMG<dim> a_inv_mf_gmg;
         ConditionalOStream pcout;
         mutable TimerOutput timer;
 
         mutable TrilinosWrappers::PreconditionAMG pre_amg;
 
         GMatrix g_mat;
-        HMatrix h_mat;
+        HMatrix<dim> h_mat;
 
-        JinvMatrix j_inv_mat;
-        KinvMatrix k_inv_mat;
+        JinvMatrix<dim> j_inv_mat;
+        KinvMatrix<dim> k_inv_mat;
 
-        MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator;
-        PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>  &mf_gmg_preconditioner;
     };
 
 

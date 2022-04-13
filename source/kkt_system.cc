@@ -202,6 +202,7 @@ KktSystem<dim>::create_triangulation() {
 
             dof_handler.distribute_dofs(fe_collection);
             dof_handler_displacement.distribute_dofs(fe_displacement);
+            dof_handler_displacement.distribute_mg_dofs();
 
             DoFRenumbering::component_wise(dof_handler, sub_blocks);
             DoFRenumbering::component_wise(dof_handler_displacement);
@@ -252,6 +253,7 @@ KktSystem<dim>::create_triangulation() {
 
             dof_handler.distribute_dofs(fe_collection);
             dof_handler_displacement.distribute_dofs(fe_displacement);
+            dof_handler_displacement.distribute_mg_dofs();
 
             DoFRenumbering::component_wise(dof_handler, sub_blocks);
             DoFRenumbering::component_wise(dof_handler_displacement);
@@ -318,6 +320,7 @@ KktSystem<dim>::create_triangulation() {
 
             dof_handler.distribute_dofs(fe_collection);
             dof_handler_displacement.distribute_dofs(fe_displacement);
+            dof_handler_displacement.distribute_mg_dofs();
 
             DoFRenumbering::component_wise(dof_handler, sub_blocks);
             DoFRenumbering::component_wise(dof_handler_displacement);
@@ -378,8 +381,9 @@ KktSystem<dim>::create_triangulation() {
             DoFRenumbering::component_wise(dof_handler, sub_blocks);
             DoFRenumbering::component_wise(dof_handler_displacement);
 
-            DoFRenumbering::hierarchical(dof_handler);
             DoFRenumbering::hierarchical(dof_handler_displacement);
+
+            dof_handler_displacement.distribute_mg_dofs();
         } else {
             throw;
         }
@@ -459,69 +463,77 @@ KktSystem<dim>::setup_boundary_values()
 
             }
             const unsigned int n_levels = triangulation.n_levels();
-            level_dirichlet_boundaries.resize(0,n_levels-1);
+            level_dirichlet_boundary_dofs.resize(0,n_levels-1);
             level_boundary_values.resize(0,n_levels-1);
-            for (unsigned int level = 0; level < n_levels; ++level)
+            mg_level_constraints.resize(0,n_levels-1);
+
+            for(unsigned int level = 0; level < n_levels; ++level)
             {
-                for (auto cell=dof_handler_displacement.begin_active(level); cell!=dof_handler_displacement.end_active(level); ++cell)
+                mg_level_constraints[level].reinit(dof_handler_displacement.locally_owned_mg_dofs (level));
+            }
+
+
+            for (auto cell=dof_handler_displacement.begin_active(n_levels-1); cell!=dof_handler_displacement.end_active(n_levels-1); ++cell)
+            {
+                if(cell->is_locally_owned())
                 {
-                    if(cell->is_locally_owned())
+                    for (unsigned int face_number = 0;
+                         face_number < GeometryInfo<dim>::faces_per_cell;
+                         ++face_number)
                     {
-                        for (unsigned int face_number = 0;
-                             face_number < GeometryInfo<dim>::faces_per_cell;
-                             ++face_number)
+                        if (cell->face(face_number)->at_boundary())
                         {
-                            if (cell->face(face_number)->at_boundary())
+                            for (unsigned int vertex_number = 0;
+                                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                 ++vertex_number)
                             {
-                                for (unsigned int vertex_number = 0;
-                                     vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                                     ++vertex_number)
+                                const auto vert = cell->vertex(vertex_number);
+                                /*Find bottom left corner*/
+                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                        vert(1) - 0) < 1e-12)
                                 {
-                                    const auto vert = cell->vertex(vertex_number);
-                                    /*Find bottom left corner*/
-                                    if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                            vert(1) - 0) < 1e-12)
+                                     for (unsigned int level = 0; level < n_levels; ++level)
+                                     {
+
+                                         const unsigned int x_displacement =
+                                                 cell->mg_vertex_dof_index(level, vertex_number, 0,0);
+
+                                         const unsigned int y_displacement =
+                                                 cell->mg_vertex_dof_index(level, vertex_number, 1,0);
+                                         /*set bottom left BC*/
+                                         level_dirichlet_boundary_dofs[level].insert(x_displacement);
+                                         level_dirichlet_boundary_dofs[level].insert(y_displacement);
+
+                                         level_boundary_values[level][x_displacement] = 0;
+                                         level_boundary_values[level][y_displacement] = 0;
+                                     }
+
+                                }
+                                /*Find bottom right corner*/
+                                if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
+                                        vert(1) - 0) < 1e-12)
+                                {
+                                    for (unsigned int level = 0; level < n_levels; ++level)
                                     {
 
-                                        const unsigned int x_displacement =
-                                                cell->vertex_dof_index(vertex_number, 0, 0);
-
                                         const unsigned int y_displacement =
-                                                cell->vertex_dof_index(vertex_number, 1, 0);
-                                        /*set bottom left BC*/
-                                        level_dirichlet_boundaries[level].insert(x_displacement);
-                                        level_dirichlet_boundaries[level].insert(y_displacement);
-
-                                        if(level == n_levels-1)
-                                        {
-                                            dirichlet_boundary.insert(x_displacement);
-                                            dirichlet_boundary.insert(y_displacement);
-                                        }
-
-                                        level_boundary_values[level][x_displacement] = 0;
+                                                cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
                                         level_boundary_values[level][y_displacement] = 0;
+                                        level_dirichlet_boundary_dofs[level].insert(y_displacement);
                                     }
-                                    /*Find bottom right corner*/
-                                    if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-                                            vert(1) - 0) < 1e-12)
-                                    {
-                                        const unsigned int y_displacement =
-                                                cell->vertex_dof_index(vertex_number, 1, 0);
-                                        level_boundary_values[level][y_displacement] = 0;
-                                        if(level == n_levels-1)
-                                        {
-                                            dirichlet_boundary.insert(y_displacement);
-                                        }
-                                        level_dirichlet_boundaries[level].insert(y_displacement);
-                                    }
+
                                 }
                             }
                         }
                     }
                 }
-
-
             }
+            for (unsigned int level = 0; level < n_levels; ++level)
+            {
+                mg_level_constraints[level].add_lines(level_dirichlet_boundary_dofs[level]);
+                mg_level_constraints[level].close();
+            }
+
         } else if (dim == 3)
         {
             for (const auto &cell: dof_handler.active_cell_iterators()) {
@@ -620,18 +632,18 @@ KktSystem<dim>::setup_boundary_values()
                                     {
 
                                         const unsigned int x_displacement =
-                                                cell->vertex_dof_index(vertex_number, 0, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 0, 0);
                                         const unsigned int y_displacement =
-                                                cell->vertex_dof_index(vertex_number, 1, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
                                         const unsigned int z_displacement =
-                                                cell->vertex_dof_index(vertex_number, 2, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 2, 0);
                                         /*set bottom left BC*/
                                         level_boundary_values[level][x_displacement] = 0;
                                         level_boundary_values[level][y_displacement] = 0;
                                         level_boundary_values[level][z_displacement] = 0;
-                                        level_dirichlet_boundaries[level].insert(x_displacement);
-                                        level_dirichlet_boundaries[level].insert(y_displacement);
-                                        level_dirichlet_boundaries[level].insert(z_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(x_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(y_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(z_displacement);
                                     }
                                     /*Find bottom right corner*/
                                     if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
@@ -640,21 +652,24 @@ KktSystem<dim>::setup_boundary_values()
                                                 vert(2) - 1) < 1e-12)))
                                     {
                                         const unsigned int y_displacement =
-                                                cell->vertex_dof_index(vertex_number, 1, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
                                         const unsigned int z_displacement =
-                                                cell->vertex_dof_index(vertex_number, 2, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 2, 0);
                                         level_boundary_values[level][y_displacement] = 0;
                                         level_boundary_values[level][z_displacement] = 0;
 
-                                        level_dirichlet_boundaries[level].insert(y_displacement);
-                                        level_dirichlet_boundaries[level].insert(z_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(y_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(z_displacement);
                                     }
                                 }
                             }
                         }
                     }
                 }
+                mg_level_constraints[level].add_lines(level_dirichlet_boundary_dofs[level]);
+                mg_level_constraints[level].close();
             }
+
 
 
         }
@@ -742,15 +757,15 @@ KktSystem<dim>::setup_boundary_values()
                                     {
 
                                         const unsigned int x_displacement =
-                                                cell->vertex_dof_index(vertex_number, 0, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 0, 0);
                                         const unsigned int y_displacement =
-                                                cell->vertex_dof_index(vertex_number, 1, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
                                         /*set bottom left BC*/
                                         level_boundary_values[level][x_displacement] = 0;
                                         level_boundary_values[level][y_displacement] = 0;
 
-                                        level_dirichlet_boundaries[level].insert(x_displacement);
-                                        level_dirichlet_boundaries[level].insert(y_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(x_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(y_displacement);
 
                                     }
                                     /*Find bottom right corner*/
@@ -758,21 +773,24 @@ KktSystem<dim>::setup_boundary_values()
                                                 vert(1) - 2) < 1e-12)
                                     {
                                         const unsigned int x_displacement =
-                                                cell->vertex_dof_index(vertex_number, 0, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 0, 0);
                                         const unsigned int y_displacement =
-                                                cell->vertex_dof_index(vertex_number, 1, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
                                         level_boundary_values[level][x_displacement] = 0;
                                         level_boundary_values[level][y_displacement] = 0;
 
-                                        level_dirichlet_boundaries[level].insert(x_displacement);
-                                        level_dirichlet_boundaries[level].insert(y_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(x_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(y_displacement);
                                     }
                                 }
                             }
                         }
                     }
                 }
+                mg_level_constraints[level].add_lines(level_dirichlet_boundary_dofs[level]);
+                mg_level_constraints[level].close();
             }
+
         }
         else if (dim == 3)
         {
@@ -843,74 +861,77 @@ KktSystem<dim>::setup_boundary_values()
                     }
                 }
             }
-        const unsigned int n_levels = triangulation.n_levels();
-        for (unsigned int level = 0; level < n_levels; ++level)
-        {
-            for (auto cell=dof_handler_displacement.begin_active(level);
-                 cell!=dof_handler.end_active(level);
-                 ++cell)
+            const unsigned int n_levels = triangulation.n_levels();
+            for (unsigned int level = 0; level < n_levels; ++level)
             {
-                if(cell->is_locally_owned())
+                for (auto cell=dof_handler_displacement.begin_active(level);
+                     cell!=dof_handler.end_active(level);
+                     ++cell)
                 {
-                    for (unsigned int face_number = 0;
-                         face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number)
+                    if(cell->is_locally_owned())
                     {
-                        if (cell->face(face_number)->at_boundary())
+                        for (unsigned int face_number = 0;
+                             face_number < GeometryInfo<dim>::faces_per_cell;
+                             ++face_number)
                         {
-                            for (unsigned int vertex_number = 0;
-                                 vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                                 ++vertex_number)
+                            if (cell->face(face_number)->at_boundary())
                             {
-                                const auto vert = cell->vertex(vertex_number);
-                                /*Find bottom left corner*/
-                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                            vert(1) - 2) < 1e-12 && ((std::fabs(
-                                            vert(2) - 0) < 1e-12) || (std::fabs(
-                                            vert(2) - 1) < 1e-12)))
+                                for (unsigned int vertex_number = 0;
+                                     vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                     ++vertex_number)
                                 {
+                                    const auto vert = cell->vertex(vertex_number);
+                                    /*Find bottom left corner*/
+                                    if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                                vert(1) - 2) < 1e-12 && ((std::fabs(
+                                                vert(2) - 0) < 1e-12) || (std::fabs(
+                                                vert(2) - 1) < 1e-12)))
+                                    {
 
-                                    const unsigned int x_displacement =
-                                            cell->vertex_dof_index(vertex_number, 0, 0);
-                                    const unsigned int y_displacement =
-                                            cell->vertex_dof_index(vertex_number, 1, 0);
-                                    const unsigned int z_displacement =
-                                            cell->vertex_dof_index(vertex_number, 2, 0);
-                                    /*set bottom left BC*/
-                                    level_boundary_values[level][x_displacement] = 0;
-                                    level_boundary_values[level][y_displacement] = 0;
-                                    level_boundary_values[level][z_displacement] = 0;
+                                        const unsigned int x_displacement =
+                                                cell->mg_vertex_dof_index(level, vertex_number, 0, 0);
+                                        const unsigned int y_displacement =
+                                                cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
+                                        const unsigned int z_displacement =
+                                                cell->mg_vertex_dof_index(level, vertex_number, 2, 0);
+                                        /*set bottom left BC*/
+                                        level_boundary_values[level][x_displacement] = 0;
+                                        level_boundary_values[level][y_displacement] = 0;
+                                        level_boundary_values[level][z_displacement] = 0;
 
-                                    level_dirichlet_boundaries[level].insert(x_displacement);
-                                    level_dirichlet_boundaries[level].insert(y_displacement);
-                                    level_dirichlet_boundaries[level].insert(z_displacement);
-                                }
-                                /*Find bottom right corner*/
-                                if (std::fabs(vert(0) - 1) < 1e-12 && std::fabs(
-                                            vert(1) - 2) < 1e-12 && ((std::fabs(
-                                            vert(2) - 0) < 1e-12) || (std::fabs(
-                                            vert(2) - 1) < 1e-12)))
-                                {
-                                    const unsigned int x_displacement =
-                                            cell->vertex_dof_index(vertex_number, 0, 0);
-                                    const unsigned int y_displacement =
-                                            cell->vertex_dof_index(vertex_number, 1, 0);
-                                    const unsigned int z_displacement =
-                                            cell->vertex_dof_index(vertex_number, 2, 0);
-                                    level_boundary_values[level][x_displacement] = 0;
-                                    level_boundary_values[level][y_displacement] = 0;
-                                    level_boundary_values[level][z_displacement] = 0;
+                                        level_dirichlet_boundary_dofs[level].insert(x_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(y_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(z_displacement);
+                                    }
+                                    /*Find bottom right corner*/
+                                    if (std::fabs(vert(0) - 1) < 1e-12 && std::fabs(
+                                                vert(1) - 2) < 1e-12 && ((std::fabs(
+                                                vert(2) - 0) < 1e-12) || (std::fabs(
+                                                vert(2) - 1) < 1e-12)))
+                                    {
+                                        const unsigned int x_displacement =
+                                                cell->mg_vertex_dof_index(level, vertex_number, 0, 0);
+                                        const unsigned int y_displacement =
+                                                cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
+                                        const unsigned int z_displacement =
+                                                cell->mg_vertex_dof_index(level, vertex_number, 2, 0);
+                                        level_boundary_values[level][x_displacement] = 0;
+                                        level_boundary_values[level][y_displacement] = 0;
+                                        level_boundary_values[level][z_displacement] = 0;
 
-                                    level_dirichlet_boundaries[level].insert(x_displacement);
-                                    level_dirichlet_boundaries[level].insert(y_displacement);
-                                    level_dirichlet_boundaries[level].insert(z_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(x_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(y_displacement);
+                                        level_dirichlet_boundary_dofs[level].insert(z_displacement);
+                                    }
                                 }
                             }
                         }
                     }
                 }
+                mg_level_constraints[level].add_lines(level_dirichlet_boundary_dofs[level]);
+                mg_level_constraints[level].close();
             }
-        }
+
         } else {
             throw;
         }
@@ -1456,7 +1477,7 @@ KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &distributed_st
         }
 
     }
-    pcout << "compress 1" << std::endl;
+
     system_matrix.compress(VectorOperation::add);
     system_rhs = calculate_rhs(distributed_state, barrier_size);
 
@@ -1485,7 +1506,6 @@ KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &distributed_st
                     cell->measure());
         }
     }
-    pcout << "compress 2" << std::endl;
     system_matrix.compress(VectorOperation::add);
 
 
@@ -1579,7 +1599,6 @@ KktSystem<dim>::calculate_objective_value(const LA::MPI::BlockVector &distribute
     double objective_value_out;
     MPI_Allreduce(&objective_value, &objective_value_out, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-    pcout << "objective value: " << objective_value_out << std::endl;
     return objective_value;
 }
 
@@ -1601,8 +1620,6 @@ KktSystem<dim>::calculate_barrier_distance(const LA::MPI::BlockVector &state) co
     }
     double out_barrier_distance_log_sum;
     MPI_Allreduce(&barrier_distance_log_sum, &out_barrier_distance_log_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-    pcout << "Barrier distance log sum: " << out_barrier_distance_log_sum << std::endl;
 
     return out_barrier_distance_log_sum;
 }
@@ -1653,7 +1670,6 @@ KktSystem<dim>::calculate_feasibility(const LA::MPI::BlockVector &state, const d
         MPI_Allreduce(&prod2, &full_prod2, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
         norm = norm + full_prod1 + full_prod2;
     }
-    pcout << "pre-norm: " << norm << std::endl;
 
     norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
     norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
@@ -1663,8 +1679,6 @@ KktSystem<dim>::calculate_feasibility(const LA::MPI::BlockVector &state, const d
     norm += std::pow(test_rhs.block(SolutionBlocks::total_volume_multiplier).l2_norm(), 2);
     norm += std::pow(test_rhs.block(SolutionBlocks::density_upper_slack_multiplier).l2_norm(), 2);
     norm += std::pow(test_rhs.block(SolutionBlocks::density_lower_slack_multiplier).l2_norm(), 2);
-
-    pcout << "norm: " << norm << std::endl;
 
     return norm;
 }
@@ -1706,7 +1720,7 @@ KktSystem<dim>::calculate_convergence(const LA::MPI::BlockVector &state) const {
         MPI_Allreduce(&prod2, &full_prod2, 1, MPI_DOUBLE, MPI_PROD, MPI_COMM_WORLD);
         norm = norm + full_prod1 + full_prod2;
     }
-    pcout << "pre-norm: " << norm << std::endl;
+
 
     norm += std::pow(test_rhs.block(SolutionBlocks::displacement).l2_norm(), 2);
     norm += std::pow(test_rhs.block(SolutionBlocks::density).l2_norm(), 2);
@@ -1719,7 +1733,6 @@ KktSystem<dim>::calculate_convergence(const LA::MPI::BlockVector &state) const {
 
     norm = std::pow(norm, .5);
 
-    pcout << "l2 norm: " << system_rhs.l2_norm() << std::endl;
     pcout << "KKT norm: " << norm << std::endl;
     return norm;
 }
@@ -2076,7 +2089,6 @@ KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &distributed_state, con
     MPI_Allreduce(&total_volume_temp, &total_volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(&goal_volume_temp, &goal_volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-    pcout << "total_volume: " << total_volume  << " and goal_volume: " << goal_volume << std::endl;
 
     if (test_rhs.block(SolutionBlocks::total_volume_multiplier).in_local_range(0))
     {
@@ -2107,25 +2119,24 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     locally_relevant_solution=state;
     distributed_solution = state;
 
-    SolverControl solver_control(100, 1e-9);
+    SolverControl solver_control(100, gmres_tolerance);
 
+
+    // ************ BEGIN MAKING MF GMG ELASTICITY PRECONDITIONER ***************************
     using SystemMFMatrixType = MF_Elasticity_Operator<dim, 1, double>;
     using LevelMFMatrixType = MF_Elasticity_Operator<dim, 1, double>;
 
-    elasticity_system_mf.clear();
+    elasticity_matrix_mf.clear();
     mg_matrices.clear_elements();
-    dof_handler_displacement.distribute_mg_dofs();
+
+
     pcout << "Number of degrees of freedom: " << dof_handler_displacement.n_dofs()
           << std::endl;
+
+
     IndexSet locally_relevant_dofs;
     DoFTools::extract_locally_relevant_dofs(dof_handler_displacement, locally_relevant_dofs);
-
-    constraints.clear();
-        constraints.reinit(locally_relevant_dofs);
-        constraints.add_lines( dirichlet_boundary);
-    constraints.close();
-
-
+    displacement_constraints.copy_from(mg_level_constraints[triangulation.n_global_levels()-1]);
 
     {
         typename MatrixFree<dim, double>::AdditionalData additional_data;
@@ -2136,18 +2147,18 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(
                     new MatrixFree<dim, double>());
         system_mf_storage->reinit(dof_handler_displacement,
-                                  constraints,
+                                  displacement_constraints,
                                   QGauss<1>(fe_displacement.degree + 1),
                                   additional_data);
-        elasticity_system_mf.initialize(system_mf_storage);
+        elasticity_matrix_mf.initialize(system_mf_storage);
     }
 
 
     LinearAlgebra::distributed::Vector<double> distributed_displacement_sol;
     LinearAlgebra::distributed::Vector<double> distributed_displacement_rhs;
 
-    elasticity_system_mf.initialize_dof_vector(distributed_displacement_sol);
-    elasticity_system_mf.initialize_dof_vector(distributed_displacement_rhs);
+    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
+    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
 
     ChangeVectorTypes::copy(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement));
     ChangeVectorTypes::copy(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement));
@@ -2156,11 +2167,12 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     mg_matrices.resize(0, n_levels - 1);
 
     mg_constrained_dofs.clear();
-
     mg_constrained_dofs.initialize(dof_handler_displacement);
 
-    mg_constrained_dofs.make_zero_boundary_constraints(dof_handler_displacement,
-                                                           dirichlet_boundary);
+    for (unsigned int level = 0; level < n_levels; ++level)
+    {
+        mg_constrained_dofs.add_user_constraints(level, mg_level_constraints[level]);
+    }
 
 
 
@@ -2170,10 +2182,6 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         DoFTools::extract_locally_relevant_level_dofs(dof_handler_displacement,
                                                       level,
                                                       relevant_dofs);
-        AffineConstraints<double> level_constraints;
-            level_constraints.reinit(relevant_dofs);
-            level_constraints.add_lines(mg_constrained_dofs.get_boundary_indices(level));
-        level_constraints.close();
 
         typename MatrixFree<dim, double>::AdditionalData additional_data;
         additional_data.tasks_parallel_scheme =
@@ -2185,7 +2193,7 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         std::shared_ptr<MatrixFree<dim, double>> mg_mf_storage_level(
                     new MatrixFree<dim, double>());
         mg_mf_storage_level->reinit(dof_handler_displacement,
-                                    level_constraints,
+                                    mg_level_constraints[level],
                                     QGauss<1>(fe_displacement.degree + 1),
                                     additional_data);
 
@@ -2202,7 +2210,6 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     dof_handler_density.distribute_dofs(fe_density);
 
     DoFRenumbering::component_wise(dof_handler_density);
-
     DoFRenumbering::hierarchical(dof_handler_density);
 
     dof_handler_density.distribute_mg_dofs();
@@ -2211,7 +2218,7 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     ChangeVectorTypes::copy(active_density_vector,distributed_solution.block(SolutionBlocks::density));
 
-    const unsigned int n_cells = elasticity_system_mf.get_matrix_free()->n_cell_batches();
+    const unsigned int n_cells = elasticity_matrix_mf.get_matrix_free()->n_cell_batches();
     {
         active_cell_data.density.reinit(TableIndices<2>(n_cells, 1));
 
@@ -2232,7 +2239,6 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         for (const auto &cell : dof_handler.active_cell_iterators())
             if (cell->is_locally_owned())
             {
-                // For each cell, create a local mass matrix and rhs.
 
                 hp_fe_values.reinit(cell);
                 const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
@@ -2279,11 +2285,11 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     std::vector<types::global_dof_index> local_dof_indices(fe_density.dofs_per_cell);
     for (unsigned int cell=0; cell<n_cells; ++cell)
     {
-        const unsigned int n_components_filled = elasticity_system_mf.get_matrix_free()->n_active_entries_per_cell_batch(cell);
+        const unsigned int n_components_filled = elasticity_matrix_mf.get_matrix_free()->n_active_entries_per_cell_batch(cell);
 
         for (unsigned int i=0; i<n_components_filled; ++i)
         {
-            typename DoFHandler<dim>::active_cell_iterator FEQ_cell =elasticity_system_mf.get_matrix_free()->get_cell_iterator(cell,i);
+            typename DoFHandler<dim>::active_cell_iterator FEQ_cell =elasticity_matrix_mf.get_matrix_free()->get_cell_iterator(cell,i);
             typename DoFHandler<dim>::active_cell_iterator DG_cell(&(triangulation),
                                                                    FEQ_cell->level(),
                                                                    FEQ_cell->index(),
@@ -2304,18 +2310,9 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     transfer.build(dof_handler_density);
 
-    std::cout << "level_density_size: " << level_density_vector[0].locally_owned_size() << std::endl;
-    std::cout << "active_density_size: " << active_density_vector.locally_owned_size() << std::endl;
-
-
     transfer.template interpolate_to_mg<double>(dof_handler_density,
                                                 level_density_vector,
                                                 active_density_vector);
-
-
-
-
-
 
     // MAKE LEVEL_CELL_DATA
     for (unsigned int level=0; level<n_levels; ++level)
@@ -2338,7 +2335,6 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
 
                 level_cell_data[level].density(cell, 0)[i] = level_density_vector[level](local_dof_indices[0]);
-
             }
 
         }
@@ -2346,15 +2342,9 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         // Store density tables and other data into the multigrid level matrix-free objects.
 
         mg_matrices[level].set_cell_data (level_cell_data[level]);
-
-
     }
 
-    elasticity_system_mf.set_cell_data(active_cell_data);
-
-
-
-
+    elasticity_matrix_mf.set_cell_data(active_cell_data);
 
     //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2405,62 +2395,65 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
             mf_gmg_preconditioner(dof_handler_displacement, mg, mg_transfer);
 
 
+//*************TEST SOLVE*************************
+//    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
+//    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
 
-    elasticity_system_mf.initialize_dof_vector(distributed_displacement_sol);
-    elasticity_system_mf.initialize_dof_vector(distributed_displacement_rhs);
+//    ChangeVectorTypes::copy(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement));
+//    ChangeVectorTypes::copy(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement));
+
+//    SolverControl test_solver_control(500, 1e-6);
+//    SolverCG<LinearAlgebra::distributed::Vector<double>> CG_Solve(test_solver_control);
+
+//    std::cout << "pre norm: " << distributed_displacement_rhs.l2_norm() << std::endl;
+
+//    try
+//    {
+////        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    PreconditionIdentity());
+//        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs, mf_gmg_preconditioner  );
+//    }
+//    catch(std::exception &exc)
+//    {
+//        std::cout << "solve failed in " << test_solver_control.last_step() <<  " steps" << std::endl;
+//        throw;
+//    }
+
+//    std::cout << "solved in " << test_solver_control.last_step() <<  " steps" << std::endl;
+
+//    ChangeVectorTypes::copy(distributed_solution.block(SolutionBlocks::displacement), distributed_displacement_sol);
+//    displacement_constraints.distribute(distributed_solution);
+//    output(distributed_solution, 0);
+//    std::abort();
+
+    //***************END TEST SOLVE*************************
 
 
 
-    ChangeVectorTypes::copy(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement));
-    ChangeVectorTypes::copy(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement));
+    TopOptSchurPreconditioner<dim> preconditioner(system_matrix, dof_handler, elasticity_matrix_mf, mf_gmg_preconditioner);
+    pcout << "about to solve" << std::endl;
 
-    SolverCG<LinearAlgebra::distributed::Vector<double>> CG_Solve(solver_control);
-
-    std::cout << "from here" << std::endl;
-
-    std::cout << "pre norm" << distributed_displacement_rhs.l2_norm() << std::endl;
-
-    try
+    switch (Input::solver_choice)
     {
-        CG_Solve.solve(elasticity_system_mf, distributed_displacement_sol, -1* distributed_displacement_rhs, mf_gmg_preconditioner  /* PreconditionIdentity()*/);
+
+        case SolverOptions::inexact_K_with_exact_A_gmres: {
+
+
+            preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
+            SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
+            B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
+            pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+            break;
+        }
+        case SolverOptions::inexact_K_with_inexact_A_gmres: {
+            preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
+            SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
+            C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
+            pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+            break;
+        }
+        default:
+            throw;
     }
-    catch(std::exception &exc)
-    {
-
-    }
-
-
-    ChangeVectorTypes::copy(distributed_solution.block(SolutionBlocks::displacement), distributed_displacement_sol);
-    output(distributed_solution, 0);
-    std::abort();
-
-    std::cout << "to here" << std::endl;
-
-
-    //        TopOptSchurPreconditioner<dim> preconditioner(system_matrix, dof_handler, elasticity_system_mf, mf_gmg_preconditioner);
-    //        pcout << "about to solve" << std::endl;
-
-    //        switch (Input::solver_choice) {
-
-    //            case SolverOptions::inexact_K_with_exact_A_gmres: {
-
-
-    //                preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
-    //                SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
-    //                B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
-    //                pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-    //                break;
-    //            }
-    //            case SolverOptions::inexact_K_with_inexact_A_gmres: {
-    //                preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
-    //                SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
-    //                C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
-    //                pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-    //                break;
-    //            }
-    //            default:
-    //                throw;
-    //        }
 
     constraints.distribute(distributed_solution);
 

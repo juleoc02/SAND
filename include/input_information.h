@@ -42,7 +42,7 @@ namespace SAND {
         constexpr bool output_parts_of_matrix = false;
 
         //Linear solver options
-        constexpr unsigned int solver_choice = SolverOptions::inexact_K_with_exact_A_gmres;
+        constexpr unsigned int solver_choice = SolverOptions::inexact_K_with_inexact_A_gmres;
         constexpr bool use_eisenstat_walker = false;
         constexpr double default_gmres_tolerance = 1e-9;
 

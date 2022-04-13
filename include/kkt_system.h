@@ -161,6 +161,7 @@ namespace SAND {
         DoFHandler<dim> dof_handler_density;
 
         AffineConstraints<double> constraints;
+        AffineConstraints<double> displacement_constraints;
         FESystem<dim> fe_nine;
         FESystem<dim> fe_ten;
         hp::FECollection<dim> fe_collection;
@@ -178,7 +179,7 @@ namespace SAND {
         double initial_rhs_error;
 
         MGConstrainedDoFs mg_constrained_dofs;
-        SystemMFMatrixType elasticity_system_mf;
+        SystemMFMatrixType elasticity_matrix_mf;
         MGLevelObject<LevelMFMatrixType> mg_matrices;
 
 
@@ -186,6 +187,7 @@ namespace SAND {
         MGLevelObject<OperatorCellData<dim, GMGNumberType>> level_cell_data;
         dealii::LinearAlgebra::distributed::Vector<double> active_density_vector;
         MGLevelObject<dealii::LinearAlgebra::distributed::Vector<double>> level_density_vector;
+
         MGTransferMatrixFree<dim,GMGNumberType> transfer;
         MGTransferMatrixFree<dim, double> mg_transfer;
 
@@ -193,7 +195,8 @@ namespace SAND {
         mg::SmootherRelaxation<SmootherType,LinearAlgebra::distributed::Vector<double>> mg_smoother;
         MGLevelObject<typename SmootherType::AdditionalData> smoother_data;
         MGCoarseGridApplySmoother<LinearAlgebra::distributed::Vector<double>> mg_coarse;
-        MGLevelObject<std::set<types::boundary_id>> level_dirichlet_boundaries;
+        MGLevelObject<std::set<types::boundary_id>> level_dirichlet_boundary_dofs;
+        MGLevelObject<AffineConstraints<double>> mg_level_constraints;
         MGLevelObject<MatrixFreeOperators::MGInterfaceOperator<LevelMFMatrixType>> mg_interface_matrices;
 
         std::set<types::boundary_id> dirichlet_boundary;
