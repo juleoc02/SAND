@@ -182,6 +182,3 @@ MF_Elasticity_Operator<dim,fe_degree,number>::set_cell_data (const OperatorCellD
 template class SAND::MF_Elasticity_Operator<2,1,double>;
 template class SAND::MF_Elasticity_Operator<3,1,double>;
 
-//template class SAND::MF_Elasticity_Operator<2,1,double>::MF_Elasticity_Operator();
-//template class SAND::MF_Elasticity_Operator<3,1,double>::MF_Elasticity_Operator();
-

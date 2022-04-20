@@ -443,17 +443,17 @@ KktSystem<dim>::setup_boundary_values()
                                 if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
                                             vert(1) - 0) < 1e-12)
                                 {
-                                    //                            const unsigned int x_displacement =
-                                    //                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
+//                                                                const unsigned int x_displacement =
+//                                                                        cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
                                     const unsigned int y_displacement =
                                             cell->vertex_dof_index(vertex_number, 1, cell->active_fe_index());
-                                    //                            const unsigned int x_displacement_multiplier =
-                                    //                                    cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
+//                                                                const unsigned int x_displacement_multiplier =
+//                                                                        cell->vertex_dof_index(vertex_number, 2, cell->active_fe_index());
                                     const unsigned int y_displacement_multiplier =
                                             cell->vertex_dof_index(vertex_number, 3, cell->active_fe_index());
-                                    //                            boundary_values[x_displacement] = 0;
+//                                    boundary_values[x_displacement] = 0;
                                     boundary_values[y_displacement] = 0;
-                                    //                            boundary_values[x_displacement_multiplier] = 0;
+//                                    boundary_values[x_displacement_multiplier] = 0;
                                     boundary_values[y_displacement_multiplier] = 0;
                                 }
                             }
@@ -516,10 +516,16 @@ KktSystem<dim>::setup_boundary_values()
                                     for (unsigned int level = 0; level < n_levels; ++level)
                                     {
 
+                                        const unsigned int x_displacement =
+                                                cell->mg_vertex_dof_index(level, vertex_number, 0,0);
                                         const unsigned int y_displacement =
                                                 cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
-                                        level_boundary_values[level][y_displacement] = 0;
+
+//                                        level_dirichlet_boundary_dofs[level].insert(x_displacement);
                                         level_dirichlet_boundary_dofs[level].insert(y_displacement);
+
+//                                        level_boundary_values[level][x_displacement] = 0;
+                                        level_boundary_values[level][y_displacement] = 0;
                                     }
 
                                 }

@@ -47,7 +47,7 @@ namespace SAND {
         constexpr double default_gmres_tolerance = 1e-9;
 
         constexpr unsigned int a_inv_iterations = 25;
-        constexpr unsigned int k_inv_iterations = 25;
+        constexpr unsigned int k_inv_iterations = 1000;
 
         //Material Options
         constexpr double material_lambda = 1;

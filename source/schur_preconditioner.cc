@@ -393,7 +393,7 @@ namespace SAND {
             auto d_m_inv_density = g_d_m_inv_density;
             d_m_inv_mat.vmult(d_m_inv_density,src.block(SolutionBlocks::density));
             g_mat.vmult(g_d_m_inv_density,d_m_inv_density);
-            SolverControl step_4_gmres_control_1 (Input::k_inv_iterations, g_d_m_inv_density.l2_norm()*1e-6);
+            SolverControl step_4_gmres_control_1 (Input::k_inv_iterations, g_d_m_inv_density.l2_norm()*1e-12);
             SolverFGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
             try {
                 step_4_gmres_1.solve(k_inv_mat,k_g_d_m_inv_density,g_d_m_inv_density, preconditioner );
@@ -405,7 +405,7 @@ namespace SAND {
                 pcout << "last residual: " << step_4_gmres_control_1.last_value() << std::endl;
 //                throw;
             }
-            SolverControl step_4_gmres_control_2 (Input::k_inv_iterations, 1e-6 * src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() );
+            SolverControl step_4_gmres_control_2 (Input::k_inv_iterations, 1e-12 * src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm() );
             SolverFGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
             try {
                 step_4_gmres_2.solve(k_inv_mat,k_density_mult,src.block(SolutionBlocks::unfiltered_density_multiplier), PreconditionIdentity());
@@ -508,7 +508,7 @@ namespace SAND {
                     g_mat.vmult(pre_pre_k,pre_pre_pre_k);
                     pre_k =  -1 * pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
                 }
-                SolverControl step_5_gmres_control_1 (Input::k_inv_iterations, 1e-6*pre_j.l2_norm());
+                SolverControl step_5_gmres_control_1 (Input::k_inv_iterations, 1e-12*pre_j.l2_norm());
                 SolverFGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
                 try {
                     TimerOutput::Scope t(timer, "actual inverse 5.1");
@@ -522,7 +522,7 @@ namespace SAND {
                 }
 
 
-                SolverControl step_5_gmres_control_2 (Input::k_inv_iterations, 1e-6*pre_k.l2_norm());
+                SolverControl step_5_gmres_control_2 (Input::k_inv_iterations, 1e-12*pre_k.l2_norm());
                 SolverFGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
                 try {
                     TimerOutput::Scope t(timer, "actual inverse 5.2");
@@ -554,7 +554,7 @@ namespace SAND {
                     g_mat.vmult(pre_pre_k,pre_pre_pre_k);
                     pre_k =  -1 * pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
                 }
-                SolverControl step_5_gmres_control_1 (Input::k_inv_iterations, 1e-6*pre_j.l2_norm());
+                SolverControl step_5_gmres_control_1 (Input::k_inv_iterations, 1e-12*pre_j.l2_norm());
                 SolverFGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
                 try {
                     TimerOutput::Scope t(timer, "actual inverse 5.1");
@@ -568,7 +568,7 @@ namespace SAND {
                 }
 
 
-                SolverControl step_5_gmres_control_2 (Input::k_inv_iterations, 1e-6*pre_k.l2_norm());
+                SolverControl step_5_gmres_control_2 (Input::k_inv_iterations, 1e-12*pre_k.l2_norm());
                 SolverFGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
                 try {
                     TimerOutput::Scope t(timer, "actual inverse 5.2");
@@ -655,7 +655,7 @@ namespace SAND {
     void AInvMatMFGMG<dim>::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
     {
 
-        SolverControl            solver_control(iterations, 1e-6);
+        SolverControl            solver_control(25, 1e-12);
         SolverCG<LinearAlgebra::distributed::Vector<double>> a_solver_cg(solver_control);
 
         ChangeVectorTypes::copy(temp_src, src);

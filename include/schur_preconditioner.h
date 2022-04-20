@@ -115,7 +115,7 @@ namespace SAND
         private:
             MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator;
             PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>> &mf_gmg_preconditioner;
-            double tolerance = 1e-6;
+            double tolerance = 1e-9;
             unsigned int iterations = 10;
             mutable dealii::LinearAlgebra::distributed::Vector<double> temp_src;
             mutable dealii::LinearAlgebra::distributed::Vector<double> temp_dst;
