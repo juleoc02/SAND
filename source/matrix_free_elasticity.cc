@@ -64,8 +64,10 @@ MF_Elasticity_Operator<dim,fe_degree,number>
     {
 
       VectorizedArray<number> cell_density = cell_data->density(cell, 0);
+      double penalized_density = std::pow(cell_density[0],Input::density_penalty_exponent);
 
-      displacement.reinit (cell);
+      displacement.reinit(cell);
+
       for (unsigned int i=0; i<displacement.dofs_per_cell; ++i)
         {
           for (unsigned int j=0; j<displacement.dofs_per_cell; ++j)
@@ -77,10 +79,16 @@ MF_Elasticity_Operator<dim,fe_degree,number>
 
           for (unsigned int q=0; q<displacement.n_q_points; ++q)
             {
+              SymmetricTensor< 2, dim, VectorizedArray<double> > symgrad_term = penalized_density* 2.0 * Input::material_mu *displacement.get_symmetric_gradient(q);
+              VectorizedArray<number> div_term = trace(displacement.get_symmetric_gradient(q));
 
-              displacement.submit_divergence(std::pow(cell_density,Input::density_penalty_exponent)* Input::material_lambda * displacement.get_divergence(q), q);
-              displacement.submit_symmetric_gradient(std::pow(cell_density,Input::density_penalty_exponent)* 2.0 * Input::material_mu * displacement.get_symmetric_gradient(q), q);
+              for (unsigned int d = 0; d < dim; ++d)
+              {
+                  symgrad_term[d][d] += penalized_density * Input::material_lambda * div_term;
+              }
 
+
+              displacement.submit_symmetric_gradient( symgrad_term , q);
             }
 
           displacement.integrate (EvaluationFlags::gradients);
@@ -128,7 +136,7 @@ MF_Elasticity_Operator<dim, fe_degree, number>::local_apply(
             }
 
 
-            displacement.submit_symmetric_gradient( displacement.get_symmetric_gradient(q), q);
+            displacement.submit_symmetric_gradient( symgrad_term, q);
 
         }
 

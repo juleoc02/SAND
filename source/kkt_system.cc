@@ -2556,12 +2556,7 @@ KktSystem<dim>::output(const LA::MPI::BlockVector &state, const unsigned int j) 
 
 }
 
-template<int dim>
-PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>
-KktSystem<dim>::build_mf_gmg_preconditioner()
-{
 
-}
 
 
 template<>

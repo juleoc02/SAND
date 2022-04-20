@@ -44,6 +44,7 @@ namespace SAND {
 
 
     using namespace dealii;
+
     template<int dim>
     TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in, DoFHandler<dim> &big_dof_handler_in, MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim,LinearAlgebra::distributed::Vector<double> ,MGTransferMatrixFree<dim, double>>
                                                               &mf_gmg_preconditioner_in)
@@ -71,7 +72,7 @@ namespace SAND {
             additional_data(false, solver_type),
             direct_solver_control(1, 0),
             a_inv_direct(direct_solver_control, additional_data),
-            a_inv_mf_gmg(mf_elasticity_operator_in, mf_gmg_preconditioner_in),
+            a_inv_mf_gmg(mf_elasticity_operator_in, mf_gmg_preconditioner_in, a_mat),
             pcout(std::cout,(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
             timer(pcout, TimerOutput::summary, TimerOutput::wall_times),
             g_mat(f_mat, d_8_mat),
@@ -86,6 +87,9 @@ namespace SAND {
     template<int dim>
     void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &distributed_state)
     {
+
+        a_inv_mf_gmg.set_exemplar_vector(distributed_state.block(SolutionBlocks::displacement));
+
         TimerOutput::Scope t(timer, "initialize");
         {
                 TimerOutput::Scope t(timer, "diag stuff");
@@ -643,9 +647,10 @@ namespace SAND {
     // **************** A inv MF GMG **********************
 
     template<int dim>
-    AInvMatMFGMG<dim>::AInvMatMFGMG(MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim, LinearAlgebra::distributed::Vector<double>, MGTransferMatrixFree<dim, double> > &mf_gmg_preconditioner_in)
+    AInvMatMFGMG<dim>::AInvMatMFGMG(MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim, LinearAlgebra::distributed::Vector<double>, MGTransferMatrixFree<dim, double> > &mf_gmg_preconditioner_in, LA::MPI::SparseMatrix &a_mat)
         : mf_elasticity_operator(mf_elasticity_operator_in),
-          mf_gmg_preconditioner(mf_gmg_preconditioner_in)
+          mf_gmg_preconditioner(mf_gmg_preconditioner_in),
+          a_mat_wrapped(a_mat)
     {
         mf_elasticity_operator.initialize_dof_vector(temp_dst);
         mf_elasticity_operator.initialize_dof_vector(temp_src);
@@ -655,12 +660,12 @@ namespace SAND {
     void AInvMatMFGMG<dim>::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
     {
 
-        SolverControl            solver_control(25, 1e-12);
+        SolverControl            solver_control(50, 1e-6);
         SolverCG<LinearAlgebra::distributed::Vector<double>> a_solver_cg(solver_control);
 
         ChangeVectorTypes::copy(temp_src, src);
         try{
-            a_solver_cg.solve(mf_elasticity_operator,temp_dst,temp_src, mf_gmg_preconditioner);
+            a_solver_cg.solve(a_mat_wrapped,temp_dst,temp_src, mf_gmg_preconditioner);
         } catch (std::exception &exc)
         {
             std::cout << "failed with a reduction of: " << solver_control.initial_value()/solver_control.last_value() << std::endl;
@@ -671,15 +676,14 @@ namespace SAND {
     }
 
     template<int dim>
-    void AInvMatMFGMG<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const {
-        SolverControl            solver_control(iterations, src.l2_norm()*tolerance);
+    void AInvMatMFGMG<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        SolverControl            solver_control(50, src.l2_norm()*1e-6);
         SolverCG<LinearAlgebra::distributed::Vector<double>> a_solver_cg(solver_control);
 
         ChangeVectorTypes::copy(temp_src, src);
         temp_dst = 0.;
-
-        a_solver_cg.solve(mf_elasticity_operator,temp_dst,temp_src, mf_gmg_preconditioner);
-
+        a_solver_cg.solve(a_mat_wrapped,temp_dst,temp_src, mf_gmg_preconditioner);
         ChangeVectorTypes::copy(dst,temp_dst);
     }
 
@@ -962,6 +966,24 @@ namespace SAND {
         dst = -1*temp_vect_4 - temp_vect_3;
     }
 
+
+    AMatWrapped::AMatWrapped(LA::MPI::SparseMatrix &a_mat_in)
+            :
+            a_mat(a_mat_in)
+    {
+    }
+    void AMatWrapped::vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+        ChangeVectorTypes::copy(temp_src, src);
+        a_mat.vmult(temp_dst,temp_src);
+        ChangeVectorTypes::copy(dst, temp_dst);
+    }
+    void AMatWrapped::Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+        ChangeVectorTypes::copy(temp_src, src);
+        a_mat.Tvmult(temp_dst,temp_src);
+        ChangeVectorTypes::copy(dst, temp_dst);
+    }
 }
 
 
@@ -980,3 +1002,4 @@ template class SAND::KinvMatrix<3>;
 
 template class SAND::HMatrix<2>;
 template class SAND::HMatrix<3>;
+

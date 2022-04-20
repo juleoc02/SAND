@@ -101,18 +101,43 @@ namespace SAND
             int size;
     };
 
+    class AMatWrapped : public TrilinosWrappers::SparseMatrix {
+        public:
+            AMatWrapped(LA::MPI::SparseMatrix &a_mat);
+            void vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            void Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            unsigned int m() const;
+            unsigned int n() const;
+            void set_exemplar_vector (const LA::MPI::Vector &exemplar_vector)
+            {
+                temp_dst = exemplar_vector;
+                temp_src = exemplar_vector;
+            }
+
+        private:
+            const LA::MPI::SparseMatrix &a_mat;
+            mutable LA::MPI::Vector temp_src;
+            mutable LA::MPI::Vector temp_dst;
+
+    };
+
     template<int dim>
     class AInvMatMFGMG : public TrilinosWrappers::SparseMatrix {
         public:
             AInvMatMFGMG(MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>
-                         &mf_gmg_preconditioner_in);
+                         &mf_gmg_preconditioner_in,LA::MPI::SparseMatrix &a_mat);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             unsigned int m() const;
             unsigned int n() const;
             void set_tol(double tolerance_in);
             void set_iter(unsigned int iterations_in);
+            void set_exemplar_vector (const LA::MPI::Vector &exemplar_vector)
+            {
+                a_mat_wrapped.set_exemplar_vector(exemplar_vector);
+            }
         private:
+            AMatWrapped a_mat_wrapped;
             MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator;
             PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>> &mf_gmg_preconditioner;
             double tolerance = 1e-9;
@@ -121,6 +146,7 @@ namespace SAND
             mutable dealii::LinearAlgebra::distributed::Vector<double> temp_dst;
 
     };
+
 
     class GMatrix : public TrilinosWrappers::SparseMatrix {
         public:

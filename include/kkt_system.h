@@ -146,9 +146,6 @@ namespace SAND {
         LA::MPI::BlockVector
         calculate_rhs(const LA::MPI::BlockVector &test_solution, const double barrier_size) const;
 
-       PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>
-            build_mf_gmg_preconditioner();
-
         BlockDynamicSparsityPattern dsp;
         BlockSparsityPattern sparsity_pattern;
         mutable LA::MPI::BlockSparseMatrix system_matrix;
