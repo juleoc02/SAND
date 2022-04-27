@@ -179,7 +179,6 @@ namespace SAND {
         SystemMFMatrixType elasticity_matrix_mf;
         MGLevelObject<LevelMFMatrixType> mg_matrices;
 
-
         OperatorCellData<dim, GMGNumberType> active_cell_data;
         MGLevelObject<OperatorCellData<dim, GMGNumberType>> level_cell_data;
         dealii::LinearAlgebra::distributed::Vector<double> active_density_vector;

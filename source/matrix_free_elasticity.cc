@@ -128,11 +128,11 @@ MF_Elasticity_Operator<dim, fe_degree, number>::local_apply(
         for (unsigned int q = 0; q < displacement.n_q_points; ++q)
         {
             SymmetricTensor< 2, dim, VectorizedArray<double> > symgrad_term = penalized_density* 2.0 * Input::material_mu *displacement.get_symmetric_gradient(q);
-            VectorizedArray<number> div_term = trace(displacement.get_symmetric_gradient(q));
+            VectorizedArray<number> div_term = penalized_density * Input::material_lambda * trace(displacement.get_symmetric_gradient(q));
 
             for (unsigned int d = 0; d < dim; ++d)
             {
-                symgrad_term[d][d] += penalized_density* Input::material_lambda * div_term;
+                symgrad_term[d][d] +=  div_term;
             }
 
 
@@ -152,6 +152,7 @@ MF_Elasticity_Operator<dim, fe_degree, number>
                    const dealii::LinearAlgebra::distributed::Vector<number> &,
                    const std::pair<unsigned int, unsigned int> &) const
 {
+
 }
 
 
@@ -163,6 +164,7 @@ MF_Elasticity_Operator<dim, fe_degree, number>
                             const dealii::LinearAlgebra::distributed::Vector<number> &,
                             const std::pair<unsigned int, unsigned int> &) const
 {
+
 }
 
 

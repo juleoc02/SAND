@@ -496,11 +496,11 @@ KktSystem<dim>::setup_boundary_values()
                                      {
 
                                          const unsigned int x_displacement =
-                                                 cell->mg_vertex_dof_index(level, vertex_number, 0,0);
-
+                                                 cell->mg_vertex_dof_index(level, vertex_number, 0, cell->active_fe_index());
                                          const unsigned int y_displacement =
-                                                 cell->mg_vertex_dof_index(level, vertex_number, 1,0);
+                                                 cell->mg_vertex_dof_index(level, vertex_number, 1, cell->active_fe_index());
                                          /*set bottom left BC*/
+
                                          level_dirichlet_boundary_dofs[level].insert(x_displacement);
                                          level_dirichlet_boundary_dofs[level].insert(y_displacement);
 
@@ -516,10 +516,10 @@ KktSystem<dim>::setup_boundary_values()
                                     for (unsigned int level = 0; level < n_levels; ++level)
                                     {
 
-                                        const unsigned int x_displacement =
-                                                cell->mg_vertex_dof_index(level, vertex_number, 0,0);
+//                                        const unsigned int x_displacement =
+//                                                cell->mg_vertex_dof_index(level, vertex_number, 0,cell->active_fe_index());
                                         const unsigned int y_displacement =
-                                                cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 1, cell->active_fe_index());
 
 //                                        level_dirichlet_boundary_dofs[level].insert(x_displacement);
                                         level_dirichlet_boundary_dofs[level].insert(y_displacement);
@@ -527,7 +527,6 @@ KktSystem<dim>::setup_boundary_values()
 //                                        level_boundary_values[level][x_displacement] = 0;
                                         level_boundary_values[level][y_displacement] = 0;
                                     }
-
                                 }
                             }
                         }
@@ -1183,7 +1182,7 @@ KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &distributed_st
     const FEValuesExtractors::Scalar total_volume_multiplier(
                 SolutionComponents::total_volume_multiplier<dim>);
 
-    const Functions::ConstantFunction<dim> lambda(1.), mu(1.);
+    const Functions::ConstantFunction<dim> lambda(Input::material_lambda), mu(Input::material_mu);
 
     distributed_solution = distributed_state;
     LA::MPI::BlockVector filtered_unfiltered_density_solution = distributed_solution;
@@ -2174,6 +2173,8 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     mg_constrained_dofs.clear();
     mg_constrained_dofs.initialize(dof_handler_displacement);
+    const std::set<types::boundary_id> empty_boundary_set;
+    mg_constrained_dofs.make_zero_boundary_constraints(dof_handler_displacement,empty_boundary_set);
 
     for (unsigned int level = 0; level < n_levels; ++level)
     {
@@ -2307,6 +2308,7 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
         }
     }
+    elasticity_matrix_mf.set_cell_data(active_cell_data);
 
     //MAKE LEVEL DENSITY VECTOR
 
@@ -2350,7 +2352,7 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         mg_matrices[level].set_cell_data (level_cell_data[level]);
     }
 
-    elasticity_matrix_mf.set_cell_data(active_cell_data);
+
 
     //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2402,34 +2404,51 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
 
 //*************TEST SOLVE*************************
-//    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
-//    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
+    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
+    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
 
-//    ChangeVectorTypes::copy(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement));
-//    ChangeVectorTypes::copy(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement));
+    ChangeVectorTypes::copy(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement));
+    ChangeVectorTypes::copy(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement));
 
-//    SolverControl test_solver_control(500, 1e-6);
-//    SolverCG<LinearAlgebra::distributed::Vector<double>> CG_Solve(test_solver_control);
+    SolverControl test_solver_control_1(500, 1e-6);
+    SolverControl test_solver_control_2(500, 1e-6);
+    SolverCG<LinearAlgebra::distributed::Vector<double>> CG_Solve_1(test_solver_control_1);
+    SolverCG<LA::MPI::Vector> CG_Solve_2(test_solver_control_2);
 
-//    std::cout << "pre norm: " << distributed_displacement_rhs.l2_norm() << std::endl;
+    std::cout << "pre norm: " << distributed_displacement_rhs.l2_norm() << std::endl;
 
-//    try
-//    {
-////        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    PreconditionIdentity());
-//        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs, mf_gmg_preconditioner  );
-//    }
-//    catch(std::exception &exc)
-//    {
-//        std::cout << "solve failed in " << test_solver_control.last_step() <<  " steps" << std::endl;
-//        throw;
-//    }
+    try
+    {
+//        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    );
+        CG_Solve_1.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs, PreconditionIdentity() );
+    }
+    catch(std::exception &exc)
+    {
+        std::cout << "solve failed in " << test_solver_control_1.last_step() <<  " steps" << std::endl;
+        throw;
+    }
 
-//    std::cout << "solved in " << test_solver_control.last_step() <<  " steps" << std::endl;
+    std::cout << "solved in " << test_solver_control_1.last_step() <<  " steps" << std::endl;
 
-//    ChangeVectorTypes::copy(distributed_solution.block(SolutionBlocks::displacement), distributed_displacement_sol);
-//    displacement_constraints.distribute(distributed_solution);
-//    output(distributed_solution, 0);
-//    std::abort();
+    try
+    {
+//        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    PreconditionIdentity());
+        CG_Solve_2.solve(system_matrix.block(SolutionBlocks::displacement,SolutionBlocks::displacement_multiplier), distributed_solution.block(SolutionBlocks::displacement_multiplier), system_rhs.block(SolutionBlocks::displacement), PreconditionIdentity()  );
+    }
+    catch(std::exception &exc)
+    {
+        std::cout << "solve failed in " << test_solver_control_2.last_step() <<  " steps" << std::endl;
+        throw;
+    }
+
+    std::cout << "solved in " << test_solver_control_2.last_step() <<  " steps" << std::endl;
+
+    ChangeVectorTypes::copy(distributed_solution.block(SolutionBlocks::displacement), distributed_displacement_sol);
+    displacement_constraints.distribute(distributed_solution.block(SolutionBlocks::displacement));
+
+
+    output(distributed_solution, 0);
+    std::abort();
 
     //***************END TEST SOLVE*************************
 
