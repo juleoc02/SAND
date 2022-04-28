@@ -44,10 +44,11 @@
 #include <iostream>
 #include <algorithm>
 
-// This problem initializes with a FESystem composed of 2×dim FE_Q(1) elements, and 8 FE_DGQ(0)  elements.
-// The  piecewise  constant  functions  are  for  density-related  variables,and displacement-related variables are assigned to the FE_Q(1) elements.
+/// This problem initializes with a FESystem composed of 2×dim FE_Q(1) elements, and 8 FE_DGQ(0)  elements.
+/// The  piecewise  constant  functions  are  for  density-related  variables,and displacement-related variables are assigned to the FE_Q(1) elements.
 namespace SAND {
 
+///Necessary functions for going between Trilinos vectors and multigrid-compatible distributed vectors.
 namespace ChangeVectorTypes
 {
 template <typename number>
@@ -59,6 +60,8 @@ void copy(LA::MPI::Vector &                                         out,
     rwv.import(in, VectorOperation::insert);
     out.import(rwv, VectorOperation::insert);
 }
+
+
 template <typename number>
 void copy(dealii::LinearAlgebra::distributed::Vector<number> &out,
           const LA::MPI::Vector &                             in)
@@ -69,7 +72,8 @@ void copy(dealii::LinearAlgebra::distributed::Vector<number> &out,
 }
 } // namespace ChangeVectorTypes
 
-
+///The KKTSystem class calculates the Hessian and Gradient of the Lagrangian of the system, and solves the resulting system to be used
+/// as a step direction for the overarching solver.
 template<int dim>
 KktSystem<dim>::KktSystem()
     :
@@ -104,7 +108,7 @@ KktSystem<dim>::KktSystem()
 }
 
 
-//A  function  used  once  at  the  beginning  of  the  program,  this  creates  a  matrix  H  so  that H* unfiltered density = filtered density
+///A  function  used  once  at  the  beginning  of  the  program,  this  creates  a  matrix  H  so  that H* unfiltered density = filtered density
 
 template<int dim>
 void
@@ -113,12 +117,13 @@ KktSystem<dim>::setup_filter_matrix() {
     density_filter.initialize(dof_handler);
 }
 
-//This triangulation matches the problem description -
-// a 6-by-1 rectangle where a force will be applied in the top center.
+///This triangulation matches the problem description
 
 template<int dim>
 void
 KktSystem<dim>::create_triangulation() {
+
+    ///Start by defining the sub-blocks of the DoFHandler
 
     std::vector<unsigned int> sub_blocks(2*dim+8, 0);
 
@@ -139,7 +144,7 @@ KktSystem<dim>::create_triangulation() {
     sub_blocks[6+2*dim]=8;
     sub_blocks[7+2*dim]=9;
 
-
+    ///MBB Beam defined here
     if (Input::geometry_base == GeometryOptions::mbb) {
         const double width = 6;
         const unsigned int width_refine = 6;
@@ -200,15 +205,6 @@ KktSystem<dim>::create_triangulation() {
                 }
             }
 
-            dof_handler.distribute_dofs(fe_collection);
-            dof_handler_displacement.distribute_dofs(fe_displacement);
-            dof_handler_displacement.distribute_mg_dofs();
-
-            DoFRenumbering::component_wise(dof_handler, sub_blocks);
-            DoFRenumbering::component_wise(dof_handler_displacement);
-
-//            DoFRenumbering::hierarchical(dof_handler);
-            DoFRenumbering::hierarchical(dof_handler_displacement);
         }
         else if (dim == 3)
         {
@@ -251,19 +247,10 @@ KktSystem<dim>::create_triangulation() {
                 }
             }
 
-            dof_handler.distribute_dofs(fe_collection);
-            dof_handler_displacement.distribute_dofs(fe_displacement);
-            dof_handler_displacement.distribute_mg_dofs();
-
-            DoFRenumbering::component_wise(dof_handler, sub_blocks);
-            DoFRenumbering::component_wise(dof_handler_displacement);
-
-            DoFRenumbering::hierarchical(dof_handler);
-            DoFRenumbering::hierarchical(dof_handler_displacement);
-
         } else {
             throw;
         }
+    ///L-shaped cantilever with re-entrant corner
     } else if (Input::geometry_base == GeometryOptions::l_shape) {
         const double width = 2;
         const unsigned int width_refine = 2;
@@ -318,16 +305,6 @@ KktSystem<dim>::create_triangulation() {
                 }
             }
 
-            dof_handler.distribute_dofs(fe_collection);
-            dof_handler_displacement.distribute_dofs(fe_displacement);
-            dof_handler_displacement.distribute_mg_dofs();
-
-            DoFRenumbering::component_wise(dof_handler, sub_blocks);
-            DoFRenumbering::component_wise(dof_handler_displacement);
-
-            DoFRenumbering::hierarchical(dof_handler);
-            DoFRenumbering::hierarchical(dof_handler_displacement);
-
         } else if (dim == 3) {
             GridGenerator::subdivided_hyper_L(triangulation,
                                               {width_refine, height_refine, depth_refine},
@@ -374,16 +351,6 @@ KktSystem<dim>::create_triangulation() {
                     }
                 }
             }
-
-            dof_handler.distribute_dofs(fe_collection);
-            dof_handler_displacement.distribute_dofs(fe_displacement);
-
-            DoFRenumbering::component_wise(dof_handler, sub_blocks);
-            DoFRenumbering::component_wise(dof_handler_displacement);
-
-            DoFRenumbering::hierarchical(dof_handler_displacement);
-
-            dof_handler_displacement.distribute_mg_dofs();
         } else {
             throw;
         }
@@ -391,16 +358,23 @@ KktSystem<dim>::create_triangulation() {
         throw;
     }
 
+    dof_handler.distribute_dofs(fe_collection);
+    dof_handler_displacement.distribute_dofs(fe_displacement);
+    dof_handler_displacement.distribute_mg_dofs();
+
+    DoFRenumbering::component_wise(dof_handler, sub_blocks);
+
 }
 
-// The  bottom  corners  are  kept  in  place  in  the  y  direction  -  the  bottom  left  also  in  the  x direction.
-// Because deal.ii is formulated to enforce boundary conditions along regions of the boundary,
-// we do this to ensure these BCs are only enforced at points.
+/// Only individual points are given Dirichlet Boundary Conditions.
+/// For example, in the MBB caes, The  bottom  corners  are  kept  in  place  in  the  y  direction
+/// and the  bottom  left  also  in  the  x direction.
+/// Because deal.ii is formulated to enforce boundary conditions along regions of the boundary,
+/// we do this to ensure these BCs are only enforced at points.
 template<int dim>
 void
 KktSystem<dim>::setup_boundary_values()
 {
-    std::cout << "here" << std::endl;
     if (Input::geometry_base == GeometryOptions::mbb)
     {
         if (dim == 2)
@@ -675,8 +649,6 @@ KktSystem<dim>::setup_boundary_values()
                 mg_level_constraints[level].close();
             }
 
-
-
         }
         else
         {
@@ -946,9 +918,10 @@ KktSystem<dim>::setup_boundary_values()
 }
 
 
-//This makes a giant 10-by-10 block matrix, and also sets up the necessary block vectors.  The
-// sparsity pattern for this matrix includes the sparsity pattern for the filter matrix. It also initializes
-// any block vectors we will use.
+///This makes a giant 10-by-10 block matrix that when assembled will represents the 10 KKT equations that
+/// come from this problem, and also sets up the necessary block vectors.  The
+/// sparsity pattern for this matrix includes the sparsity pattern for the filter matrix. It also initializes
+/// any block vectors we will use.
 template<int dim>
 void
 KktSystem<dim>::setup_block_system() {
@@ -1048,9 +1021,6 @@ KktSystem<dim>::setup_block_system() {
     coupling[SolutionComponents::unfiltered_density<dim>][SolutionComponents::unfiltered_density_multiplier<dim>] = DoFTools::always;
     coupling[SolutionComponents::unfiltered_density_multiplier<dim>][SolutionComponents::unfiltered_density<dim>] = DoFTools::always;
 
-
-
-
     //        Coupling for lower slack
     coupling[SolutionComponents::density_lower_slack<dim>][SolutionComponents::density_lower_slack<dim>] = DoFTools::always;
 
@@ -1105,7 +1075,6 @@ KktSystem<dim>::setup_block_system() {
         }
     }
 
-
     SparsityTools::distribute_sparsity_pattern(
                 dsp,
                 Utilities::MPI::all_gather(mpi_communicator,
@@ -1125,9 +1094,7 @@ KktSystem<dim>::setup_block_system() {
     system_matrix.collect_sizes();
 }
 
-///This  is  where  the  magic  happens.   The  equations  describing  the newtons method for finding 0s in the KKT conditions are implemented here.
-
-
+///The  equations  describing  the newtons method for finding 0s in the KKT conditions are implemented here.
 template<int dim>
 void
 KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &distributed_state, const double barrier_size) {
@@ -1518,6 +1485,7 @@ KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &distributed_st
 
 }
 
+///For use in the filter, this calculates the objective value we are working to minimize.
 template<int dim>
 double
 KktSystem<dim>::calculate_objective_value(const LA::MPI::BlockVector &distributed_state) const {
@@ -1608,7 +1576,7 @@ KktSystem<dim>::calculate_objective_value(const LA::MPI::BlockVector &distribute
 }
 
 
-//As the KKT System know which vectors correspond to the slack variables, the sum of the logs of the slacks is computed here for use in the filter.
+///As the KKT System knows which vectors correspond to the slack variables, the sum of the logs of the slacks is computed here for use in the filter.
 template<int dim>
 double
 KktSystem<dim>::calculate_barrier_distance(const LA::MPI::BlockVector &state) const {
@@ -1629,6 +1597,7 @@ KktSystem<dim>::calculate_barrier_distance(const LA::MPI::BlockVector &state) co
     return out_barrier_distance_log_sum;
 }
 
+///Calculates the norm of the RHS. While not the KKT norm, we also expect this to be 0 at a minimum.
 template<int dim>
 double
 KktSystem<dim>::calculate_rhs_norm(const LA::MPI::BlockVector &state, const double barrier_size) const {
@@ -1636,7 +1605,7 @@ KktSystem<dim>::calculate_rhs_norm(const LA::MPI::BlockVector &state, const doub
 }
 
 
-//Feasibility conditions appear on the RHS of the linear system, so I compute the RHS to find it. Could probably be combined with the objective value finding part to make it faster.
+///Feasibility conditions appear on the RHS of the linear system, so I compute the RHS to find it. Could probably be combined with the objective value finding part to make it faster.
 template<int dim>
 double
 KktSystem<dim>::calculate_feasibility(const LA::MPI::BlockVector &state, const double barrier_size) const {
@@ -1688,6 +1657,7 @@ KktSystem<dim>::calculate_feasibility(const LA::MPI::BlockVector &state, const d
     return norm;
 }
 
+///calculates the KKT norm of the system, representing how close the program is to convergence.
 template<int dim>
 double
 KktSystem<dim>::calculate_convergence(const LA::MPI::BlockVector &state) const {
@@ -1742,6 +1712,7 @@ KktSystem<dim>::calculate_convergence(const LA::MPI::BlockVector &state) const {
     return norm;
 }
 
+/// Makes the RHS of the KKT equations
 template<int dim>
 LA::MPI::BlockVector
 KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &distributed_state, const double barrier_size) const {
@@ -1749,7 +1720,6 @@ KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &distributed_state, con
     LA::MPI::BlockVector state (locally_relevant_solution);
     state = distributed_state;
     test_rhs = 0;
-
 
     QGauss<dim> nine_quadrature(fe_nine.degree + 1);
     QGauss<dim> ten_quadrature(fe_ten.degree + 1);
@@ -1938,7 +1908,6 @@ KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &distributed_state, con
                             fe_values[density_upper_slack_multipliers].value(i,
                                                                              q_point);
 
-
                     //rhs eqn 0
                     cell_rhs(i) +=
                             -1 * fe_values.JxW(q_point) * (
@@ -1973,9 +1942,6 @@ KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &distributed_state, con
                                 + unfiltered_density_phi_i * old_upper_slack_multiplier_values[q_point]
                                 + -1 * unfiltered_density_phi_i * old_lower_slack_multiplier_values[q_point]
                                 );
-
-
-
 
                     //rhs eqn 3 - boundary terms counted later
                     cell_rhs(i) +=
@@ -2105,7 +2071,7 @@ KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &distributed_state, con
 
 }
 
-
+///Solves the big system to get the newton step
 template<int dim>
 LA::MPI::BlockVector
 KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
@@ -2487,12 +2453,14 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     return distributed_solution;
 }
 
+///Calculates and stores the first RHS norm for comparison with future RHS norm values
 template<int dim>
 void
 KktSystem<dim>::calculate_initial_rhs_error() {
     initial_rhs_error = system_rhs.l2_norm();
 }
 
+///Creates an initial state vector used as an initial guess for the nonlinear solver.
 template<int dim>
 LA::MPI::BlockVector
 KktSystem<dim>::get_initial_state() {
@@ -2525,6 +2493,7 @@ KktSystem<dim>::get_initial_state() {
     return state;
 }
 
+///Outputs the current state to a vtk file
 template<int dim>
 void
 KktSystem<dim>::output(const LA::MPI::BlockVector &state, const unsigned int j) const {
@@ -2577,7 +2546,7 @@ KktSystem<dim>::output(const LA::MPI::BlockVector &state, const unsigned int j) 
 
 
 
-
+///Outputs to a 3d-printable file. Not yet usable in parallel.
 template<>
 void
 KktSystem<2>::output_stl(const LA::MPI::BlockVector &state) {
@@ -2796,7 +2765,7 @@ KktSystem<2>::output_stl(const LA::MPI::BlockVector &state) {
     stlfile << "endsolid bridge";
 }
 
-
+///Outputs to a 3d-printable file. Not yet usable in parallel.
 template<>
 void
 KktSystem<3>::output_stl(const LA::MPI::BlockVector &state)

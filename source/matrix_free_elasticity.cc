@@ -7,7 +7,7 @@
 namespace SAND {
 using namespace dealii;
 
-
+///Constructor
 template <int dim, int fe_degree, typename number>
 MF_Elasticity_Operator<dim, fe_degree, number>::MF_Elasticity_Operator()
     : MatrixFreeOperators::Base<dim,LinearAlgebra::distributed::Vector<number>>()
@@ -15,6 +15,7 @@ MF_Elasticity_Operator<dim, fe_degree, number>::MF_Elasticity_Operator()
 
 }
 
+///Clears the objects, removes density information
 template <int dim, int fe_degree, typename number>
 void MF_Elasticity_Operator<dim, fe_degree, number>::clear()
 {
@@ -22,7 +23,7 @@ void MF_Elasticity_Operator<dim, fe_degree, number>::clear()
     MatrixFreeOperators::Base<dim, LinearAlgebra::distributed::Vector<number>>::clear();
 }
 
-
+///Computes the diagonal for a preconditioner on the coarsest level.
 template <int dim, int fe_degree, typename number>
 void
 MF_Elasticity_Operator<dim,fe_degree,number>::compute_diagonal ()
@@ -46,8 +47,7 @@ MF_Elasticity_Operator<dim,fe_degree,number>::compute_diagonal ()
       }
 }
 
-
-
+///Computes the diagonal value locally for a cell
 template <int dim, int fe_degree, typename number>
 void
 MF_Elasticity_Operator<dim,fe_degree,number>
@@ -102,9 +102,7 @@ MF_Elasticity_Operator<dim,fe_degree,number>
     }
 }
 
-
-
-
+///Applies the elasticity operator locally. Matches what happens in KKT System
 template <int dim, int fe_degree, typename number>
 void
 MF_Elasticity_Operator<dim, fe_degree, number>::local_apply(
@@ -144,6 +142,7 @@ MF_Elasticity_Operator<dim, fe_degree, number>::local_apply(
     }
 }
 
+///Nothing is applied on a face on the LHS, so left blank.
 template <int dim, int fe_degree, typename number>
 void
 MF_Elasticity_Operator<dim, fe_degree, number>
@@ -155,7 +154,7 @@ MF_Elasticity_Operator<dim, fe_degree, number>
 
 }
 
-
+///Nothing is applied on a face on the LHS, so left blank.
 template <int dim, int fe_degree, typename number>
 void
 MF_Elasticity_Operator<dim, fe_degree, number>
@@ -167,7 +166,7 @@ MF_Elasticity_Operator<dim, fe_degree, number>
 
 }
 
-
+///Loops over all cells to apply the elasticity operatorto the entire LHS vector
 template <int dim, int fe_degree, typename number>
 void
 MF_Elasticity_Operator<dim,fe_degree,number>
@@ -178,6 +177,7 @@ MF_Elasticity_Operator<dim,fe_degree,number>
             data->cell_loop(&MF_Elasticity_Operator::local_apply, this, dst, src);
 }
 
+///Sets cell data (density) to be input given.
 template <int dim, int fe_degree, typename number>
 void
 MF_Elasticity_Operator<dim,fe_degree,number>::set_cell_data (const OperatorCellData<dim,number> &data)

@@ -45,6 +45,7 @@ namespace SAND {
 
     using namespace dealii;
 
+    ///Constructor... kinda big due to many references to matrices
     template<int dim>
     TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in, DoFHandler<dim> &big_dof_handler_in, MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim,LinearAlgebra::distributed::Vector<double> ,MGTransferMatrixFree<dim, double>>
                                                               &mf_gmg_preconditioner_in)
@@ -84,6 +85,7 @@ namespace SAND {
 
     }
 
+    ///Initializes the preconditioner with information about the boundary values and DoF Handler.
     template<int dim>
     void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values,const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &distributed_state)
     {
@@ -280,7 +282,7 @@ namespace SAND {
 
     }
 
-
+    ///Application of the preconditioner, broken up into 5 parts.
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         LA::MPI::BlockVector temp_src;
@@ -310,6 +312,7 @@ namespace SAND {
         vmult_step_5(dst, temp_src);
     }
 
+    ///Not implemented
     template<int dim>
     void TopOptSchurPreconditioner<dim>::Tvmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
@@ -322,6 +325,7 @@ namespace SAND {
         dst += dst_temp;
     }
 
+    ///Not implemented
     template<int dim>
     void TopOptSchurPreconditioner<dim>::Tvmult_add(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         dst = src;
@@ -429,7 +433,7 @@ namespace SAND {
 
 
 
-
+    ///The only non-triangular vmult step, applies inverses down the block diagonal.
     template<int dim>
     void TopOptSchurPreconditioner<dim>::vmult_step_5(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
         {
@@ -466,8 +470,6 @@ namespace SAND {
 
                   a_inv_mf_gmg.vmult( dst.block(SolutionBlocks::displacement), src.block(SolutionBlocks::displacement_multiplier));
                   a_inv_mf_gmg.vmult( dst.block(SolutionBlocks::displacement_multiplier), src.block(SolutionBlocks::displacement));
-
-
             }
             else
             {
@@ -477,8 +479,6 @@ namespace SAND {
 
 
         }
-
-
         {
             //Fourth (ugly) Block Inverse
             TimerOutput::Scope t(timer, "inverse 4");
@@ -597,7 +597,7 @@ namespace SAND {
         }
     }
 
-
+    ///I used to use this function to output parts of the preconditioner for debugging.
     template<int dim>
     void TopOptSchurPreconditioner<dim>::print_stuff()
     {
@@ -605,38 +605,9 @@ namespace SAND {
 
     }
 
+    //******************************* Direct Trilinos Solver ***********************************
 
-
-    void VmultTrilinosSolverDirect::initialize(LA::MPI::SparseMatrix &a_mat)
-    {
-        reinit(a_mat);
-        solver_direct.initialize(a_mat);
-        size = a_mat.n();
-    }
-
-    void
-    VmultTrilinosSolverDirect::vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
-    {
-        solver_direct.solve(dst, src);
-    }
-
-    void VmultTrilinosSolverDirect::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
-    {
-        solver_direct.solve(dst, src);
-    }
-
-    void
-    VmultTrilinosSolverDirect::Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
-    {
-        solver_direct.solve(dst, src);
-    }
-
-    void VmultTrilinosSolverDirect::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
-    {
-        solver_direct.solve(dst, src);
-    }
-
-
+    ///Constructor
     VmultTrilinosSolverDirect::VmultTrilinosSolverDirect(SolverControl &cn,
                      const TrilinosWrappers::SolverDirect::AdditionalData &data)
     : solver_direct(cn, data)
@@ -644,8 +615,45 @@ namespace SAND {
 
     }
 
+    ///Initialize a direct solver - works well up to a point of refinement, and then refuses to solve.
+    void VmultTrilinosSolverDirect::initialize(LA::MPI::SparseMatrix &a_mat)
+    {
+        reinit(a_mat);
+        solver_direct.initialize(a_mat);
+        size = a_mat.n();
+    }
+
+    ///rephrases the solve as a vmult for easier use.
+    void
+    VmultTrilinosSolverDirect::vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+        solver_direct.solve(dst, src);
+    }
+
+    ///rephrases the solve as a vmult for easier use.
+    void VmultTrilinosSolverDirect::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        solver_direct.solve(dst, src);
+    }
+
+    ///rephrases the solve as a vmult for easier use - note this is a symmetric matrix
+    void
+    VmultTrilinosSolverDirect::Tvmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const
+    {
+        solver_direct.solve(dst, src);
+    }
+
+    ///rephrases the solve as a vmult for easier use - note this is a symmetric matrix.
+    void VmultTrilinosSolverDirect::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+    {
+        solver_direct.solve(dst, src);
+    }
+
+
+
     // **************** A inv MF GMG **********************
 
+    ///Initializes an object that performs the A inverse operation using matrix free GMG
     template<int dim>
     AInvMatMFGMG<dim>::AInvMatMFGMG(MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim, LinearAlgebra::distributed::Vector<double>, MGTransferMatrixFree<dim, double> > &mf_gmg_preconditioner_in, LA::MPI::SparseMatrix &a_mat)
         : mf_elasticity_operator(mf_elasticity_operator_in),
@@ -656,6 +664,7 @@ namespace SAND {
         mf_elasticity_operator.initialize_dof_vector(temp_src);
     }
 
+    ///Performs the A inverse operation
     template<int dim>
     void AInvMatMFGMG<dim>::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
     {
@@ -675,6 +684,7 @@ namespace SAND {
 
     }
 
+    ///Performs the A inverse operation - note A is symmetric
     template<int dim>
     void AInvMatMFGMG<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
     {
@@ -686,12 +696,15 @@ namespace SAND {
         a_solver_cg.solve(a_mat_wrapped,temp_dst,temp_src, mf_gmg_preconditioner);
         ChangeVectorTypes::copy(dst,temp_dst);
     }
-
+\
+    ///Change the solver tolerance if needed
     template<int dim>
     void AInvMatMFGMG<dim>::set_tol(double tol_in)
     {
         tolerance = tol_in;
     }
+
+    ///Change the maximum number of iterations if needed.
     template<int dim>
     void AInvMatMFGMG<dim>::set_iter(unsigned int iterations_in)
     {

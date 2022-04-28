@@ -15,9 +15,6 @@ namespace SAND
 {
     using namespace dealii;
 
-    /* When initialized, this function takes the current triangulation and creates a matrix corresponding to a
-     * convolution being applied to a piecewise constant function on that triangulation  */
-
     template<int dim>
     DensityFilter<dim>::DensityFilter() :
         mpi_communicator(MPI_COMM_WORLD),
@@ -25,10 +22,14 @@ namespace SAND
     {
     }
 
-
+    ///When initialized, this function takes the current triangulation and creates a matrix corresponding to a
+    /// convolution being applied to a piecewise constant function on that triangulation
+    ///
     template<int dim>
     void
     DensityFilter<dim>::initialize(DoFHandler<dim> &dof_handler) {
+        ///Start by making vectors to fill with information about the x,y,z coords of centers of cells
+        ///
         std::vector<unsigned int> block_component(10, 2);
         block_component[SolutionBlocks::density] = 0;
         block_component[SolutionBlocks::displacement] = 1;
@@ -50,7 +51,7 @@ namespace SAND
         std::set<unsigned int> neighbor_ids;
         std::set<typename DoFHandler<dim>::cell_iterator> cells_to_check;
         std::set<typename DoFHandler<dim>::cell_iterator> cells_to_check_temp;
-        /*finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
+        ///finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix
          for (const auto &cell : dof_handler.active_cell_iterators())
          {
              if(cell->is_locally_owned())
@@ -91,7 +92,7 @@ namespace SAND
 
         filter_matrix.reinit(owned_dofs, filter_sparsity_pattern, MPI_COMM_WORLD);
 
-        /*adds values to the matrix corresponding to the max radius - distance*/
+        /// adds values to the matrix corresponding to the max radius - distance
         for (const auto &cell : dof_handler.active_cell_iterators())
         {
             if(cell->is_locally_owned())
@@ -112,14 +113,14 @@ namespace SAND
                     {
                         d = std::pow(d_x*d_x + d_y*d_y , .5);
                     }
-                    /*value should be (max radius - distance between cells)*cell measure */
+                    ///value should be (max radius - distance between cells)*cell measure
                     double value = (Input::filter_r - d)*cell_m[neighbor_cell_index];
                     filter_matrix.add(i[cell->get_fe().component_to_system_index(0, 0)], neighbor_cell_index, value);
                 }
             }
         }
 
-        //here we normalize the filter so it computes an average. Sum of values in a row should be 1
+        ///here we normalize the filter so it computes an average. Sum of values in a row should be 1
         for (const auto &cell : dof_handler.active_cell_iterators())
         {
             if(cell->is_locally_owned())
@@ -143,7 +144,7 @@ namespace SAND
         }
     }
 
-    /*This function finds which neighbors are within a certain radius of the initial cell.*/
+    ///This function finds which neighbors are within a certain radius of the initial cell.
     template<int dim>
     std::set<types::global_dof_index>
     DensityFilter<dim>::find_relevant_neighbors(types::global_dof_index cell_index) const

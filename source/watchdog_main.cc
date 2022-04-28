@@ -14,7 +14,6 @@
 
 ///Above are fairly normal files to include.  I also use the sparse direct package, which requiresBLAS/LAPACK
 /// to  perform  a  direct  solve  while  I  work  on  a  fast  iterative  solver  for  this problem.
-/// Below is the main class for this problem.
 
 namespace SAND {
     namespace LA
@@ -25,6 +24,9 @@ namespace SAND {
 
     using namespace dealii;
 
+    /// Below is the main class for solving this problem. It handles the nonlinear solver portion of the problem,
+    /// taking information from the KKTSystem class for step directions, and calculating step lengths. This class
+    /// not only takes those steps, but handles the barrier parameter for the log barrier used.
     template<int dim>
     class SANDTopOpt {
     public:
@@ -58,6 +60,7 @@ namespace SAND {
         TimerOutput overall_timer;
     };
 
+    ///Constructor
     template<int dim>
     SANDTopOpt<dim>::SANDTopOpt()
             :
@@ -113,7 +116,7 @@ namespace SAND {
         return {step_size_s_low, step_size_z_low};
     }
 
-///Creates a rhs vector that we can use to look at the magnitude of the KKT conditions.  This is then used for testing the convergence before shrinking barrier size, as well as in the calculation of the l1 merit.
+    ///Creates a rhs vector that we can use to look at the magnitude of the KKT conditions.  This is then used for testing the convergence before shrinking barrier size, as well as in the calculation of the l1 merit.
 
     template<int dim>
     const LA::MPI::BlockVector
@@ -153,7 +156,7 @@ namespace SAND {
         return max_step;
     }
 
-    ///This is my back-stepping algorithm for a line search - keeps shrinking step size until it finds a step where the merit is decreased.
+    ///This is a simple back-stepping algorithm for a line search - keeps shrinking step size until it finds a step where the markov filter requirement is met.
 
     template<int dim>
     LA::MPI::BlockVector
@@ -192,10 +195,14 @@ namespace SAND {
               }
     }
 
+    ///This updates the barrier value using the selected barrier scheme - more work could be done to optimize
+    /// the performance of the mixed method
     template<int dim>
     void
     SANDTopOpt<dim>::update_barrier(LA::MPI::BlockVector &current_state)
     {
+        ///The LOQO scheme uses information about the similarity of the slack/slack multiplier product as a
+        /// heuristic for decreasing barrier value
         if (Input::barrier_reduction == BarrierOptions::loqo)
         {
             double loqo_min = 1000;
@@ -259,6 +266,8 @@ namespace SAND {
             }
         }
 
+        ///The monotome scheme fully solves the problem with one barrier size before decreasing the
+        /// barrier and starting again
         if (Input::barrier_reduction == BarrierOptions::monotone)
         {
             if (kkt_system.calculate_rhs_norm(current_state,barrier_size) < barrier_size * 1e-3)
@@ -271,6 +280,8 @@ namespace SAND {
             }
         }
 
+        ///The mixed method uses LOQO unless it gets stuck, at which point it switches to monotone, allowing for an adaptive method
+        /// that still globally converges the barrier value to 0.
         if (Input::barrier_reduction == BarrierOptions::mixed)
         {
             if (mixed_barrier_monotone_mode)
