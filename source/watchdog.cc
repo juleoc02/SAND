@@ -338,6 +338,112 @@ namespace SAND {
         }
     }
 
+
+    template<int dim>
+    void
+    NonlinearWatchdog<dim>::nonlinear_step(LA::MPI::BlockVector &current_state, LA::MPI::BlockVector &current_step, const unsigned int max_uphill_steps, unsigned int &iteration_number)
+    {
+
+        bool converged = false;
+        //while not converged
+        while(!converged && iteration_number < Input::max_steps)
+        {
+            bool found_step = false;
+            //save current state as watchdog state
+
+            const LA::MPI::BlockVector watchdog_state = current_state;
+            LA::MPI::BlockVector watchdog_step;
+            //for 1-8 steps - this is the number of steps away we will let it go uphill before demanding downhill
+            for(unsigned int k = 0; k<max_uphill_steps; k++)
+            {
+
+                //compute step from current state  - function from kktSystem
+                current_step = find_max_step(current_state);
+
+                // save the first of these as the watchdog step
+                if(k==0)
+                {
+                    watchdog_step = current_step;
+                    if (iteration_number == 0)
+                    {
+                        kkt_system.calculate_initial_rhs_error();
+                    }
+                }
+
+                //apply full step to current state
+                current_state=current_state+current_step;
+
+
+                //if new state passes filter
+                if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
+                {
+                    //Accept current state
+                    //iterate number of steps by number of steps taken in this process
+                    iteration_number = iteration_number + k + 1;
+                    found_step = true;
+                    pcout << "found workable step after " << k+1 << " iterations"<<std::endl;
+                    //break for loop
+                    markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                    break;
+                    //end if
+                }
+                //end for
+            }
+            //if found step = false
+            if (!found_step)
+            {
+                //Compute step from current state
+                current_step = find_max_step(current_state);
+                //find step length so that merit of stretch state - sized step from current length - is less than merit of (current state + descent requirement * linear derivative of merit of current state in direction of current step)
+                //update stretch state with found step length
+                const LA::MPI::BlockVector stretch_state = take_scaled_step(current_state, current_step);
+                //if current merit is less than watchdog merit, or if stretch merit is less than earlier goal merit
+                if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
+                {
+                    current_state = stretch_state;
+                    iteration_number = iteration_number + max_uphill_steps + 1;
+                    markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                }
+                else
+                {
+                    //if merit of stretch state is bigger than watchdog merit
+                    if (markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
+                    {
+                        //find step length from watchdog state that meets descent requirement
+                        current_state = take_scaled_step(watchdog_state, watchdog_step);
+                        //update iteration count
+                        iteration_number = iteration_number +  max_uphill_steps + 1;
+                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+
+                    }
+                    else
+                    {
+                        //calculate direction from stretch state
+                        const LA::MPI::BlockVector stretch_step = find_max_step(stretch_state);
+                        //find step length from stretch state that meets descent requirement
+                        current_state = take_scaled_step(stretch_state, stretch_step);
+                        //update iteration count
+                        iteration_number = iteration_number + max_uphill_steps + 2;
+                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
+                    }
+                }
+            }
+            //output current state
+            kkt_system.output(current_state,iteration_number);
+
+            converged = check_convergence(current_state);
+            update_barrier(current_state);
+            markov_filter.update_barrier_value(barrier_size);
+            pcout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
+
+
+            overall_timer.leave_subsection();
+            overall_timer.print_summary();
+            overall_timer.enter_subsection("Total Time");
+
+        }//end while
+    }
+
     ///Contains watchdog algorithm
     template<int dim>
     void
@@ -348,111 +454,16 @@ namespace SAND {
 
         const unsigned int max_uphill_steps = 8;
         unsigned int iteration_number = 0;
+
         //while barrier value above minimal value and total iterations under some value
         LA::MPI::BlockVector current_state = kkt_system.get_initial_state();
         LA::MPI::BlockVector current_step;
+
         markov_filter.setup(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
 
         while((barrier_size > Input::min_barrier_size || !check_convergence(current_state)) && iteration_number < Input::max_steps)
         {
-            bool converged = false;
-            //while not converged
-            while(!converged && iteration_number < Input::max_steps)
-            {
-                bool found_step = false;
-                //save current state as watchdog state
-
-                const LA::MPI::BlockVector watchdog_state = current_state;
-                LA::MPI::BlockVector watchdog_step;
-                //for 1-8 steps - this is the number of steps away we will let it go uphill before demanding downhill
-                for(unsigned int k = 0; k<max_uphill_steps; k++)
-                {
-
-                    //compute step from current state  - function from kktSystem
-                    current_step = find_max_step(current_state);
-
-                    // save the first of these as the watchdog step
-                    if(k==0)
-                    {
-                        watchdog_step = current_step;
-                        if (iteration_number == 0)
-                        {
-                            kkt_system.calculate_initial_rhs_error();
-                        }
-                    }
-                    //apply full step to current state
-                    current_state=current_state+current_step;
-
-
-                    //if new state passes filter
-                    if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
-                    {
-                        //Accept current state
-                        //iterate number of steps by number of steps taken in this process
-                        iteration_number = iteration_number + k + 1;
-                        found_step = true;
-                        pcout << "found workable step after " << k+1 << " iterations"<<std::endl;
-                        //break for loop
-                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
-                        break;
-                        //end if
-                    }
-                    //end for
-                }
-                //if found step = false
-                if (!found_step)
-                {
-                    //Compute step from current state
-                    current_step = find_max_step(current_state);
-                    //find step length so that merit of stretch state - sized step from current length - is less than merit of (current state + descent requirement * linear derivative of merit of current state in direction of current step)
-                    //update stretch state with found step length
-                    const LA::MPI::BlockVector stretch_state = take_scaled_step(current_state, current_step);
-                    //if current merit is less than watchdog merit, or if stretch merit is less than earlier goal merit
-                    if(markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
-                    {
-                        current_state = stretch_state;
-                        iteration_number = iteration_number + max_uphill_steps + 1;
-                        markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
-                    }
-                    else
-                    {
-                        //if merit of stretch state is bigger than watchdog merit
-                        if (markov_filter.check_filter(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size)))
-                        {
-                            //find step length from watchdog state that meets descent requirement
-                            current_state = take_scaled_step(watchdog_state, watchdog_step);
-                            //update iteration count
-                            iteration_number = iteration_number +  max_uphill_steps + 1;
-                            markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
-
-                        }
-                        else
-                        {
-                            //calculate direction from stretch state
-                            const LA::MPI::BlockVector stretch_step = find_max_step(stretch_state);
-                            //find step length from stretch state that meets descent requirement
-                            current_state = take_scaled_step(stretch_state, stretch_step);
-                            //update iteration count
-                            iteration_number = iteration_number + max_uphill_steps + 2;
-                            markov_filter.add_point(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size));
-                        }
-                    }
-                }
-                //output current state
-                kkt_system.output(current_state,iteration_number);
-
-                converged = check_convergence(current_state);
-                update_barrier(current_state);
-                markov_filter.update_barrier_value(barrier_size);
-                pcout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
-
-
-                overall_timer.leave_subsection();
-                overall_timer.print_summary();
-                overall_timer.enter_subsection("Total Time");
-                //end while
-            }
-
+            nonlinear_step(current_state, current_step, max_uphill_steps, iteration_number);
         }
 //        kkt_system.output_stl(current_state);
     }

@@ -55,6 +55,9 @@ namespace SAND {
         void
         perform_initial_setup();
 
+        void
+        nonlinear_step(LA::MPI::BlockVector &current_state, LA::MPI::BlockVector &current_step, const unsigned int max_uphill_steps, unsigned int &iteration_number);
+
         KktSystem<dim> kkt_system;
         MarkovFilter markov_filter;
         double barrier_size;
