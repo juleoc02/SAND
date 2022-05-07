@@ -125,7 +125,7 @@ namespace SAND
     class AInvMatMFGMG : public TrilinosWrappers::SparseMatrix {
         public:
             AInvMatMFGMG(MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>
-                         &mf_gmg_preconditioner_in,LA::MPI::SparseMatrix &a_mat);
+                         &mf_gmg_preconditioner_in,LA::MPI::SparseMatrix &a_mat, std::map<types::global_dof_index,types::global_dof_index> &displacement_to_system_dof_index_map);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             unsigned int m() const;
@@ -140,6 +140,7 @@ namespace SAND
             AMatWrapped a_mat_wrapped;
             MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator;
             PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>> &mf_gmg_preconditioner;
+            const std::map<types::global_dof_index,types::global_dof_index> displacement_to_system_dof_index_map;
             double tolerance = 1e-9;
             unsigned int iterations = 10;
             mutable dealii::LinearAlgebra::distributed::Vector<double> temp_src;
@@ -236,7 +237,7 @@ namespace SAND
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
         TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in, DoFHandler<dim> &big_dof_handler_in, MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>
-                                  &mf_gmg_preconditioner_in);
+                                  &mf_gmg_preconditioner_in, std::map<types::global_dof_index,types::global_dof_index> &displacement_to_system_dof_index_map);
         void initialize (LA::MPI::BlockSparseMatrix &matrix, const std::map<types::global_dof_index, double> &boundary_values, const DoFHandler<dim> &dof_handler, const LA::MPI::BlockVector &distributed_state);
         void vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
         void Tvmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const;
@@ -313,6 +314,8 @@ namespace SAND
 
         JinvMatrix<dim> j_inv_mat;
         KinvMatrix<dim> k_inv_mat;
+
+        mutable int num_mults;
 
     };
 

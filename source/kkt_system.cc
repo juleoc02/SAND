@@ -52,6 +52,36 @@ namespace SAND {
 namespace ChangeVectorTypes
 {
 template <typename number>
+void copy_from_displacement_to_system_vector(LA::MPI::Vector                                           &out,
+                                             const dealii::LinearAlgebra::distributed::Vector<number>  &in,
+                                             std::map<types::global_dof_index,types::global_dof_index>  & displacement_to_system_dof_index_map)
+{
+//    dealii::LinearAlgebra::ReadWriteVector<double> rwv(
+//                out.locally_owned_elements());
+//    rwv.import(in, VectorOperation::insert);
+    for (const auto &index_pair : displacement_to_system_dof_index_map)
+    {
+        out[index_pair.second] = in[index_pair.first];
+    }
+//    out.import(rwv, VectorOperation::insert);
+}
+
+template <typename number>
+void copy_from_system_to_displacement_vector(dealii::LinearAlgebra::distributed::Vector<number>  &out,
+                                             const LA::MPI::Vector                                           &in,
+                                             std::map<types::global_dof_index,types::global_dof_index>  & displacement_to_system_dof_index_map)
+{
+//    dealii::LinearAlgebra::ReadWriteVector<double> rwv(
+//                out.locally_owned_elements());
+//    rwv.import(in, VectorOperation::insert);
+    for (const auto &index_pair : displacement_to_system_dof_index_map)
+    {
+        out[index_pair.first] = in[index_pair.second];
+    }
+//    out.import(rwv, VectorOperation::insert);
+}
+
+template <typename number>
 void copy(LA::MPI::Vector &                                         out,
           const dealii::LinearAlgebra::distributed::Vector<number> &in)
 {
@@ -60,8 +90,6 @@ void copy(LA::MPI::Vector &                                         out,
     rwv.import(in, VectorOperation::insert);
     out.import(rwv, VectorOperation::insert);
 }
-
-
 template <typename number>
 void copy(dealii::LinearAlgebra::distributed::Vector<number> &out,
           const LA::MPI::Vector &                             in)
@@ -70,6 +98,8 @@ void copy(dealii::LinearAlgebra::distributed::Vector<number> &out,
     rwv.reinit(in);
     out.import(rwv, VectorOperation::insert);
 }
+
+
 } // namespace ChangeVectorTypes
 
 ///The KKTSystem class calculates the Hessian and Gradient of the Lagrangian of the system, and solves the resulting system to be used
@@ -78,9 +108,9 @@ template<int dim>
 KktSystem<dim>::KktSystem()
     :
       mpi_communicator(MPI_COMM_WORLD),
-      triangulation(mpi_communicator,
-                    Triangulation<dim>::limit_level_difference_at_vertices,
-                    parallel::distributed::Triangulation<dim>::construct_multigrid_hierarchy),
+      triangulation(/*mpi_communicator,*/
+                    Triangulation<dim>::limit_level_difference_at_vertices/*,
+                    parallel::distributed::Triangulation<dim>::construct_multigrid_hierarchy*/),
       dof_handler(triangulation),
       dof_handler_displacement(triangulation),
       dof_handler_density(triangulation),
@@ -359,10 +389,12 @@ KktSystem<dim>::create_triangulation() {
     }
 
     dof_handler.distribute_dofs(fe_collection);
+    DoFRenumbering::component_wise(dof_handler, sub_blocks);
+
     dof_handler_displacement.distribute_dofs(fe_displacement);
     dof_handler_displacement.distribute_mg_dofs();
 
-    DoFRenumbering::component_wise(dof_handler, sub_blocks);
+    displacement_to_system_dof_index_map.clear();
 
 }
 
@@ -1092,6 +1124,46 @@ KktSystem<dim>::setup_block_system() {
     distributed_solution.collect_sizes();
     system_rhs.collect_sizes();
     system_matrix.collect_sizes();
+
+    std::vector<types::global_dof_index> displacement_dof_indices;
+    std::vector<types::global_dof_index> system_dof_indices;
+    for (const auto &displacement_cell : dof_handler_displacement.active_cell_iterators())
+        if (displacement_cell->is_locally_owned())
+        {
+            typename DoFHandler<dim>::active_cell_iterator system_cell (&displacement_cell->get_triangulation(),
+                                                                        displacement_cell->level(),
+                                                                        displacement_cell->index(),
+                                                                        &dof_handler);
+
+            displacement_dof_indices.resize (displacement_cell->get_fe().dofs_per_cell);
+            system_dof_indices.resize (system_cell->get_fe().dofs_per_cell);
+
+            displacement_cell->get_dof_indices (displacement_dof_indices);
+            system_cell->get_dof_indices (system_dof_indices);
+
+            for (unsigned int i=0; i<displacement_dof_indices.size(); ++i)
+            {
+                displacement_to_system_dof_index_map[displacement_dof_indices[i]]
+                        = system_dof_indices[system_cell->get_fe().component_to_system_index(
+                            displacement_cell->get_fe().system_to_component_index(i).first+SolutionComponents::displacement<dim>,
+                            displacement_cell->get_fe().system_to_component_index(i).second
+                            )];
+            }
+        }
+    const types::global_dof_index disp_start_index = system_matrix.get_row_indices().block_start(
+            SolutionBlocks::displacement);
+    for (auto &index_pair : displacement_to_system_dof_index_map)
+        index_pair.second -=disp_start_index;
+    for (auto &index_pair : displacement_to_system_dof_index_map)
+    {
+        if(index_pair.first != index_pair.second)
+        {
+            std::cout << "inexact matching for index: " << index_pair.first << " and " << index_pair.second << std::endl;
+        }
+    }
+
+
+
 }
 
 ///The  equations  describing  the newtons method for finding 0s in the KKT conditions are implemented here.
@@ -2100,6 +2172,32 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     elasticity_matrix_mf.clear();
     mg_matrices.clear_elements();
 
+    unsigned int n_dofs = dof_handler.n_dofs();
+    unsigned int n_dofs_displacement = dof_handler_displacement.n_dofs();
+
+    std::vector< Point< dim >> support_points (n_dofs);
+    std::vector< Point< dim >> support_points_displacement (n_dofs_displacement);
+
+    MappingQGeneric<dim,dim> generic_map_displacement(1);
+    MappingQGeneric<dim,dim> generic_map_1(1);
+    MappingQGeneric<dim,dim> generic_map_2(1);
+
+    hp::MappingCollection< dim, dim > hp_generic_map;
+
+    hp_generic_map.push_back(generic_map_1);
+    hp_generic_map.push_back(generic_map_2);
+
+    DoFTools::map_dofs_to_support_points(generic_map_displacement, dof_handler_displacement, support_points_displacement);
+    DoFTools::map_dofs_to_support_points(hp_generic_map, dof_handler, support_points);
+
+
+    const types::global_dof_index disp_mult_start_index = system_matrix.get_row_indices().block_start(SolutionBlocks::displacement_multiplier);
+
+    for (unsigned int d=0; d<n_dofs_displacement; d++)
+    {
+        if (support_points_displacement[d] != support_points[disp_mult_start_index+d])
+        std::cout << "d = " << d << ", points are " << support_points_displacement[d] << " and " << support_points[disp_mult_start_index+d] << std::endl;
+    }
 
     pcout << "Number of degrees of freedom: " << dof_handler_displacement.n_dofs()
           << std::endl;
@@ -2130,9 +2228,14 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
     elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
+    std::cout << "displacement_vec_size = " << distributed_displacement_sol.size() << std::endl;
+    std::cout << "systdm_vec_size = " << distributed_solution.block(SolutionBlocks::displacement).size() << std::endl;
 
-    ChangeVectorTypes::copy(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement));
-    ChangeVectorTypes::copy(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement));
+    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
+
+    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
+
+
 
     const unsigned int n_levels = triangulation.n_global_levels();
     mg_matrices.resize(0, n_levels - 1);
@@ -2369,58 +2472,58 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
             mf_gmg_preconditioner(dof_handler_displacement, mg, mg_transfer);
 
 
-//*************TEST SOLVE*************************
-    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
-    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
+////*************TEST SOLVE*************************
+//    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
+//    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
 
-    ChangeVectorTypes::copy(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement));
-    ChangeVectorTypes::copy(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement));
+//    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
+//    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
 
-    SolverControl test_solver_control_1(500, 1e-6);
-    SolverControl test_solver_control_2(500, 1e-6);
-    SolverCG<LinearAlgebra::distributed::Vector<double>> CG_Solve_1(test_solver_control_1);
-    SolverCG<LA::MPI::Vector> CG_Solve_2(test_solver_control_2);
+//    SolverControl test_solver_control_1(500, 1e-6);
+//    SolverControl test_solver_control_2(500, 1e-6);
+//    SolverCG<LinearAlgebra::distributed::Vector<double>> CG_Solve_1(test_solver_control_1);
+//    SolverCG<LA::MPI::Vector> CG_Solve_2(test_solver_control_2);
 
-    std::cout << "pre norm: " << distributed_displacement_rhs.l2_norm() << std::endl;
+//    std::cout << "pre norm: " << distributed_displacement_rhs.l2_norm() << std::endl;
 
-    try
-    {
-//        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    );
-        CG_Solve_1.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs, PreconditionIdentity() );
-    }
-    catch(std::exception &exc)
-    {
-        std::cout << "solve failed in " << test_solver_control_1.last_step() <<  " steps" << std::endl;
-        throw;
-    }
+//    try
+//    {
+////        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    );
+//        CG_Solve_1.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs, mf_gmg_preconditioner);
+//    }
+//    catch(std::exception &exc)
+//    {
+//        std::cout << "solve failed in " << test_solver_control_1.last_step() <<  " steps" << std::endl;
+//        throw;
+//    }
 
-    std::cout << "solved in " << test_solver_control_1.last_step() <<  " steps" << std::endl;
+//    std::cout << "solved in " << test_solver_control_1.last_step() <<  " steps" << std::endl;
 
-    try
-    {
-//        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    PreconditionIdentity());
-        CG_Solve_2.solve(system_matrix.block(SolutionBlocks::displacement,SolutionBlocks::displacement_multiplier), distributed_solution.block(SolutionBlocks::displacement_multiplier), system_rhs.block(SolutionBlocks::displacement), PreconditionIdentity()  );
-    }
-    catch(std::exception &exc)
-    {
-        std::cout << "solve failed in " << test_solver_control_2.last_step() <<  " steps" << std::endl;
-        throw;
-    }
+//    try
+//    {
+////        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    PreconditionIdentity());
+//        CG_Solve_2.solve(system_matrix.block(SolutionBlocks::displacement,SolutionBlocks::displacement_multiplier), distributed_solution.block(SolutionBlocks::displacement_multiplier), system_rhs.block(SolutionBlocks::displacement), PreconditionIdentity()  );
+//    }
+//    catch(std::exception &exc)
+//    {
+//        std::cout << "solve failed in " << test_solver_control_2.last_step() <<  " steps" << std::endl;
+//        throw;
+//    }
 
-    std::cout << "solved in " << test_solver_control_2.last_step() <<  " steps" << std::endl;
+//    std::cout << "solved in " << test_solver_control_2.last_step() <<  " steps" << std::endl;
 
-    ChangeVectorTypes::copy(distributed_solution.block(SolutionBlocks::displacement), distributed_displacement_sol);
-    displacement_constraints.distribute(distributed_solution.block(SolutionBlocks::displacement));
-
-
-    output(distributed_solution, 0);
-    std::abort();
-
-    //***************END TEST SOLVE*************************
+//    ChangeVectorTypes::copy_from_displacement_to_system_vector<double>(distributed_solution.block(SolutionBlocks::displacement), distributed_displacement_sol,displacement_to_system_dof_index_map);
+//    displacement_constraints.distribute(distributed_solution.block(SolutionBlocks::displacement));
 
 
+//    output(distributed_solution, 0);
+//    std::abort();
 
-    TopOptSchurPreconditioner<dim> preconditioner(system_matrix, dof_handler, elasticity_matrix_mf, mf_gmg_preconditioner);
+//    //***************END TEST SOLVE*************************
+
+
+
+    TopOptSchurPreconditioner<dim> preconditioner(system_matrix, dof_handler, elasticity_matrix_mf, mf_gmg_preconditioner, displacement_to_system_dof_index_map);
     pcout << "about to solve" << std::endl;
 
     switch (Input::solver_choice)
