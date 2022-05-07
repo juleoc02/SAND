@@ -28,9 +28,9 @@ namespace SAND {
     /// taking information from the KKTSystem class for step directions, and calculating step lengths. This class
     /// not only takes those steps, but handles the barrier parameter for the log barrier used.
     template<int dim>
-    class SANDTopOpt {
+    class NonlinearWatchdog {
     public:
-        SANDTopOpt();
+        NonlinearWatchdog();
 
         void
         run();
@@ -62,7 +62,7 @@ namespace SAND {
 
     ///Constructor
     template<int dim>
-    SANDTopOpt<dim>::SANDTopOpt()
+    NonlinearWatchdog<dim>::NonlinearWatchdog()
             :
               mpi_communicator(MPI_COMM_WORLD),
               pcout(std::cout,(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
@@ -74,7 +74,7 @@ namespace SAND {
 
     template<int dim>
     std::pair<double,double>
-    SANDTopOpt<dim>::calculate_max_step_size(const LA::MPI::BlockVector &state, const LA::MPI::BlockVector &step) const {
+    NonlinearWatchdog<dim>::calculate_max_step_size(const LA::MPI::BlockVector &state, const LA::MPI::BlockVector &step) const {
 
         double step_size_s_low = 0;
         double step_size_z_low = 0;
@@ -120,7 +120,7 @@ namespace SAND {
 
     template<int dim>
     const LA::MPI::BlockVector
-    SANDTopOpt<dim>::find_max_step(const LA::MPI::BlockVector &state)
+    NonlinearWatchdog<dim>::find_max_step(const LA::MPI::BlockVector &state)
     {
         TimerOutput::Scope t(overall_timer, "find step");
         {
@@ -160,7 +160,7 @@ namespace SAND {
 
     template<int dim>
     LA::MPI::BlockVector
-    SANDTopOpt<dim>::take_scaled_step(const LA::MPI::BlockVector &state,const LA::MPI::BlockVector &max_step) const
+    NonlinearWatchdog<dim>::take_scaled_step(const LA::MPI::BlockVector &state,const LA::MPI::BlockVector &max_step) const
     {
         double step_size = 1;
             for(unsigned int k = 0; k<10; k++)
@@ -183,7 +183,7 @@ namespace SAND {
     ///Checks to see if the KKT conditions are sufficiently met to lower barrier size.
     template<int dim>
     bool
-    SANDTopOpt<dim>::check_convergence(const LA::MPI::BlockVector &state) const
+    NonlinearWatchdog<dim>::check_convergence(const LA::MPI::BlockVector &state) const
     {
               if (kkt_system.calculate_convergence(state) < Input::required_norm)
               {
@@ -199,7 +199,7 @@ namespace SAND {
     /// the performance of the mixed method
     template<int dim>
     void
-    SANDTopOpt<dim>::update_barrier(LA::MPI::BlockVector &current_state)
+    NonlinearWatchdog<dim>::update_barrier(LA::MPI::BlockVector &current_state)
     {
         ///The LOQO scheme uses information about the similarity of the slack/slack multiplier product as a
         /// heuristic for decreasing barrier value
@@ -360,7 +360,7 @@ namespace SAND {
     ///Contains watchdog algorithm
     template<int dim>
     void
-    SANDTopOpt<dim>::run() {
+    NonlinearWatchdog<dim>::run() {
         overall_timer.enter_subsection("Total Time");
         barrier_size = Input::initial_barrier_size;
         kkt_system.create_triangulation();
@@ -485,29 +485,6 @@ namespace SAND {
 
 } // namespace SAND
 
-int
-main(int argc, char *argv[]) {
-    try {
-        Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-        SAND::SANDTopOpt<SAND::Input::dim> elastic_problem_2d;
-        elastic_problem_2d.run();
-    }
-    catch (std::exception &exc) {
-        std::cerr << std::endl << std::endl
-                  << "----------------------------------------------------" << std::endl;
-        std::cerr << "Exception on processing: " << std::endl << exc.what()
-                  << std::endl << "Aborting!" << std::endl
-                  << "----------------------------------------------------" << std::endl;
 
-        return 1;
-    }
-    catch (...) {
-        std::cerr << std::endl << std::endl
-                  << "----------------------------------------------------" << std::endl;
-        std::cerr << "Unknown exception!" << std::endl << "Aborting!" << std::endl
-                  << "----------------------------------------------------" << std::endl;
-        return 1;
-    }
-
-    return 0;
-}
+template class SAND::NonlinearWatchdog<2>;
+template class SAND::NonlinearWatchdog<3>;
