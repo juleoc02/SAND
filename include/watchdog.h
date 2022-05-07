@@ -52,6 +52,9 @@ namespace SAND {
         void
         update_barrier(LA::MPI::BlockVector &current_state);
 
+        void
+        perform_initial_setup();
+
         KktSystem<dim> kkt_system;
         MarkovFilter markov_filter;
         double barrier_size;

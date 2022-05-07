@@ -6,6 +6,7 @@
 #include "../include/markov_filter.h"
 #include "../include/kkt_system.h"
 #include "../include/input_information.h"
+#include "../include/watchdog.h"
 #include <deal.II/lac/generic_linear_algebra.h>
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 #include <deal.II/lac/generic_linear_algebra.h>
@@ -23,42 +24,6 @@ namespace SAND {
 
 
     using namespace dealii;
-
-    /// Below is the main class for solving this problem. It handles the nonlinear solver portion of the problem,
-    /// taking information from the KKTSystem class for step directions, and calculating step lengths. This class
-    /// not only takes those steps, but handles the barrier parameter for the log barrier used.
-    template<int dim>
-    class NonlinearWatchdog {
-    public:
-        NonlinearWatchdog();
-
-        void
-        run();
-
-    private:
-        MPI_Comm  mpi_communicator;
-        std::pair<double,double>
-        calculate_max_step_size(const LA::MPI::BlockVector &state, const LA::MPI::BlockVector &step) const;
-
-        const LA::MPI::BlockVector
-        find_max_step(const LA::MPI::BlockVector &state);
-
-        LA::MPI::BlockVector
-        take_scaled_step(const LA::MPI::BlockVector &state,const LA::MPI::BlockVector &max_step) const;
-
-        bool
-        check_convergence(const LA::MPI::BlockVector &state) const;
-
-        void
-        update_barrier(LA::MPI::BlockVector &current_state);
-
-        KktSystem<dim> kkt_system;
-        MarkovFilter markov_filter;
-        double barrier_size;
-        bool mixed_barrier_monotone_mode;
-        ConditionalOStream pcout;
-        TimerOutput overall_timer;
-    };
 
     ///Constructor
     template<int dim>
@@ -357,11 +322,10 @@ namespace SAND {
 
     }
 
-    ///Contains watchdog algorithm
     template<int dim>
     void
-    NonlinearWatchdog<dim>::run() {
-        overall_timer.enter_subsection("Total Time");
+    NonlinearWatchdog<dim>::perform_initial_setup()
+    {
         barrier_size = Input::initial_barrier_size;
         kkt_system.create_triangulation();
         kkt_system.setup_boundary_values();
@@ -372,6 +336,15 @@ namespace SAND {
         {
             mixed_barrier_monotone_mode = false;
         }
+    }
+
+    ///Contains watchdog algorithm
+    template<int dim>
+    void
+    NonlinearWatchdog<dim>::run() {
+        overall_timer.enter_subsection("Total Time");
+
+        perform_initial_setup();
 
         const unsigned int max_uphill_steps = 8;
         unsigned int iteration_number = 0;
@@ -472,6 +445,7 @@ namespace SAND {
                 update_barrier(current_state);
                 markov_filter.update_barrier_value(barrier_size);
                 pcout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
+
 
                 overall_timer.leave_subsection();
                 overall_timer.print_summary();
