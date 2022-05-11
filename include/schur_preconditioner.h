@@ -281,6 +281,26 @@ namespace SAND
     };
 
     template<int dim>
+    class JinvMatrixDirect : public TrilinosWrappers::SparseMatrix {
+        public:
+            JinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void initialize(LA::MPI::Vector &exemplar_density_vector);
+            unsigned int m() const;
+            unsigned int n() const;
+        private:
+            HMatrixDirect<dim> &h_mat;
+            GMatrix &g_mat;
+            const LA::MPI::SparseMatrix &d_m_mat;
+            LA::MPI::SparseMatrix &d_m_inv_mat;
+            mutable LA::MPI::Vector temp_vect_1;
+            mutable LA::MPI::Vector temp_vect_2;
+            mutable LA::MPI::Vector temp_vect_3;
+            mutable LA::MPI::Vector temp_vect_4;
+    };
+
+    template<int dim>
     class TopOptSchurPreconditioner: public Subscriptor {
     public:
         TopOptSchurPreconditioner(LA::MPI::BlockSparseMatrix &matrix_in, DoFHandler<dim> &big_dof_handler_in, MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator_in , PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>

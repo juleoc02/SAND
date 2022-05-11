@@ -40,9 +40,9 @@ MF_Elasticity_Operator<dim,fe_degree,number>::compute_diagonal ()
 
     for (auto &local_element : inverse_diagonal)
       {
-        Assert(local_element > 0.,
-               ExcMessage("No diagonal entry in a positive definite operator "
-                          "should be zero or negative."));
+//        Assert(local_element > 0.,
+//               ExcMessage("No diagonal entry in a positive definite operator "
+//                          "should be zero or negative."));
         local_element = 1./local_element;
       }
 }
@@ -134,7 +134,7 @@ MF_Elasticity_Operator<dim, fe_degree, number>::local_apply(
             }
 
 
-            displacement.submit_symmetric_gradient( symgrad_term, q);
+            displacement.submit_symmetric_gradient(symgrad_term, q);
 
         }
 
