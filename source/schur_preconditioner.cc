@@ -8,6 +8,7 @@
 #include <deal.II/lac/generic_linear_algebra.h>
 #include <deal.II/lac/trilinos_solver.h>
 #include <deal.II/lac/trilinos_precondition.h>
+#include <deal.II/base/thread_management.h>
 #include "../include/schur_preconditioner.h"
 #include "../include/input_information.h"
 #include "../include/sand_tools.h"
@@ -344,6 +345,105 @@ void TopOptSchurPreconditioner<dim>::vmult(LA::MPI::BlockVector &dst, const LA::
     }
     vmult_step_5(dst, temp_src);
     num_mults++;
+
+
+
+
+
+
+
+
+    if (num_mults > 10)
+    {
+        FullMatrix<double> X_matrix;
+        FullMatrix<double> X_matrix_direct;
+        LA::MPI::Vector exemplar_vector;
+        const types::global_dof_index n_p = system_matrix.block(SolutionBlocks::density,
+                                                                SolutionBlocks::density).m();
+
+        X_matrix.reinit(n_p,n_p);
+        X_matrix_direct.reinit(n_p,n_p);
+        exemplar_vector.reinit(src.block(SolutionBlocks::density));
+
+        HMatrix<dim> h_mat_test (a_mat, b_mat, c_mat, e_mat, pre_amg, a_inv_direct, a_inv_mf_gmg);
+        HMatrixDirect<dim> h_mat_test_direct (a_mat, b_mat, c_mat, e_mat, pre_amg, a_inv_direct, a_inv_mf_gmg);
+
+        KinvMatrix<dim>         k_inv_test          (h_mat_test, g_mat, d_m_mat, d_m_inv_mat);
+
+        KinvMatrixDirect<dim>   k_inv_test_direct   (h_mat_test_direct, g_mat, d_m_mat, d_m_inv_mat);
+
+
+
+        Threads::TaskGroup<void> tasks;
+        for (unsigned int j=0; j<X_matrix.n(); ++j)
+            tasks += Threads::new_task ([&X_matrix, &exemplar_vector, &k_inv_test, j]()
+                                        {
+                                            LA::MPI::Vector e_j (exemplar_vector);
+                                            LA::MPI::Vector r_j (exemplar_vector);
+
+                                            e_j = 0;
+                                            e_j(j) = 1;
+                                            k_inv_test.vmult(r_j,e_j);
+
+                                            for (unsigned int i=0; i<X_matrix.m(); ++i)
+                                                X_matrix(i,j) = r_j(i);
+                                        });
+
+        tasks.join_all();
+
+        for (unsigned int j=0; j<X_matrix.n(); ++j)
+            tasks += Threads::new_task ([&X_matrix_direct, &exemplar_vector, &k_inv_test_direct, j]()
+                                        {
+                                            LA::MPI::Vector e_j (exemplar_vector);
+                                            LA::MPI::Vector r_j (exemplar_vector);
+
+                                            e_j = 0;
+                                            e_j(j) = 1;
+                                            k_inv_test_direct.vmult(r_j,e_j);
+
+                                            for (unsigned int i=0; i<X_matrix_direct.m(); ++i)
+                                                X_matrix_direct(i,j) = r_j(i);
+                                        });
+
+        tasks.join_all();
+
+
+
+
+
+
+        const unsigned int n = X_matrix.n();
+        const unsigned int m = X_matrix.m();
+
+
+        std::ofstream Xmat("Kmatrix_MFGMG");
+        for (unsigned int i = 0; i < m; i++)
+        {
+            Xmat << X_matrix(i, 0);
+            for (unsigned int j = 1; j < n; j++)
+            {
+                Xmat << "," << X_matrix(i, j);
+            }
+            Xmat << "\n";
+        }
+        Xmat.close();
+
+        std::ofstream Xmat_direct("Kmatrix_MFGMG_Direct");
+        for (unsigned int i = 0; i < m; i++)
+        {
+            Xmat_direct << X_matrix_direct(i, 0);
+            for (unsigned int j = 1; j < n; j++)
+            {
+                Xmat_direct << "," << X_matrix_direct(i, j);
+            }
+            Xmat_direct << "\n";
+        }
+        Xmat_direct.close();
+
+        std::abort();
+    }
+
+
 }
 
 ///Not implemented
@@ -926,6 +1026,78 @@ void HMatrix<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) cons
 
 }
 
+
+// ******************     HMatrixDirect     ***********************
+
+template<int dim>
+HMatrixDirect<dim>::HMatrixDirect(LA::MPI::SparseMatrix &a_mat_in, const LA::MPI::SparseMatrix &b_mat_in, const LA::MPI::SparseMatrix &c_mat_in, const LA::MPI::SparseMatrix &e_mat_in,TrilinosWrappers::PreconditionAMG &pre_amg_in,VmultTrilinosSolverDirect &a_inv_direct_in, AInvMatMFGMG<dim> &a_inv_mf_gmg_in)
+    :
+      a_mat(a_mat_in),
+      b_mat(b_mat_in),
+      c_mat(c_mat_in),
+      e_mat(e_mat_in),
+      pre_amg(pre_amg_in),
+      a_inv_direct(a_inv_direct_in),
+      a_inv_mf_gmg(a_inv_mf_gmg_in)
+{
+
+}
+
+template<int dim>
+void
+HMatrixDirect<dim>::initialize(LA::MPI::Vector &exemplar_density_vector,  LA::MPI::Vector &exemplar_displacement_vector)
+{
+    temp_vect_1 = exemplar_displacement_vector;
+    temp_vect_2 = exemplar_displacement_vector;
+    temp_vect_3 = exemplar_displacement_vector;
+    temp_vect_4 = exemplar_displacement_vector;
+    temp_vect_5 = exemplar_density_vector;
+    temp_vect_6 = exemplar_density_vector;
+    temp_vect_7 = exemplar_density_vector;
+
+
+}
+
+template<int dim>
+void HMatrixDirect<dim>::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+{
+
+        c_mat.vmult(temp_vect_1,src);
+        e_mat.vmult(temp_vect_2,src);
+
+        a_inv_direct.vmult(temp_vect_3,temp_vect_1);
+        a_inv_direct.vmult(temp_vect_4,temp_vect_2);
+
+        c_mat.Tvmult(temp_vect_6,temp_vect_4);
+        e_mat.Tvmult(temp_vect_5,temp_vect_3);
+
+        b_mat.vmult(temp_vect_7,src);
+        dst =  temp_vect_7 - temp_vect_6 - temp_vect_5;
+
+
+
+}
+
+
+template<int dim>
+void HMatrixDirect<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+{
+
+        c_mat.vmult(temp_vect_1,src);
+        e_mat.vmult(temp_vect_2,src);
+
+        a_inv_direct.vmult(temp_vect_3,temp_vect_1);
+        a_inv_direct.vmult(temp_vect_4,temp_vect_2);
+
+        c_mat.Tvmult(temp_vect_6,temp_vect_4);
+        e_mat.Tvmult(temp_vect_5,temp_vect_3);
+
+        b_mat.vmult(temp_vect_7,src);
+        dst =  temp_vect_7 - temp_vect_6 - temp_vect_5;
+
+}
+
+
 // ******************     JinvMatrix     ***********************
 template<int dim>
 JinvMatrix<dim>::JinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in)
@@ -1015,6 +1187,56 @@ void KinvMatrix<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) c
 
     dst = -1*temp_vect_4 - temp_vect_3;
 }
+
+// ******************     KinvMatrixDirect     ***********************
+template<int dim>
+KinvMatrixDirect<dim>::KinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in)
+    :
+      h_mat(h_mat_in),
+      g_mat(g_mat_in),
+      d_m_mat(d_m_mat_in),
+      d_m_inv_mat(d_m_inv_mat_in)
+{
+
+}
+
+template<int dim>
+void
+KinvMatrixDirect<dim>::initialize(LA::MPI::Vector &exemplar_density_vector)
+{
+    temp_vect_1 = exemplar_density_vector;
+    temp_vect_2 = exemplar_density_vector;
+    temp_vect_3 = exemplar_density_vector;
+    temp_vect_4 = exemplar_density_vector;
+
+}
+
+template<int dim>
+void KinvMatrixDirect<dim>::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+{
+    h_mat.vmult(temp_vect_1,src);
+    d_m_inv_mat.vmult(temp_vect_2,temp_vect_1);
+    g_mat.vmult(temp_vect_3,temp_vect_2);
+    d_m_mat.vmult(temp_vect_4,src);
+
+    dst = -1*temp_vect_4 - temp_vect_3;
+}
+
+template<int dim>
+void KinvMatrixDirect<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
+{
+    g_mat.vmult(temp_vect_1,src);
+    d_m_inv_mat.vmult(temp_vect_2,temp_vect_1);
+    h_mat.vmult(temp_vect_3,temp_vect_2);
+    d_m_mat.vmult(temp_vect_4,src);
+
+    dst = -1*temp_vect_4 - temp_vect_3;
+}
+
+
+
+
+//**************************************************
 
 
 AMatWrapped::AMatWrapped(LA::MPI::SparseMatrix &a_mat_in)
