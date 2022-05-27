@@ -74,6 +74,7 @@ void copy_from_system_to_displacement_vector(dealii::LinearAlgebra::distributed:
 //    dealii::LinearAlgebra::ReadWriteVector<double> rwv(
 //                out.locally_owned_elements());
 //    rwv.import(in, VectorOperation::insert);
+    ConditionalOStream pcout (std::cout,(Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 1));
     for (const auto &index_pair : displacement_to_system_dof_index_map)
     {
         out[index_pair.first] = in[index_pair.second];
@@ -108,9 +109,9 @@ template<int dim>
 KktSystem<dim>::KktSystem()
     :
       mpi_communicator(MPI_COMM_WORLD),
-      triangulation(/*mpi_communicator,*/
-                    Triangulation<dim>::limit_level_difference_at_vertices/*,
-                    parallel::distributed::Triangulation<dim>::construct_multigrid_hierarchy*/),
+      triangulation(mpi_communicator,
+                    Triangulation<dim>::limit_level_difference_at_vertices,
+                    parallel::distributed::Triangulation<dim>::construct_multigrid_hierarchy),
       dof_handler(triangulation),
       dof_handler_displacement(triangulation),
       dof_handler_density(triangulation),
@@ -475,7 +476,11 @@ KktSystem<dim>::setup_boundary_values()
 
             for(unsigned int level = 0; level < n_levels; ++level)
             {
-                mg_level_constraints[level].reinit(dof_handler_displacement.locally_owned_mg_dofs (level));
+                IndexSet relevant_dofs;
+                DoFTools::extract_locally_relevant_level_dofs(dof_handler_displacement,
+                                                      level,
+                                                      relevant_dofs);
+                mg_level_constraints[level].reinit(relevant_dofs);
             }
 
 
@@ -500,12 +505,12 @@ KktSystem<dim>::setup_boundary_values()
                                 {
                                      for (unsigned int level = 0; level < n_levels; ++level)
                                      {
-
                                          const unsigned int x_displacement =
                                                  cell->mg_vertex_dof_index(level, vertex_number, 0, cell->active_fe_index());
                                          const unsigned int y_displacement =
                                                  cell->mg_vertex_dof_index(level, vertex_number, 1, cell->active_fe_index());
-                                         /*set bottom left BC*/
+                                                 
+                                        /*set bottom left BC*/
 
                                          level_dirichlet_boundary_dofs[level].insert(x_displacement);
                                          level_dirichlet_boundary_dofs[level].insert(y_displacement);
@@ -529,7 +534,8 @@ KktSystem<dim>::setup_boundary_values()
 
 //                                        level_dirichlet_boundary_dofs[level].insert(x_displacement);
                                         level_dirichlet_boundary_dofs[level].insert(y_displacement);
-
+                                        std::cout << "level is: " << level<< " and y = "  << y_displacement << std::endl;
+                                         
 //                                        level_boundary_values[level][x_displacement] = 0;
                                         level_boundary_values[level][y_displacement] = 0;
                                     }
@@ -1089,6 +1095,9 @@ KktSystem<dim>::setup_block_system() {
 
     }
 
+
+    pcout << "before filter setup" << std::endl;
+
     /*This finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
     setup_filter_matrix();
     for (const auto &cell : dof_handler.active_cell_iterators()) {
@@ -1124,7 +1133,7 @@ KktSystem<dim>::setup_block_system() {
     distributed_solution.collect_sizes();
     system_rhs.collect_sizes();
     system_matrix.collect_sizes();
-
+    IndexSet locally_owned_displacement_dofs = dof_handler_displacement.locally_owned_dofs();
     std::vector<types::global_dof_index> displacement_dof_indices;
     std::vector<types::global_dof_index> system_dof_indices;
     for (const auto &displacement_cell : dof_handler_displacement.active_cell_iterators())
@@ -1143,11 +1152,15 @@ KktSystem<dim>::setup_block_system() {
 
             for (unsigned int i=0; i<displacement_dof_indices.size(); ++i)
             {
-                displacement_to_system_dof_index_map[displacement_dof_indices[i]]
-                        = system_dof_indices[system_cell->get_fe().component_to_system_index(
+                if(locally_owned_displacement_dofs.is_element(displacement_dof_indices[i]))
+                {
+                        displacement_to_system_dof_index_map[displacement_dof_indices[i]]
+                            = system_dof_indices[system_cell->get_fe().component_to_system_index(
                             displacement_cell->get_fe().system_to_component_index(i).first+SolutionComponents::displacement<dim>,
                             displacement_cell->get_fe().system_to_component_index(i).second
                             )];
+                }
+                
             }
         }
     const types::global_dof_index disp_start_index = system_matrix.get_row_indices().block_start(
@@ -2164,7 +2177,6 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     SolverControl solver_control(100, gmres_tolerance);
 
-
     // ************ BEGIN MAKING MF GMG ELASTICITY PRECONDITIONER ***************************
     using SystemMFMatrixType = MF_Elasticity_Operator<dim, 1, double>;
     using LevelMFMatrixType = MF_Elasticity_Operator<dim, 1, double>;
@@ -2175,8 +2187,8 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     unsigned int n_dofs = dof_handler.n_dofs();
     unsigned int n_dofs_displacement = dof_handler_displacement.n_dofs();
 
-    std::vector< Point< dim >> support_points (n_dofs);
-    std::vector< Point< dim >> support_points_displacement (n_dofs_displacement);
+    std::map< types::global_dof_index, Point< dim > > support_points;
+    std::map< types::global_dof_index, Point< dim > > support_points_displacement;
 
     MappingQGeneric<dim,dim> generic_map_displacement(1);
     MappingQGeneric<dim,dim> generic_map_1(1);
@@ -2193,20 +2205,30 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     const types::global_dof_index disp_mult_start_index = system_matrix.get_row_indices().block_start(SolutionBlocks::displacement_multiplier);
 
-    for (unsigned int d=0; d<n_dofs_displacement; d++)
+    for (const auto &support_points_displacement_pair : support_points_displacement)
     {
-        if (support_points_displacement[d] != support_points[disp_mult_start_index+d])
-        std::cout << "d = " << d << ", points are " << support_points_displacement[d] << " and " << support_points[disp_mult_start_index+d] << std::endl;
+        if (support_points_displacement_pair.second != support_points[support_points_displacement_pair.first+disp_mult_start_index])
+            std::cout << "d = " << support_points_displacement_pair.first << ", points are " << support_points_displacement_pair.second << " and " << support_points[support_points_displacement_pair.first+disp_mult_start_index] << std::endl;
     }
 
     pcout << "Number of degrees of freedom: " << dof_handler_displacement.n_dofs()
           << std::endl;
 
 
+    std::vector<IndexSet> locally_owned_dofs = Utilities::MPI::all_gather(mpi_communicator, dof_handler_displacement.locally_owned_dofs());
+    IndexSet locally_active_dofs;
+    DoFTools::extract_locally_active_dofs(dof_handler_displacement, locally_active_dofs);
     IndexSet locally_relevant_dofs;
     DoFTools::extract_locally_relevant_dofs(dof_handler_displacement, locally_relevant_dofs);
+     
+    // AffineConstraints<double> temp_displacement_constraints;
+    displacement_constraints.clear();
+    displacement_constraints.reinit(locally_relevant_dofs);
     displacement_constraints.copy_from(mg_level_constraints[triangulation.n_global_levels()-1]);
-
+    pcout << "displacement constraint number: " << displacement_constraints.n_constraints() <<std::endl;
+    displacement_constraints.close();
+    // std::cout << displacement_constraints.is_consistent_in_parallel(locally_owned_dofs, locally_active_dofs,mpi_communicator) << "***********************************";
+    
     {
         typename MatrixFree<dim, double>::AdditionalData additional_data;
         additional_data.tasks_parallel_scheme =
@@ -2228,13 +2250,12 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
     elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
-    std::cout << "displacement_vec_size = " << distributed_displacement_sol.size() << std::endl;
-    std::cout << "systdm_vec_size = " << distributed_solution.block(SolutionBlocks::displacement).size() << std::endl;
+    pcout << "displacement_vec_size = " << distributed_displacement_sol.size() << std::endl;
+    pcout << "systdm_vec_size = " << distributed_solution.block(SolutionBlocks::displacement).size() << std::endl;
 
     ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
 
     ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
-
 
 
     const unsigned int n_levels = triangulation.n_global_levels();
@@ -2332,8 +2353,7 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
                 std::vector<double> old_density_values(n_q_points);
 
                 const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
-
-                fe_values[densities].get_function_values(distributed_solution, old_density_values);
+                fe_values[densities].get_function_values(locally_relevant_solution, old_density_values);
                 double cell_density = old_density_values[0];
 
                 for (unsigned int i=0; i<rhs_values.size(); ++i)
@@ -2353,10 +2373,6 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
         active_density_vector.compress(VectorOperation::insert);
     }
-
-
-
-
     // MAKE ACTIVE_CELL_DATA
     std::vector<types::global_dof_index> local_dof_indices(fe_density.dofs_per_cell);
     for (unsigned int cell=0; cell<n_cells; ++cell)
