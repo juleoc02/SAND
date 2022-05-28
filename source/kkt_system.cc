@@ -484,7 +484,9 @@ KktSystem<dim>::setup_boundary_values()
             }
 
 
-            for (auto cell=dof_handler_displacement.begin_active(n_levels-1); cell!=dof_handler_displacement.end_active(n_levels-1); ++cell)
+            for (auto cell=dof_handler_displacement.begin_active(n_levels-1); 
+                 cell!=dof_handler_displacement.end_active(n_levels-1); 
+                 ++cell)
             {
                 if(cell->is_locally_owned())
                 {
@@ -553,22 +555,26 @@ KktSystem<dim>::setup_boundary_values()
 
         } else if (dim == 3)
         {
-            for (const auto &cell: dof_handler.active_cell_iterators()) {
+            pcout << "setting up BVs" << std::endl;
+            for (const auto &cell: dof_handler.active_cell_iterators()) 
+            {
                 if(cell->is_locally_owned())
                 {
                     for (unsigned int face_number = 0;
                          face_number < GeometryInfo<dim>::faces_per_cell;
-                         ++face_number) {
-                        if (cell->face(face_number)->at_boundary()) {
+                         ++face_number) 
+                    {
+                        if (cell->face(face_number)->at_boundary()) 
+                        {
                             for (unsigned int vertex_number = 0;
                                  vertex_number < GeometryInfo<dim>::vertices_per_cell;
                                  ++vertex_number) {
                                 const auto vert = cell->vertex(vertex_number);
                                 /*Find bottom left corner*/
-                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                            vert(1) - 0) < 1e-12 && ((std::fabs(
-                                                                          vert(2) - 0) < 1e-12) || (std::fabs(
-                                                                                                        vert(2) - 1) < 1e-12))) {
+                                if (std::fabs(vert(0) - 0) < 1e-12 && 
+                                    std::fabs(vert(1) - 0) < 1e-12 && 
+                                    ((std::fabs(vert(2) - 0) < 1e-12) || (std::fabs(vert(2) - 1) < 1e-12))) 
+                                {
 
 
                                     const unsigned int x_displacement =
@@ -592,10 +598,10 @@ KktSystem<dim>::setup_boundary_values()
                                     boundary_values[z_displacement_multiplier] = 0;
                                 }
                                 /*Find bottom right corner*/
-                                if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-                                            vert(1) - 0) < 1e-12 && ((std::fabs(
-                                                                          vert(2) - 0) < 1e-12) || (std::fabs(
-                                                                                                        vert(2) - 1) < 1e-12))) {
+                                if (std::fabs(vert(0) - 6) < 1e-12 && 
+                                    std::fabs(vert(1) - 0) < 1e-12 && 
+                                    ((std::fabs(vert(2) - 0) < 1e-12) || (std::fabs(vert(2) - 1) < 1e-12))) 
+                                {
                                     //                              const unsigned int x_displacement =
                                     //                                    cell->vertex_dof_index(vertex_number, 0, cell->active_fe_index());
                                     const unsigned int y_displacement =
@@ -621,39 +627,57 @@ KktSystem<dim>::setup_boundary_values()
                 }
 
             }
-            const unsigned int n_levels = triangulation.n_levels();
-            for (unsigned int level = 0; level < n_levels; ++level)
-            {
-                for (auto cell=dof_handler_displacement.begin_active(level);
-                     cell!=dof_handler.end_active(level);
-                     ++cell)
-                {
-                    if(cell->is_locally_owned())
-                    {
-                        for (unsigned int face_number = 0;
-                             face_number < GeometryInfo<dim>::faces_per_cell;
-                             ++face_number)
-                        {
-                            if (cell->face(face_number)->at_boundary())
-                            {
-                                for (unsigned int vertex_number = 0;
-                                     vertex_number < GeometryInfo<dim>::vertices_per_cell;
-                                     ++vertex_number)
-                                {
-                                    const auto vert = cell->vertex(vertex_number);
-                                    /*Find bottom left corner*/
-                                    if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                                vert(1) - 0) < 1e-12 && ((std::fabs(
-                                                vert(2) - 0) < 1e-12) || (std::fabs(
-                                                vert(2) - 1) < 1e-12)))
-                                    {
 
+            pcout << "setting up BVs for DOF_D" << std::endl;
+
+            const unsigned int n_levels = triangulation.n_levels();
+            level_dirichlet_boundary_dofs.resize(0,n_levels-1);
+            level_boundary_values.resize(0,n_levels-1);
+            mg_level_constraints.resize(0,n_levels-1);
+
+            for(unsigned int level = 0; level < n_levels; ++level)
+            {
+                IndexSet relevant_dofs;
+                DoFTools::extract_locally_relevant_level_dofs(dof_handler_displacement,
+                                                      level,
+                                                      relevant_dofs);
+                mg_level_constraints[level].reinit(relevant_dofs);
+            }
+
+            pcout << "loop 1" << std::endl;
+            for (auto cell=dof_handler_displacement.begin_active(n_levels-1);
+                    cell!=dof_handler_displacement.end_active(n_levels-1);
+                    ++cell)
+            {
+                pcout << "in loop 1" << std::endl;
+                if(cell->is_locally_owned())
+                {
+                    for (unsigned int face_number = 0;
+                            face_number < GeometryInfo<dim>::faces_per_cell;
+                            ++face_number)
+                    {
+                        if (cell->face(face_number)->at_boundary())
+                        {
+                            for (unsigned int vertex_number = 0;
+                                    vertex_number < GeometryInfo<dim>::vertices_per_cell;
+                                    ++vertex_number)
+                            {
+                                const auto vert = cell->vertex(vertex_number);
+                                /*Find bottom left corner*/
+                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
+                                            vert(1) - 0) < 1e-12 && ((std::fabs(
+                                            vert(2) - 0) < 1e-12) || (std::fabs(
+                                            vert(2) - 1) < 1e-12)))
+                                {
+                                    for (unsigned int level = 0; level < n_levels; ++level)
+                                    {
+                                        pcout << "in loop 2" << std::endl;
                                         const unsigned int x_displacement =
-                                                cell->mg_vertex_dof_index(level, vertex_number, 0, 0);
+                                                 cell->mg_vertex_dof_index(level, vertex_number, 0, cell->active_fe_index());
                                         const unsigned int y_displacement =
-                                                cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
+                                            cell->mg_vertex_dof_index(level, vertex_number, 1, cell->active_fe_index());
                                         const unsigned int z_displacement =
-                                                cell->mg_vertex_dof_index(level, vertex_number, 2, 0);
+                                            cell->mg_vertex_dof_index(level, vertex_number, 2, cell->active_fe_index());
                                         /*set bottom left BC*/
                                         level_boundary_values[level][x_displacement] = 0;
                                         level_boundary_values[level][y_displacement] = 0;
@@ -662,16 +686,20 @@ KktSystem<dim>::setup_boundary_values()
                                         level_dirichlet_boundary_dofs[level].insert(y_displacement);
                                         level_dirichlet_boundary_dofs[level].insert(z_displacement);
                                     }
-                                    /*Find bottom right corner*/
-                                    if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-                                                vert(1) - 0) < 1e-12 && ((std::fabs(
-                                                vert(2) - 0) < 1e-12) || (std::fabs(
-                                                vert(2) - 1) < 1e-12)))
+                                }
+                                /*Find bottom right corner*/
+                                if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
+                                            vert(1) - 0) < 1e-12 && ((std::fabs(
+                                            vert(2) - 0) < 1e-12) || (std::fabs(
+                                            vert(2) - 1) < 1e-12)))
+                                {
+                                    for (unsigned int level = 0; level < n_levels; ++level)
                                     {
+                                        pcout << "in loop 3" << std::endl;
                                         const unsigned int y_displacement =
-                                                cell->mg_vertex_dof_index(level, vertex_number, 1, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 1, cell->active_fe_index());
                                         const unsigned int z_displacement =
-                                                cell->mg_vertex_dof_index(level, vertex_number, 2, 0);
+                                                cell->mg_vertex_dof_index(level, vertex_number, 2, cell->active_fe_index());
                                         level_boundary_values[level][y_displacement] = 0;
                                         level_boundary_values[level][z_displacement] = 0;
 
@@ -683,6 +711,9 @@ KktSystem<dim>::setup_boundary_values()
                         }
                     }
                 }
+            }
+            for (unsigned int level = 0; level < n_levels; ++level)
+            {
                 mg_level_constraints[level].add_lines(level_dirichlet_boundary_dofs[level]);
                 mg_level_constraints[level].close();
             }
