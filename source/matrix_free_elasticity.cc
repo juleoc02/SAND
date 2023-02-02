@@ -10,9 +10,10 @@ using namespace dealii;
 ///Constructor
 template <int dim, int fe_degree, typename number>
 MF_Elasticity_Operator<dim, fe_degree, number>::MF_Elasticity_Operator()
-    : MatrixFreeOperators::Base<dim,LinearAlgebra::distributed::Vector<number>>()
+    : MatrixFreeOperators::Base<dim,LinearAlgebra::distributed::Vector<number>>(),
+    mpi_communicator(MPI_COMM_WORLD),
+    pcout(std::cout,(Utilities::MPI::this_mpi_process(mpi_communicator) == 0))
 {
-
 }
 
 ///Clears the objects, removes density information
@@ -30,14 +31,27 @@ MF_Elasticity_Operator<dim,fe_degree,number>::compute_diagonal ()
 {
     this->inverse_diagonal_entries.
     reset(new DiagonalMatrix<dealii::LinearAlgebra::distributed::Vector<number>>());
+    this->diagonal_entries.
+    reset(new DiagonalMatrix<dealii::LinearAlgebra::distributed::Vector<number>>());
+
     dealii::LinearAlgebra::distributed::Vector<number> &inverse_diagonal = this->inverse_diagonal_entries->get_vector();
+
+    dealii::LinearAlgebra::distributed::Vector<number> &diagonal = this->diagonal_entries->get_vector();
+
     this->data->initialize_dof_vector(inverse_diagonal);
-    unsigned int dummy = 0;
+    this->data->initialize_dof_vector(diagonal);
+    unsigned int dummy = 1;
+
+
     this->data->cell_loop (&MF_Elasticity_Operator::local_compute_diagonal, this,
-                           inverse_diagonal, dummy);
+                           diagonal, dummy);
 
-    this->set_constrained_entries_to_one(inverse_diagonal);
+    this->set_constrained_entries_to_one(diagonal);
 
+    // diagonal.compress(VectorOperation::add);
+
+    inverse_diagonal=diagonal;
+    
     for (auto &local_element : inverse_diagonal)
       {
 //        Assert(local_element > 0.,
@@ -45,6 +59,9 @@ MF_Elasticity_Operator<dim,fe_degree,number>::compute_diagonal ()
 //                          "should be zero or negative."));
         local_element = 1./local_element;
       }
+      // inverse_diagonal.compress(VectorOperation::insert);
+    //   diagona.print(lstd::cout);
+      pcout << "diag size: " << diagonal.size() << " with l2 norm " << diagonal.l2_norm() << std::endl;
 }
 
 ///Computes the diagonal value locally for a cell
@@ -56,10 +73,11 @@ MF_Elasticity_Operator<dim,fe_degree,number>
                           const unsigned int &,
                           const std::pair<unsigned int,unsigned int>       &cell_range) const
 {
+  // pcout << "local_compute_diagonal" << std::endl;
   FEEvaluation<dim,fe_degree,fe_degree+1,dim,number> displacement (data, 0);
 
   AlignedVector<VectorizedArray<number>> diagonal(displacement.dofs_per_cell);
-
+  
   for (unsigned int cell=cell_range.first; cell<cell_range.second; ++cell)
     {
 
@@ -95,10 +113,11 @@ MF_Elasticity_Operator<dim,fe_degree,number>
 
           diagonal[i] = displacement.begin_dof_values()[i];
         }
-
+      
       for (unsigned int i=0; i<displacement.dofs_per_cell; ++i)
         displacement.begin_dof_values()[i] = diagonal[i];
-      displacement.distribute_local_to_global (dst);
+      displacement.distribute_local_to_global (dst);     
+
     }
 }
 
@@ -111,7 +130,8 @@ MF_Elasticity_Operator<dim, fe_degree, number>::local_apply(
         const LinearAlgebra::distributed::Vector<number> &src,
         const std::pair<unsigned int, unsigned int> &     cell_range) const
 {
-    FEEvaluation<dim, 1, 2, dim, double> displacement(data);
+  // pcout << "local_apply" << std::endl;
+    FEEvaluation<dim, 1, 2, dim, double> displacement(data,0);
 
     for (unsigned int cell=cell_range.first; cell<cell_range.second; ++cell)
     {
@@ -133,13 +153,13 @@ MF_Elasticity_Operator<dim, fe_degree, number>::local_apply(
                 symgrad_term[d][d] +=  div_term;
             }
 
+            
 
             displacement.submit_symmetric_gradient(symgrad_term, q);
-
         }
-
         displacement.integrate_scatter(EvaluationFlags::gradients, dst);
     }
+
 }
 
 ///Nothing is applied on a face on the LHS, so left blank.
@@ -151,7 +171,6 @@ MF_Elasticity_Operator<dim, fe_degree, number>
                    const dealii::LinearAlgebra::distributed::Vector<number> &,
                    const std::pair<unsigned int, unsigned int> &) const
 {
-
 }
 
 ///Nothing is applied on a face on the LHS, so left blank.
@@ -163,7 +182,6 @@ MF_Elasticity_Operator<dim, fe_degree, number>
                             const dealii::LinearAlgebra::distributed::Vector<number> &,
                             const std::pair<unsigned int, unsigned int> &) const
 {
-
 }
 
 ///Loops over all cells to apply the elasticity operatorto the entire LHS vector
@@ -175,6 +193,7 @@ MF_Elasticity_Operator<dim,fe_degree,number>
 {
     MatrixFreeOperators::Base<dim, dealii::LinearAlgebra::distributed::Vector<number>>::
             data->cell_loop(&MF_Elasticity_Operator::local_apply, this, dst, src);
+    // dst.compress(VectorOperation::add);
 }
 
 ///Sets cell data (density) to be input given.
@@ -182,6 +201,7 @@ template <int dim, int fe_degree, typename number>
 void
 MF_Elasticity_Operator<dim,fe_degree,number>::set_cell_data (const OperatorCellData<dim,number> &data)
 {
+  pcout << "set_cell_data" << std::endl;
     this->cell_data = &data;
 }
 

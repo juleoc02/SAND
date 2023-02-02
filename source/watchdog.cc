@@ -462,7 +462,7 @@ namespace SAND {
 
         markov_filter.setup(kkt_system.calculate_objective_value(current_state), kkt_system.calculate_barrier_distance(current_state), kkt_system.calculate_feasibility(current_state,barrier_size), barrier_size);
 
-        std::cout << "finished setup - beginning watchdog steps" << std::endl;
+        // std::cout << "finished setup - beginning watchdog steps" << std::endl;
 
         while((barrier_size > Input::min_barrier_size || !check_convergence(current_state)) && iteration_number < Input::max_steps)
         {

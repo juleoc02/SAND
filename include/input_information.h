@@ -18,14 +18,15 @@ namespace SAND {
         constexpr unsigned int geometry_base = GeometryOptions::mbb;
 
         constexpr unsigned int dim = 3;
-        constexpr unsigned int refinements = 4;
+        // constexpr unsigned int refinements = 3;
+        extern unsigned int refinements;
 
         //nonlinear algorithm options
         constexpr double initial_barrier_size = 25;
         constexpr double min_barrier_size = 0;
 
-        constexpr double fraction_to_boundary = .7;
-        constexpr unsigned int max_steps=30;
+        constexpr double fraction_to_boundary = .9;
+        constexpr unsigned int max_steps=2;
 
         constexpr unsigned int barrier_reduction=BarrierOptions::loqo;
         constexpr double required_norm = .0001;
@@ -44,15 +45,20 @@ namespace SAND {
         //Linear solver options
         constexpr unsigned int solver_choice = SolverOptions::inexact_K_with_inexact_A_gmres;
         constexpr bool use_eisenstat_walker = false;
-        constexpr double default_gmres_tolerance = 1e-9;
+        constexpr double default_gmres_tolerance = 1e-6;
 
-        constexpr unsigned int a_inv_iterations = 25;
-        constexpr unsigned int k_inv_iterations = 100;
+        extern unsigned int a_inv_iterations;
+        extern unsigned int k_inv_iterations;
+
+        // constexpr double a_inv_iterations = 5;
+        // constexpr double k_inv_iterations = 30;
+
+        constexpr double a_rel_tol = 0.0;
+        constexpr double k_rel_tol = 0.0;
 
         //Material Options
         constexpr double material_lambda = 1;
         constexpr double material_mu = 1;
-
     }
 }
 #endif //SAND_INPUT_INFORMATION_H

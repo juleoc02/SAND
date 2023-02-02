@@ -40,6 +40,7 @@
 
 #include "../include/input_information.h"
 #include "../include/matrix_free_elasticity.h"
+#include "../include/poly_pre.h"
 
 #include <iostream>
 #include <algorithm>
@@ -144,7 +145,7 @@ KktSystem<dim>::KktSystem()
 template<int dim>
 void
 KktSystem<dim>::setup_filter_matrix() {
-
+    pcout << "IN KKT FILTER SETUP FUNCTION" << std::endl;
     density_filter.initialize(dof_handler);
 }
 
@@ -469,7 +470,7 @@ KktSystem<dim>::setup_boundary_values()
                 }
 
             }
-            const unsigned int n_levels = triangulation.n_levels();
+            const unsigned int n_levels = triangulation.n_global_levels();
             level_dirichlet_boundary_dofs.resize(0,n_levels-1);
             level_boundary_values.resize(0,n_levels-1);
             mg_level_constraints.resize(0,n_levels-1);
@@ -536,7 +537,6 @@ KktSystem<dim>::setup_boundary_values()
 
 //                                        level_dirichlet_boundary_dofs[level].insert(x_displacement);
                                         level_dirichlet_boundary_dofs[level].insert(y_displacement);
-                                        std::cout << "level is: " << level<< " and y = "  << y_displacement << std::endl;
                                          
 //                                        level_boundary_values[level][x_displacement] = 0;
                                         level_boundary_values[level][y_displacement] = 0;
@@ -549,7 +549,14 @@ KktSystem<dim>::setup_boundary_values()
             }
             for (unsigned int level = 0; level < n_levels; ++level)
             {
+                IndexSet relevant_dofs;
+                DoFTools::extract_locally_relevant_level_dofs(dof_handler_displacement,level,relevant_dofs);
                 mg_level_constraints[level].add_lines(level_dirichlet_boundary_dofs[level]);
+                mg_level_constraints[level].make_consistent_in_parallel(
+                    dof_handler_displacement.locally_owned_mg_dofs(level),
+                    relevant_dofs,
+                    mpi_communicator
+                );
                 mg_level_constraints[level].close();
             }
 
@@ -628,9 +635,7 @@ KktSystem<dim>::setup_boundary_values()
 
             }
 
-            pcout << "setting up BVs for DOF_D" << std::endl;
-
-            const unsigned int n_levels = triangulation.n_levels();
+            const unsigned int n_levels = triangulation.n_global_levels();
             level_dirichlet_boundary_dofs.resize(0,n_levels-1);
             level_boundary_values.resize(0,n_levels-1);
             mg_level_constraints.resize(0,n_levels-1);
@@ -644,12 +649,10 @@ KktSystem<dim>::setup_boundary_values()
                 mg_level_constraints[level].reinit(relevant_dofs);
             }
 
-            pcout << "loop 1" << std::endl;
             for (auto cell=dof_handler_displacement.begin_active(n_levels-1);
                     cell!=dof_handler_displacement.end_active(n_levels-1);
                     ++cell)
             {
-                pcout << "in loop 1" << std::endl;
                 if(cell->is_locally_owned())
                 {
                     for (unsigned int face_number = 0;
@@ -671,7 +674,6 @@ KktSystem<dim>::setup_boundary_values()
                                 {
                                     for (unsigned int level = 0; level < n_levels; ++level)
                                     {
-                                        pcout << "in loop 2" << std::endl;
                                         const unsigned int x_displacement =
                                                  cell->mg_vertex_dof_index(level, vertex_number, 0, cell->active_fe_index());
                                         const unsigned int y_displacement =
@@ -695,7 +697,6 @@ KktSystem<dim>::setup_boundary_values()
                                 {
                                     for (unsigned int level = 0; level < n_levels; ++level)
                                     {
-                                        pcout << "in loop 3" << std::endl;
                                         const unsigned int y_displacement =
                                                 cell->mg_vertex_dof_index(level, vertex_number, 1, cell->active_fe_index());
                                         const unsigned int z_displacement =
@@ -714,7 +715,14 @@ KktSystem<dim>::setup_boundary_values()
             }
             for (unsigned int level = 0; level < n_levels; ++level)
             {
+                IndexSet relevant_dofs;
+                DoFTools::extract_locally_relevant_level_dofs(dof_handler_displacement,level,relevant_dofs);
                 mg_level_constraints[level].add_lines(level_dirichlet_boundary_dofs[level]);
+                mg_level_constraints[level].make_consistent_in_parallel(
+                    dof_handler_displacement.locally_owned_mg_dofs(level),
+                    relevant_dofs,
+                    mpi_communicator
+                );
                 mg_level_constraints[level].close();
             }
 
@@ -777,7 +785,7 @@ KktSystem<dim>::setup_boundary_values()
                     }
                 }
             }
-            const unsigned int n_levels = triangulation.n_levels();
+            const unsigned int n_levels = triangulation.n_global_levels();
             for (unsigned int level = 0; level < n_levels; ++level)
             {
                 for (auto cell=dof_handler_displacement.begin_active(level);
@@ -833,7 +841,14 @@ KktSystem<dim>::setup_boundary_values()
                         }
                     }
                 }
+                IndexSet relevant_dofs;
+                DoFTools::extract_locally_relevant_level_dofs(dof_handler_displacement,level,relevant_dofs);
                 mg_level_constraints[level].add_lines(level_dirichlet_boundary_dofs[level]);
+                mg_level_constraints[level].make_consistent_in_parallel(
+                    dof_handler_displacement.locally_owned_mg_dofs(level),
+                    relevant_dofs,
+                    mpi_communicator
+                );
                 mg_level_constraints[level].close();
             }
 
@@ -907,7 +922,7 @@ KktSystem<dim>::setup_boundary_values()
                     }
                 }
             }
-            const unsigned int n_levels = triangulation.n_levels();
+            const unsigned int n_levels = triangulation.n_global_levels();
             for (unsigned int level = 0; level < n_levels; ++level)
             {
                 for (auto cell=dof_handler_displacement.begin_active(level);
@@ -974,7 +989,14 @@ KktSystem<dim>::setup_boundary_values()
                         }
                     }
                 }
+                IndexSet relevant_dofs;
+                DoFTools::extract_locally_relevant_level_dofs(dof_handler_displacement,level,relevant_dofs);
                 mg_level_constraints[level].add_lines(level_dirichlet_boundary_dofs[level]);
+                mg_level_constraints[level].make_consistent_in_parallel(
+                    dof_handler_displacement.locally_owned_mg_dofs(level),
+                    relevant_dofs,
+                    mpi_communicator
+                );
                 mg_level_constraints[level].close();
             }
 
@@ -1127,10 +1149,11 @@ KktSystem<dim>::setup_block_system() {
     }
 
 
-    pcout << "before filter setup" << std::endl;
+    pcout << "skipping filter setup" << std::endl;
 
     /*This finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
     setup_filter_matrix();
+    pcout << "to here" << std::endl;
     for (const auto &cell : dof_handler.active_cell_iterators()) {
         if (cell->is_locally_owned())
         {
@@ -1146,7 +1169,7 @@ KktSystem<dim>::setup_block_system() {
             }
         }
     }
-
+    
     SparsityTools::distribute_sparsity_pattern(
                 dsp,
                 Utilities::MPI::all_gather(mpi_communicator,
@@ -1205,8 +1228,7 @@ KktSystem<dim>::setup_block_system() {
             std::cout << "inexact matching for index: " << index_pair.first << " and " << index_pair.second << std::endl;
         }
     }
-
-
+    
 
 }
 
@@ -2203,10 +2225,15 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     else {
         gmres_tolerance = Input::default_gmres_tolerance;
     }
+
+
     locally_relevant_solution=state;
     distributed_solution = state;
 
-    SolverControl solver_control(100, gmres_tolerance);
+    density_filter.filter_matrix.vmult(distributed_solution.block(SolutionBlocks::density), distributed_solution.block(SolutionBlocks::unfiltered_density));
+    locally_relevant_solution = distributed_solution;
+
+    SolverControl solver_control(10000, gmres_tolerance);
 
     // ************ BEGIN MAKING MF GMG ELASTICITY PRECONDITIONER ***************************
     using SystemMFMatrixType = MF_Elasticity_Operator<dim, 1, double>;
@@ -2214,9 +2241,6 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     elasticity_matrix_mf.clear();
     mg_matrices.clear_elements();
-
-    unsigned int n_dofs = dof_handler.n_dofs();
-    unsigned int n_dofs_displacement = dof_handler_displacement.n_dofs();
 
     std::map< types::global_dof_index, Point< dim > > support_points;
     std::map< types::global_dof_index, Point< dim > > support_points_displacement;
@@ -2239,27 +2263,30 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     for (const auto &support_points_displacement_pair : support_points_displacement)
     {
         if (support_points_displacement_pair.second != support_points[support_points_displacement_pair.first+disp_mult_start_index])
-            std::cout << "d = " << support_points_displacement_pair.first << ", points are " << support_points_displacement_pair.second << " and " << support_points[support_points_displacement_pair.first+disp_mult_start_index] << std::endl;
+            pcout << "d = " << support_points_displacement_pair.first << ", points are " << support_points_displacement_pair.second << " and " << support_points[support_points_displacement_pair.first+disp_mult_start_index] << std::endl;
     }
 
     pcout << "Number of degrees of freedom: " << dof_handler_displacement.n_dofs()
           << std::endl;
 
+    MPI_Barrier(MPI_COMM_WORLD);
 
     std::vector<IndexSet> locally_owned_dofs = Utilities::MPI::all_gather(mpi_communicator, dof_handler_displacement.locally_owned_dofs());
     IndexSet locally_active_dofs;
     DoFTools::extract_locally_active_dofs(dof_handler_displacement, locally_active_dofs);
     IndexSet locally_relevant_dofs;
     DoFTools::extract_locally_relevant_dofs(dof_handler_displacement, locally_relevant_dofs);
-     
+    std::cout << Utilities::MPI::this_mpi_process(mpi_communicator) << " has relevant: " << locally_relevant_dofs.n_elements() << "and active: " << locally_relevant_dofs.n_elements() << std::endl;
     // AffineConstraints<double> temp_displacement_constraints;
+    
+    std::cout << Utilities::MPI::this_mpi_process(mpi_communicator) << " has levels: " << mg_level_constraints.max_level() << " and tria levels: " << triangulation.n_global_levels() << std::endl;
+
+
     displacement_constraints.clear();
-    displacement_constraints.reinit(locally_relevant_dofs);
+    displacement_constraints.reinit(locally_active_dofs); //FIXME SHOULD THIS BE RELEVANT???
     displacement_constraints.copy_from(mg_level_constraints[triangulation.n_global_levels()-1]);
     pcout << "displacement constraint number: " << displacement_constraints.n_constraints() <<std::endl;
     displacement_constraints.close();
-    // std::cout << displacement_constraints.is_consistent_in_parallel(locally_owned_dofs, locally_active_dofs,mpi_communicator) << "***********************************";
-    
     {
         typename MatrixFree<dim, double>::AdditionalData additional_data;
         additional_data.tasks_parallel_scheme =
@@ -2268,7 +2295,8 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
                 (update_gradients | update_JxW_values | update_quadrature_points);
         std::shared_ptr<MatrixFree<dim, double>> system_mf_storage(
                     new MatrixFree<dim, double>());
-        system_mf_storage->reinit(dof_handler_displacement,
+        system_mf_storage->reinit(generic_map_1,
+                                  dof_handler_displacement,
                                   displacement_constraints,
                                   QGauss<1>(fe_displacement.degree + 1),
                                   additional_data);
@@ -2281,13 +2309,21 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
     elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
+
+    locally_relevant_solution = distributed_solution;
+
     pcout << "displacement_vec_size = " << distributed_displacement_sol.size() << std::endl;
     pcout << "systdm_vec_size = " << distributed_solution.block(SolutionBlocks::displacement).size() << std::endl;
 
-    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
+    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_sol,locally_relevant_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
 
-    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
 
+    locally_relevant_solution = system_rhs;
+    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_rhs,locally_relevant_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
+
+    locally_relevant_solution = distributed_solution;
+
+    pcout << "types changed" << std::endl;
 
     const unsigned int n_levels = triangulation.n_global_levels();
     mg_matrices.resize(0, n_levels - 1);
@@ -2295,14 +2331,18 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     mg_constrained_dofs.clear();
     mg_constrained_dofs.initialize(dof_handler_displacement);
     const std::set<types::boundary_id> empty_boundary_set;
-    mg_constrained_dofs.make_zero_boundary_constraints(dof_handler_displacement,empty_boundary_set);
+    // mg_constrained_dofs.make_zero_boundary_constraints(dof_handler_displacement,empty_boundary_set);
+
 
     for (unsigned int level = 0; level < n_levels; ++level)
     {
         mg_constrained_dofs.add_user_constraints(level, mg_level_constraints[level]);
     }
 
-
+    // for (unsigned int level = 0; level < n_levels; ++level)
+    // {
+    //     mg_level_constraints[level].print(std::cout);
+    // }
 
     for (unsigned int level = 0; level < n_levels; ++level)
     {
@@ -2320,7 +2360,8 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
         std::shared_ptr<MatrixFree<dim, double>> mg_mf_storage_level(
                     new MatrixFree<dim, double>());
-        mg_mf_storage_level->reinit(dof_handler_displacement,
+        mg_mf_storage_level->reinit(generic_map_1,
+                                    dof_handler_displacement,
                                     mg_level_constraints[level],
                                     QGauss<1>(fe_displacement.degree + 1),
                                     additional_data);
@@ -2346,66 +2387,68 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     ChangeVectorTypes::copy(active_density_vector,distributed_solution.block(SolutionBlocks::density));
 
+
     const unsigned int n_cells = elasticity_matrix_mf.get_matrix_free()->n_cell_batches();
-    {
-        active_cell_data.density.reinit(TableIndices<2>(n_cells, 1));
+    // {
+        
 
-        QGauss<dim> nine_quadrature(2);
-        QGauss<dim> ten_quadrature(2);
+    //     QGauss<dim> nine_quadrature(2);
+    //     QGauss<dim> ten_quadrature(2);
 
-        hp::QCollection<dim> q_collection;
-        q_collection.push_back(nine_quadrature);
-        q_collection.push_back(ten_quadrature);
+    //     hp::QCollection<dim> q_collection;
+    //     q_collection.push_back(nine_quadrature);
+    //     q_collection.push_back(ten_quadrature);
 
-        hp::FEValues<dim> hp_fe_values(fe_collection,
-                                       q_collection,
-                                       update_values | update_quadrature_points |
-                                       update_JxW_values | update_gradients);
-
-
-
-        for (const auto &cell : dof_handler.active_cell_iterators())
-            if (cell->is_locally_owned())
-            {
-
-                hp_fe_values.reinit(cell);
-                const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
-
-                const unsigned int dofs_per_cell = fe_values.dofs_per_cell;
-                const unsigned int n_q_points = fe_values.n_quadrature_points;
-
-                std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
-                cell->get_dof_indices (local_dof_indices);
-                Vector<double> cell_vector (dofs_per_cell);
-                Vector<double> local_projection (dofs_per_cell);
-                FullMatrix<double> local_mass_matrix (dofs_per_cell, dofs_per_cell);
-
-                std::vector<double> rhs_values(n_q_points);
-                std::vector<double> old_density_values(n_q_points);
-
-                const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
-                fe_values[densities].get_function_values(locally_relevant_solution, old_density_values);
-                double cell_density = old_density_values[0];
-
-                for (unsigned int i=0; i<rhs_values.size(); ++i)
-                {
-                    rhs_values[i] = cell_density;
-                }
-
-                local_projection = cell_density;
-
-                std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
-                cell->get_dof_indices(i);
-                const unsigned int i_val = i[cell->get_fe().component_to_system_index(0, 0)];
-                active_density_vector[i_val] = cell_density;
+    //     hp::FEValues<dim> hp_fe_values(fe_collection,
+    //                                    q_collection,
+    //                                    update_values | update_quadrature_points |
+    //                                    update_JxW_values | update_gradients);
 
 
-            }
 
-        active_density_vector.compress(VectorOperation::insert);
-    }
+    //     for (const auto &cell : dof_handler.active_cell_iterators())
+    //         if (cell->is_locally_owned())
+    //         {
+
+    //             hp_fe_values.reinit(cell);
+    //             const FEValues<dim> &fe_values = hp_fe_values.get_present_fe_values();
+
+    //             const unsigned int dofs_per_cell = fe_values.dofs_per_cell;
+    //             const unsigned int n_q_points = fe_values.n_quadrature_points;
+
+    //             std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
+    //             cell->get_dof_indices (local_dof_indices);
+    //             Vector<double> cell_vector (dofs_per_cell);
+    //             Vector<double> local_projection (dofs_per_cell);
+    //             FullMatrix<double> local_mass_matrix (dofs_per_cell, dofs_per_cell);
+
+    //             std::vector<double> rhs_values(n_q_points);
+    //             std::vector<double> old_density_values(n_q_points);
+
+    //             const FEValuesExtractors::Scalar densities(SolutionComponents::density<dim>);
+    //             fe_values[densities].get_function_values(locally_relevant_solution, old_density_values);
+    //             double cell_density = old_density_values[0];
+
+    //             for (unsigned int i=0; i<rhs_values.size(); ++i)
+    //             {
+    //                 rhs_values[i] = cell_density;
+    //             }
+
+    //             local_projection = cell_density;
+
+    //             std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
+    //             cell->get_dof_indices(i);
+    //             const unsigned int i_val = i[cell->get_fe().component_to_system_index(0, 0)];
+    //             active_density_vector[i_val] = cell_density;
+
+
+    //         }
+
+    //     // active_density_vector.compress(VectorOperation::insert);
+    // }
     // MAKE ACTIVE_CELL_DATA
     std::vector<types::global_dof_index> local_dof_indices(fe_density.dofs_per_cell);
+    active_cell_data.density.reinit(TableIndices<2>(n_cells, 1));
     for (unsigned int cell=0; cell<n_cells; ++cell)
     {
         const unsigned int n_components_filled = elasticity_matrix_mf.get_matrix_free()->n_active_entries_per_cell_batch(cell);
@@ -2421,9 +2464,9 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
             DG_cell->get_active_or_mg_dof_indices(local_dof_indices);
 
             active_cell_data.density(cell, 0)[i] = active_density_vector(local_dof_indices[0]);
-
         }
     }
+    
     elasticity_matrix_mf.set_cell_data(active_cell_data);
 
     //MAKE LEVEL DENSITY VECTOR
@@ -2434,9 +2477,9 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
     transfer.build(dof_handler_density);
 
-    transfer.template interpolate_to_mg<double>(dof_handler_density,
-                                                level_density_vector,
-                                                active_density_vector);
+    transfer.interpolate_to_mg(dof_handler_density,
+                               level_density_vector,
+                               active_density_vector);
 
     // MAKE LEVEL_CELL_DATA
     for (unsigned int level=0; level<n_levels; ++level)
@@ -2466,7 +2509,9 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         // Store density tables and other data into the multigrid level matrix-free objects.
 
         mg_matrices[level].set_cell_data (level_cell_data[level]);
+
     }
+
 
 
 
@@ -2489,14 +2534,16 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         }
         else
         {
-            smoother_data[0].smoothing_range = 1e-3;
-            smoother_data[0].degree          = numbers::invalid_unsigned_int;
-            smoother_data[0].eig_cg_n_iterations = mg_matrices[0].m();
+            smoother_data[0].smoothing_range = .001;
+            smoother_data[0].degree          = 4;
+            smoother_data[0].eig_cg_n_iterations = 100;
         }
         mg_matrices[level].compute_diagonal();
         smoother_data[level].preconditioner =
                 mg_matrices[level].get_matrix_diagonal_inverse();
     }
+
+    std::cout << Utilities::MPI::this_mpi_process(mpi_communicator) << " has matrix size " << mg_matrices[0].m() << " at level 0" << std::endl;
 
     mg_smoother.initialize(mg_matrices, smoother_data);
 
@@ -2514,42 +2561,87 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     Multigrid<LinearAlgebra::distributed::Vector<double>> mg(
                 mg_matrix, mg_coarse, mg_transfer, mg_smoother, mg_smoother);
     mg.set_edge_matrices(mg_interface, mg_interface);
-
+    mg.set_cycle(Multigrid<LinearAlgebra::distributed::Vector<double>>::v_cycle);
+    mg.set_minlevel(0);
     PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>>
             mf_gmg_preconditioner(dof_handler_displacement, mg, mg_transfer);
 
 
-////*************TEST SOLVE*************************
+// *************TEST SOLVE*************************
+// time the solve
+
+//    output(distributed_solution, 66);
+
+//    TimerOutput t(pcout, TimerOutput::never, TimerOutput::wall_times);
+//    {
+//    TimerOutput::Scope t_scope(t, "Solve_mfgmg");
 //    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
 //    elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
 
-//    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
-//    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
+//    locally_relevant_solution = system_rhs;
+//    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_rhs,locally_relevant_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
 
-//    SolverControl test_solver_control_1(500, 1e-6);
-//    SolverControl test_solver_control_2(500, 1e-6);
+//     pcout << "real rhs norm: " << system_rhs.block(SolutionBlocks::displacement).l2_norm() << std::endl;
+
+//    locally_relevant_solution = distributed_solution;
+//    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_sol,locally_relevant_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
+   
+//    SolverControl test_solver_control_1(20, 1e-6);
 //    SolverCG<LinearAlgebra::distributed::Vector<double>> CG_Solve_1(test_solver_control_1);
-//    SolverCG<LA::MPI::Vector> CG_Solve_2(test_solver_control_2);
 
-//    std::cout << "pre norm: " << distributed_displacement_rhs.l2_norm() << std::endl;
+//    pcout << "pre norm: " << distributed_displacement_rhs.l2_norm() << std::endl;
 
 //    try
 //    {
-////        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    );
+//         // mf_gmg_preconditioner.vmult(distributed_displacement_sol, distributed_displacement_rhs);
+// //        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    );
 //        CG_Solve_1.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs, mf_gmg_preconditioner);
 //    }
 //    catch(std::exception &exc)
 //    {
-//        std::cout << "solve failed in " << test_solver_control_1.last_step() <<  " steps" << std::endl;
-//        throw;
+//        pcout << "mfgmg diff: " << solver_control.initial_value()/solver_control.last_value() << std::endl;
 //    }
 
-//    std::cout << "solved in " << test_solver_control_1.last_step() <<  " steps" << std::endl;
+//    pcout << "mfgmg solved in " << test_solver_control_1.last_step() <<  " steps" << std::endl;
+// //    try
+// //    {
+// // //        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    PreconditionIdentity());
+// //        CG_Solve_2.solve(system_matrix.block(SolutionBlocks::displacement,SolutionBlocks::displacement_multiplier), distributed_solution.block(SolutionBlocks::displacement_multiplier), system_rhs.block(SolutionBlocks::displacement), PreconditionIdentity()  );
+// //    }
+// //    catch(std::exception &exc)
+// //    {
+// //        std::cout << "solve failed in " << test_solver_control_2.last_step() <<  " steps" << std::endl;
+// //        throw;
+// //    }
 
-//    try
+// //    std::cout << "solved in " << test_solver_control_2.last_step() <<  " steps" << std::endl;
+
+
+//    }
+//    ChangeVectorTypes::copy_from_displacement_to_system_vector<double>(distributed_solution.block(SolutionBlocks::displacement), distributed_displacement_sol,displacement_to_system_dof_index_map);
+//    displacement_constraints.distribute(distributed_solution.block(SolutionBlocks::displacement));
+
+//     pcout << distributed_displacement_sol.linfty_norm() << "+++++++++++++" << std::endl;
+
+//     int a = Utilities::MPI::n_mpi_processes(mpi_communicator);
+
+//     ChangeVectorTypes::copy(distributed_solution.block(SolutionBlocks::density),active_density_vector);
+
+
+
+//     TrilinosWrappers::PreconditionAMG amg_pre;
+//     amg_pre.initialize(system_matrix.block(SolutionBlocks::displacement,SolutionBlocks::displacement_multiplier));
 //    {
-////        CG_Solve.solve(elasticity_matrix_mf, distributed_displacement_sol, -1* distributed_displacement_rhs,    PreconditionIdentity());
-//        CG_Solve_2.solve(system_matrix.block(SolutionBlocks::displacement,SolutionBlocks::displacement_multiplier), distributed_solution.block(SolutionBlocks::displacement_multiplier), system_rhs.block(SolutionBlocks::displacement), PreconditionIdentity()  );
+//     TimerOutput::Scope t_scope(t, "Solve_AMG");
+    
+//     SolverControl test_solver_control_2(50000, 1e-6);
+//     SolverCG<LA::MPI::Vector> CG_Solve_2(test_solver_control_2);
+
+//     distributed_solution.block(SolutionBlocks::displacement_multiplier) = 0.;
+
+//      try
+//    {
+//        CG_Solve_2.solve(system_matrix.block(SolutionBlocks::displacement,SolutionBlocks::displacement_multiplier), distributed_solution.block(SolutionBlocks::displacement_multiplier), system_rhs.block(SolutionBlocks::displacement), amg_pre);
 //    }
 //    catch(std::exception &exc)
 //    {
@@ -2557,16 +2649,33 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 //        throw;
 //    }
 
-//    std::cout << "solved in " << test_solver_control_2.last_step() <<  " steps" << std::endl;
+//    std::cout << "amg solved in " << test_solver_control_2.last_step() <<  " steps" << std::endl;
 
-//    ChangeVectorTypes::copy_from_displacement_to_system_vector<double>(distributed_solution.block(SolutionBlocks::displacement), distributed_displacement_sol,displacement_to_system_dof_index_map);
-//    displacement_constraints.distribute(distributed_solution.block(SolutionBlocks::displacement));
+//    }
+//     distributed_solution.block(SolutionBlocks::displacement_multiplier)=0;
+//    {
+//     TimerOutput::Scope t_scope(t, "Solve_CG");
+//     SolverControl test_solver_control_3(50000, 1e-6);
+//     SolverCG<LA::MPI::Vector> CG_Solve_3(test_solver_control_3);
+//      try
+//    {
+//        CG_Solve_3.solve(system_matrix.block(SolutionBlocks::displacement,SolutionBlocks::displacement_multiplier), distributed_solution.block(SolutionBlocks::displacement), system_rhs.block(SolutionBlocks::displacement), PreconditionIdentity());
+//    }
+//    catch(std::exception &exc)
+//    {
+//        std::cout << "solve failed in " << test_solver_control_3.last_step() <<  " steps" << std::endl;
+//        throw;
+//    }
+
+//     std::cout << "CG solved in " << test_solver_control_3.last_step() <<  " steps" << std::endl;
+
+//    }
 
 
-//    output(distributed_solution, 0);
-//    std::abort();
+//    t.print_summary();
+//    MPI_Abort(mpi_communicator, 1);
 
-//    //***************END TEST SOLVE*************************
+//    ***************END TEST SOLVE*************************
 
 
 
@@ -2576,20 +2685,22 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     switch (Input::solver_choice)
     {
 
-        case SolverOptions::inexact_K_with_exact_A_gmres: {
+        // case SolverOptions::inexact_K_with_exact_A_gmres: {
 
 
-            preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
-            SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
-            B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
-            pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
-            break;
-        }
+        //     preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
+        //     pcout << "preconditioner initialized" << std::endl;
+        //     SolverFGMRES<LA::MPI::BlockVector> B_fgmres(solver_control);
+        //     B_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
+        //     pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+        //     break;
+        // }
         case SolverOptions::inexact_K_with_inexact_A_gmres: {
             preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
+            pcout << "preconditioner initialized" << std::endl;
             SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
             C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
-            pcout << solver_control.last_step() << " steps to solve with GMRES" << std::endl;
+            pcout << solver_control.last_step() << " steps to solve with FGMRES" << std::endl;
             break;
         }
         default:
@@ -2638,8 +2749,20 @@ KktSystem<dim>::get_initial_state() {
         state.block(total_volume_multiplier).add(1);
         state.block(displacement).add(0);
         state.block(displacement_multiplier).add(0);
+        state.compress(VectorOperation::add);
+
+        // RANDOM PART HERE
+        // for(unsigned int k = 0; k<n_p; ++k)
+        // {
+        //     // std::rand(001);
+        //     // assign random values to the density
+        //     double r = std::rand()/double(RAND_MAX);
+        //     state.block(density)[k] = r;
+        //     state.block(unfiltered_density)[k] = r;
+        // }
+
     }
-    state.compress(VectorOperation::add);
+    state.compress(VectorOperation::insert);
     return state;
 }
 

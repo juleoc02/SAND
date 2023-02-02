@@ -158,6 +158,7 @@ namespace SAND {
         DoFHandler<dim> dof_handler_density;
 
         std::map<types::global_dof_index,types::global_dof_index> displacement_to_system_dof_index_map;
+        MGLevelObject<std::map<types::global_dof_index,types::global_dof_index>> level_displacement_to_system_dof_index_map;
 
         AffineConstraints<double> constraints;
         AffineConstraints<double> displacement_constraints;
@@ -184,6 +185,7 @@ namespace SAND {
         OperatorCellData<dim, GMGNumberType> active_cell_data;
         MGLevelObject<OperatorCellData<dim, GMGNumberType>> level_cell_data;
         dealii::LinearAlgebra::distributed::Vector<double> active_density_vector;
+        dealii::LinearAlgebra::distributed::Vector<double> relevant_density_vector;
         MGLevelObject<dealii::LinearAlgebra::distributed::Vector<double>> level_density_vector;
 
         MGTransferMatrixFree<dim,GMGNumberType> transfer;

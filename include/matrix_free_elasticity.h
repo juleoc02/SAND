@@ -26,6 +26,7 @@
 #include <deal.II/matrix_free/matrix_free.h>
 #include <deal.II/matrix_free/operators.h>
 #include <deal.II/matrix_free/fe_evaluation.h>
+#include <deal.II/base/utilities.h>
 
 #include "../include/parameters_and_components.h"
 #include "../include/input_information.h"
@@ -51,6 +52,8 @@ class MF_Elasticity_Operator
         Base<dim, LinearAlgebra::distributed::Vector<number>>
 {
 public:
+
+    MPI_Comm  mpi_communicator;
 
     using value_type = number;
 
@@ -91,6 +94,8 @@ private:
 
 
     const OperatorCellData<dim,number> *cell_data;
+
+    ConditionalOStream pcout;
 
 };
 

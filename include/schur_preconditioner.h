@@ -60,6 +60,7 @@
 
 
 #include "../include/parameters_and_components.h"
+#include "../include/poly_pre.h"
 #include "matrix_free_elasticity.h"
 
 #include <deal.II/base/conditional_ostream.h>
@@ -141,8 +142,8 @@ namespace SAND
             MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator;
             PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>> &mf_gmg_preconditioner;
             const std::map<types::global_dof_index,types::global_dof_index> displacement_to_system_dof_index_map;
-            double tolerance = 1e-9;
-            unsigned int iterations = 10;
+            double tolerance = Input::a_rel_tol;
+            unsigned int iterations = Input::a_inv_iterations;
             mutable dealii::LinearAlgebra::distributed::Vector<double> temp_src;
             mutable dealii::LinearAlgebra::distributed::Vector<double> temp_dst;
 
@@ -241,6 +242,26 @@ namespace SAND
     };
 
     template<int dim>
+    class KinvMatrixPart : public Subscriptor {
+        public:
+            KinvMatrixPart(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void initialize(LA::MPI::Vector &exemplar_density_vector);
+            unsigned int m() const;
+            unsigned int n() const;
+        private:
+            HMatrix<dim> &h_mat;
+            GMatrix &g_mat;
+            const LA::MPI::SparseMatrix &d_m_mat;
+            LA::MPI::SparseMatrix &d_m_inv_mat;
+            mutable LA::MPI::Vector temp_vect_1;
+            mutable LA::MPI::Vector temp_vect_2;
+            mutable LA::MPI::Vector temp_vect_3;
+            mutable LA::MPI::Vector temp_vect_4;
+    };
+
+    template<int dim>
     class KinvMatrixDirect : public TrilinosWrappers::SparseMatrix {
         public:
             KinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
@@ -281,6 +302,26 @@ namespace SAND
     };
 
     template<int dim>
+    class JinvMatrixPart : public Subscriptor {
+        public:
+            JinvMatrixPart(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            void initialize(LA::MPI::Vector &exemplar_density_vector);
+            unsigned int m() const;
+            unsigned int n() const;
+        private:
+            HMatrix<dim> &h_mat;
+            GMatrix &g_mat;
+            const LA::MPI::SparseMatrix &d_m_mat;
+            LA::MPI::SparseMatrix &d_m_inv_mat;
+            mutable LA::MPI::Vector temp_vect_1;
+            mutable LA::MPI::Vector temp_vect_2;
+            mutable LA::MPI::Vector temp_vect_3;
+            mutable LA::MPI::Vector temp_vect_4;
+    };
+
+    template<int dim>
     class JinvMatrixDirect : public TrilinosWrappers::SparseMatrix {
         public:
             JinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
@@ -299,6 +340,8 @@ namespace SAND
             mutable LA::MPI::Vector temp_vect_3;
             mutable LA::MPI::Vector temp_vect_4;
     };
+
+    
 
     template<int dim>
     class TopOptSchurPreconditioner: public Subscriptor {
@@ -382,8 +425,39 @@ namespace SAND
         JinvMatrix<dim> j_inv_mat;
         KinvMatrix<dim> k_inv_mat;
 
+        JinvMatrixPart<dim> j_inv_part;
+        KinvMatrixPart<dim> k_inv_part;
+
         mutable int num_mults;
 
+    };
+
+        template<int dim>
+    class PolyPreJ {
+
+        public:
+            PolyPreJ(const JinvMatrixPart<dim> &inner_matrix_in, const int degree_in);
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            // void vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            
+
+        private:
+            const JinvMatrixPart<dim> &inner_matrix;
+            const int degree;
+    };
+
+    template<int dim>
+    class PolyPreK {
+
+        public:
+            PolyPreK(const KinvMatrixPart<dim> &inner_matrix_in, const int degree_in);
+            void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
+            // void vmult(LinearAlgebra::distributed::Vector<double> &dst, const LinearAlgebra::distributed::Vector<double> &src) const;
+            
+
+        private:
+            const KinvMatrixPart<dim> &inner_matrix;
+            const int degree;
     };
 
 
