@@ -428,18 +428,12 @@ namespace SAND {
                     }
                 }
             }
-            //output current state
-            kkt_system.output(current_state,iteration_number);
 
             converged = check_convergence(current_state);
             update_barrier(current_state);
             markov_filter.update_barrier_value(barrier_size);
             pcout << "barrier size is now " << barrier_size << " on iteration number " << iteration_number << std::endl;
 
-
-            overall_timer.leave_subsection();
-            overall_timer.print_summary();
-            overall_timer.enter_subsection("Total Time");
 
         }//end while
     }
@@ -464,6 +458,14 @@ namespace SAND {
         while((barrier_size > Input::min_barrier_size || !check_convergence(current_state)) && iteration_number < Input::max_steps)
         {
             nonlinear_step(current_state, current_step, max_uphill_steps, iteration_number);
+
+            //output current state
+            kkt_system.output(current_state,iteration_number);
+
+            //timer stuff
+            overall_timer.leave_subsection();
+            overall_timer.print_summary();
+            overall_timer.enter_subsection("Total Time");
         }
 //        kkt_system.output_stl(current_state);
     }

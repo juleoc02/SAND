@@ -8,8 +8,8 @@ main(int argc, char *argv[]) {
     try
     {
         Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-        SAND::NonlinearWatchdog<SAND::Input::dim> elastic_problem;
-        elastic_problem.run();
+        SAND::NonlinearWatchdog<SAND::Input::dim> top_opt_problem;
+        top_opt_problem.run();
     }
     catch (std::exception &exc) {
         std::cerr << std::endl << std::endl
