@@ -65,6 +65,7 @@ namespace SAND {
         DensityFilter();
         DynamicSparsityPattern filter_dsp;
         LA::MPI::SparseMatrix filter_matrix;
+        LA::MPI::SparseMatrix filter_matrix_transpose;
         SparsityPattern filter_sparsity_pattern;
         void initialize(DoFHandler<dim> &dof_handler);
         std::set<types::global_dof_index> find_relevant_neighbors(types::global_dof_index cell_index) const;

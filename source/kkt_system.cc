@@ -667,10 +667,9 @@ KktSystem<dim>::setup_boundary_values()
                             {
                                 const auto vert = cell->vertex(vertex_number);
                                 /*Find bottom left corner*/
-                                if (std::fabs(vert(0) - 0) < 1e-12 && std::fabs(
-                                            vert(1) - 0) < 1e-12 && ((std::fabs(
-                                            vert(2) - 0) < 1e-12) || (std::fabs(
-                                            vert(2) - 1) < 1e-12)))
+                                if (std::fabs(vert(0) - 0) < 1e-12 && 
+                                    std::fabs(vert(1) - 0) < 1e-12 && 
+                                    ((std::fabs(vert(2) - 0) < 1e-12) || (std::fabs(vert(2) - 1) < 1e-12)))
                                 {
                                     for (unsigned int level = 0; level < n_levels; ++level)
                                     {
@@ -690,10 +689,10 @@ KktSystem<dim>::setup_boundary_values()
                                     }
                                 }
                                 /*Find bottom right corner*/
-                                if (std::fabs(vert(0) - 6) < 1e-12 && std::fabs(
-                                            vert(1) - 0) < 1e-12 && ((std::fabs(
-                                            vert(2) - 0) < 1e-12) || (std::fabs(
-                                            vert(2) - 1) < 1e-12)))
+                                if (std::fabs(vert(0) - 6) < 1e-12 && 
+                                    std::fabs(vert(1) - 0) < 1e-12 && 
+                                    ((std::fabs(vert(2) - 0) < 1e-12) || 
+                                     (std::fabs(vert(2) - 1) < 1e-12)))
                                 {
                                     for (unsigned int level = 0; level < n_levels; ++level)
                                     {
@@ -1136,24 +1135,25 @@ KktSystem<dim>::setup_block_system() {
     SparsityTools::distribute_sparsity_pattern(dsp, dof_handler.locally_owned_dofs(), mpi_communicator,
                                                locally_relevant_dofs);
     //adds the row into the sparsity pattern for the total volume constraint
-    for (const auto &cell: dof_handler.active_cell_iterators())
+    // for (const auto &cell: dof_handler.active_cell_iterators())
+    // {
+    //     if (cell->is_locally_owned())
+    //     {
+    //         std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
+    //         cell->get_dof_indices(i);
+    //         dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i[cell->get_fe().component_to_system_index(0, 0)], 0);
+    //         dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i[cell->get_fe().component_to_system_index(0, 0)]);
+    //     }
+    // }
+    // Because of the single volume multiplier element only being on one processor, this works, and the above does not.
+    for (unsigned int i = 0; i<n_p; i++)
     {
-        if (cell->is_locally_owned())
-        {
-            std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
-            cell->get_dof_indices(i);
-            dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)], 0);
-            dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i[cell->get_fe().component_to_system_index(SolutionComponents::density_lower_slack_multiplier<dim>, 0)]);
-        }
-
+        dsp.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i,0);
+        dsp.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0,i);
     }
-
-
-    pcout << "skipping filter setup" << std::endl;
 
     /*This finds neighbors whose values would be relevant, and adds them to the sparsity pattern of the matrix*/
     setup_filter_matrix();
-    pcout << "to here" << std::endl;
     for (const auto &cell : dof_handler.active_cell_iterators()) {
         if (cell->is_locally_owned())
         {
@@ -1165,7 +1165,7 @@ KktSystem<dim>::setup_block_system() {
                 dsp.block(SolutionBlocks::unfiltered_density_multiplier,
                           SolutionBlocks::unfiltered_density).add(cell_index, neighbor_cell_index);
                 dsp.block(SolutionBlocks::unfiltered_density,
-                          SolutionBlocks::unfiltered_density_multiplier).add(neighbor_cell_index, cell_index);
+                          SolutionBlocks::unfiltered_density_multiplier).add(cell_index, neighbor_cell_index);
             }
         }
     }
@@ -1294,9 +1294,8 @@ KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &distributed_st
     LA::MPI::BlockVector filter_adjoint_unfiltered_density_multiplier_solution = distributed_solution;
     filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
     filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
-    auto op_f = linear_operator<LA::MPI::Vector>(density_filter.filter_matrix);
-    filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = op_f * distributed_solution.block(SolutionBlocks::unfiltered_density);
-    filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = transpose_operator(op_f) *  distributed_solution.block(SolutionBlocks::unfiltered_density_multiplier);
+    density_filter.filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density),distributed_solution.block(SolutionBlocks::unfiltered_density));
+    density_filter.filter_matrix_transpose.vmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),distributed_solution.block(SolutionBlocks::unfiltered_density_multiplier));
 
     LA::MPI::BlockVector relevant_filtered_unfiltered_density_solution = locally_relevant_solution;
     LA::MPI::BlockVector relevant_filter_adjoint_unfiltered_density_multiplier_solution = locally_relevant_solution;
@@ -1587,39 +1586,61 @@ KktSystem<dim>::assemble_block_system(const LA::MPI::BlockVector &distributed_st
         }
 
     }
-
+    // MPI_BARRIER(MPI_COMM_WORLD);
     system_matrix.compress(VectorOperation::add);
     system_rhs = calculate_rhs(distributed_state, barrier_size);
-
-    for (const auto &cell: dof_handler.active_cell_iterators()) {
+    double cell_measure;
+    for (const auto &cell: dof_handler.active_cell_iterators()) 
+    {
         if(cell->is_locally_owned())
         {
             std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
             cell->get_dof_indices(i);
+            const unsigned int cell_i = i[cell->get_fe().component_to_system_index(0, 0)];
 
-            typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(
-                        i[cell->get_fe().component_to_system_index(0, 0)]);
-            for (; iter != density_filter.filter_matrix.end(i[cell->get_fe().component_to_system_index(0, 0)]); iter++) {
-                unsigned int j = iter->column();
-                double value = iter->value() * cell->measure();
+            // typename LA::MPI::SparseMatrix::iterator iter = density_filter.filter_matrix.begin(cell_i);
+            for (const unsigned int j : density_filter.find_relevant_neighbors(cell_i)) 
+            {
+                // unsigned int j = iter->column();
+                double value = density_filter.filter_matrix(cell_i,j) * cell->measure();
+                double value_transpose = density_filter.filter_matrix_transpose(cell_i,j) * cell->measure();
 
                 system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
-                                    SolutionBlocks::unfiltered_density).add(i[cell->get_fe().component_to_system_index(0, 0)], j, value);
+                                    SolutionBlocks::unfiltered_density).set(cell_i, j, value);
                 system_matrix.block(SolutionBlocks::unfiltered_density,
-                                    SolutionBlocks::unfiltered_density_multiplier).add(j, i[cell->get_fe().component_to_system_index(0, 0)], value);
+                                    SolutionBlocks::unfiltered_density_multiplier).set(cell_i, j, value_transpose);
             }
 
-            system_matrix.block(SolutionBlocks::total_volume_multiplier, SolutionBlocks::density).add(0, i[cell->get_fe().component_to_system_index(0, 0)],
-                    cell->measure());
+            cell_measure = cell->measure();
 
-            system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).add(i[cell->get_fe().component_to_system_index(0, 0)], 0,
+            system_matrix.block(SolutionBlocks::density, SolutionBlocks::total_volume_multiplier).set(cell_i, 0,
+                    cell->measure());
+            system_matrix.block(SolutionBlocks::total_volume_multiplier,SolutionBlocks::density).set(0,cell_i,
                     cell->measure());
         }
     }
-    system_matrix.compress(VectorOperation::add);
+    system_matrix.compress(VectorOperation::insert);
+    // for (const auto &cell: dof_handler.active_cell_iterators()) 
+    // {
+    //     if(cell->is_locally_owned())
+    //     {
+    //         std::vector<types::global_dof_index> i(cell->get_fe().n_dofs_per_cell());
+    //         cell->get_dof_indices(i);
+    //         const unsigned int cell_i = i[cell->get_fe().component_to_system_index(0, 0)];
+
+    //         for (const unsigned int j : density_filter.find_relevant_neighbors(cell_i)) {
+    //             double value = system_matrix.block(SolutionBlocks::unfiltered_density_multiplier,
+    //                                 SolutionBlocks::unfiltered_density).el(j,cell_i);
+
+    //             system_matrix.block(SolutionBlocks::unfiltered_density,
+    //                                 SolutionBlocks::unfiltered_density_multiplier).set(j, cell_i, value);
+    //         }
+    //     }
+    // }
+    // system_matrix.compress(VectorOperation::insert);
 
 
-    pcout << "assembled" << std::endl;
+    pcout << "assembled " << std::endl;
 
 }
 
@@ -1857,7 +1878,7 @@ KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &distributed_state, con
     LA::MPI::BlockVector test_rhs (system_rhs);
     LA::MPI::BlockVector state (locally_relevant_solution);
     state = distributed_state;
-    test_rhs = 0;
+    test_rhs = 0.;
 
     QGauss<dim> nine_quadrature(fe_nine.degree + 1);
     QGauss<dim> ten_quadrature(fe_ten.degree + 1);
@@ -1913,10 +1934,9 @@ KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &distributed_state, con
     filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = 0;
     filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier) = 0;
 
-    auto op_f = linear_operator<LA::MPI::Vector>(density_filter.filter_matrix);
-    filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density) = op_f * distributed_solution.block(SolutionBlocks::unfiltered_density);
-    filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier)
-            = transpose_operator(op_f) * distributed_solution.block(SolutionBlocks::unfiltered_density_multiplier);
+    density_filter.filter_matrix.vmult(filtered_unfiltered_density_solution.block(SolutionBlocks::unfiltered_density),distributed_solution.block(SolutionBlocks::unfiltered_density));
+    density_filter.filter_matrix_transpose.vmult(filter_adjoint_unfiltered_density_multiplier_solution.block(SolutionBlocks::unfiltered_density_multiplier),distributed_solution.block(SolutionBlocks::unfiltered_density_multiplier));
+
     LA::MPI::BlockVector relevant_filtered_unfiltered_density_solution (locally_relevant_solution);
     LA::MPI::BlockVector relevant_filter_adjoint_unfiltered_density_multiplier_solution (locally_relevant_solution);
     relevant_filtered_unfiltered_density_solution = filtered_unfiltered_density_solution;
@@ -2106,11 +2126,15 @@ KktSystem<dim>::calculate_rhs(const LA::MPI::BlockVector &distributed_state, con
                                    - old_upper_slack_values[q_point]));
 
                     //rhs eqn 6
-                    cell_rhs(i) +=
+                    if (std::abs(old_density_values[q_point] - filtered_unfiltered_density_values[q_point])>1e-12)
+                    {
+                        cell_rhs(i) +=
                             -1 * fe_values.JxW(q_point) * (
                                 -1 * unfiltered_density_multiplier_phi_i
                                 * (old_density_values[q_point] - filtered_unfiltered_density_values[q_point])
                                 );
+                    }
+
 
                     //rhs eqn 7
                     cell_rhs(i) +=
@@ -2223,15 +2247,12 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
                     Input::default_gmres_tolerance);
     }
     else {
-        gmres_tolerance = Input::default_gmres_tolerance;
+        gmres_tolerance = Input::default_gmres_tolerance*system_rhs.l2_norm();
     }
 
 
     locally_relevant_solution=state;
     distributed_solution = state;
-
-    density_filter.filter_matrix.vmult(distributed_solution.block(SolutionBlocks::density), distributed_solution.block(SolutionBlocks::unfiltered_density));
-    locally_relevant_solution = distributed_solution;
 
     SolverControl solver_control(10000, gmres_tolerance);
 
@@ -2266,9 +2287,6 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
             pcout << "d = " << support_points_displacement_pair.first << ", points are " << support_points_displacement_pair.second << " and " << support_points[support_points_displacement_pair.first+disp_mult_start_index] << std::endl;
     }
 
-    pcout << "Number of degrees of freedom: " << dof_handler_displacement.n_dofs()
-          << std::endl;
-
     MPI_Barrier(MPI_COMM_WORLD);
 
     std::vector<IndexSet> locally_owned_dofs = Utilities::MPI::all_gather(mpi_communicator, dof_handler_displacement.locally_owned_dofs());
@@ -2276,16 +2294,14 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     DoFTools::extract_locally_active_dofs(dof_handler_displacement, locally_active_dofs);
     IndexSet locally_relevant_dofs;
     DoFTools::extract_locally_relevant_dofs(dof_handler_displacement, locally_relevant_dofs);
-    std::cout << Utilities::MPI::this_mpi_process(mpi_communicator) << " has relevant: " << locally_relevant_dofs.n_elements() << "and active: " << locally_relevant_dofs.n_elements() << std::endl;
-    // AffineConstraints<double> temp_displacement_constraints;
+   // AffineConstraints<double> temp_displacement_constraints;
     
-    std::cout << Utilities::MPI::this_mpi_process(mpi_communicator) << " has levels: " << mg_level_constraints.max_level() << " and tria levels: " << triangulation.n_global_levels() << std::endl;
-
+    
 
     displacement_constraints.clear();
-    displacement_constraints.reinit(locally_active_dofs); //FIXME SHOULD THIS BE RELEVANT???
+    displacement_constraints.reinit(locally_relevant_dofs); //FIXME SHOULD THIS BE RELEVANT???
     displacement_constraints.copy_from(mg_level_constraints[triangulation.n_global_levels()-1]);
-    pcout << "displacement constraint number: " << displacement_constraints.n_constraints() <<std::endl;
+    std::cout << "displacement constraint number: " << displacement_constraints.n_constraints() <<std::endl;
     displacement_constraints.close();
     {
         typename MatrixFree<dim, double>::AdditionalData additional_data;
@@ -2310,20 +2326,9 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
     elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_sol);
     elasticity_matrix_mf.initialize_dof_vector(distributed_displacement_rhs);
 
-    locally_relevant_solution = distributed_solution;
+    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_sol,distributed_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
 
-    pcout << "displacement_vec_size = " << distributed_displacement_sol.size() << std::endl;
-    pcout << "systdm_vec_size = " << distributed_solution.block(SolutionBlocks::displacement).size() << std::endl;
-
-    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_sol,locally_relevant_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
-
-
-    locally_relevant_solution = system_rhs;
-    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_rhs,locally_relevant_solution.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
-
-    locally_relevant_solution = distributed_solution;
-
-    pcout << "types changed" << std::endl;
+    ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(distributed_displacement_rhs,system_rhs.block(SolutionBlocks::displacement),displacement_to_system_dof_index_map);
 
     const unsigned int n_levels = triangulation.n_global_levels();
     mg_matrices.resize(0, n_levels - 1);
@@ -2529,21 +2534,19 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         if (level > 0)
         {
             smoother_data[level].smoothing_range     = 15.;
-            smoother_data[level].degree              = 5;
+            smoother_data[level].degree              = 10;
             smoother_data[level].eig_cg_n_iterations = 10;
         }
         else
         {
-            smoother_data[0].smoothing_range = .001;
-            smoother_data[0].degree          = 4;
-            smoother_data[0].eig_cg_n_iterations = 100;
+            smoother_data[0].smoothing_range = 1e-3;
+            smoother_data[0].degree          = numbers::invalid_unsigned_int;
+            smoother_data[0].eig_cg_n_iterations = mg_matrices[0].m();
         }
         mg_matrices[level].compute_diagonal();
         smoother_data[level].preconditioner =
                 mg_matrices[level].get_matrix_diagonal_inverse();
     }
-
-    std::cout << Utilities::MPI::this_mpi_process(mpi_communicator) << " has matrix size " << mg_matrices[0].m() << " at level 0" << std::endl;
 
     mg_smoother.initialize(mg_matrices, smoother_data);
 
@@ -2680,7 +2683,40 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
 
 
     TopOptSchurPreconditioner<dim> preconditioner(system_matrix, dof_handler, elasticity_matrix_mf, mf_gmg_preconditioner, displacement_to_system_dof_index_map);
-    pcout << "about to solve" << std::endl;
+    // pcout << "about to solve" << std::endl;
+    // preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
+    // FullMatrix<double> out;
+    // out.reinit(system_matrix.m(),system_matrix.n());
+    // LA::MPI::BlockVector e_j (system_rhs);
+    // LA::MPI::BlockVector r_j (system_rhs);
+    // LA::MPI::BlockVector r2_j (system_rhs);
+    // for (unsigned int j=0; j<out.n(); ++j)
+    // {
+    //     e_j = 0.;
+    //     e_j(j) = 1;
+    //     system_matrix.vmult(system_rhs,e_j);
+    //     preconditioner.vmult(r2_j,system_rhs);
+
+    //     for (unsigned int i=0; i<out.m(); ++i)
+    //         out(i,j) = r2_j(i);
+    // }
+
+    // const unsigned int n = out.n();
+    // const unsigned int m = out.m();
+    // std::ofstream Xmat("preconditioned_mat.csv");
+    // for (unsigned int i = 0; i < m; i++)
+    // {
+    //     Xmat << out(i, 0);
+    //     for (unsigned int j = 1; j < n; j++)
+    //     {
+    //         Xmat << "," << out(i, j);
+    //     }
+    //     Xmat << "\n";
+    // }
+    // Xmat.close();
+    
+
+    
 
     switch (Input::solver_choice)
     {
@@ -2696,8 +2732,20 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         //     break;
         // }
         case SolverOptions::inexact_K_with_inexact_A_gmres: {
+            pcout << "size of rhs block 0 :  " << system_rhs.block(0).l1_norm()<< std::endl;
+            pcout << "size of rhs block 1 :  " << system_rhs.block(1).l1_norm()<< std::endl;
+            pcout << "size of rhs block 2 :  " << system_rhs.block(2).l1_norm()<< std::endl;
+            pcout << "size of rhs block 3 :  " << system_rhs.block(3).l1_norm()<< std::endl;
+            pcout << "size of rhs block 4 :  " << system_rhs.block(4).l1_norm()<< std::endl;
+            pcout << "size of rhs block 5 :  " << system_rhs.block(5).l1_norm()<< std::endl;
+            pcout << "size of rhs block 6 :  " << system_rhs.block(6).l1_norm()<< std::endl;
+            pcout << "size of rhs block 7 :  " << system_rhs.block(7).l1_norm()<< std::endl;
+            pcout << "size of rhs block 8 :  " << system_rhs.block(8).l1_norm()<< std::endl;
+            pcout << "size of rhs block 9 :  " << system_rhs.block(9).l1_norm()<< std::endl;
+
             preconditioner.initialize(system_matrix, boundary_values, dof_handler, distributed_solution);
             pcout << "preconditioner initialized" << std::endl;
+            distributed_solution = 0.;
             SolverFGMRES<LA::MPI::BlockVector> C_fgmres(solver_control);
             C_fgmres.solve(system_matrix, distributed_solution, system_rhs, preconditioner);
             pcout << solver_control.last_step() << " steps to solve with FGMRES" << std::endl;
@@ -2705,12 +2753,21 @@ KktSystem<dim>::solve(const LA::MPI::BlockVector &state) {
         }
         default:
             throw;
+        
     }
 
     constraints.distribute(distributed_solution);
-
-    pcout << "here" << std::endl;
-
+    pcout << "size of distributed solution block 0 :  " << distributed_solution.block(0).l1_norm()<< std::endl;
+    pcout << "size of distributed solution block 1 :  " << distributed_solution.block(1).l1_norm()<< std::endl;
+    pcout << "size of distributed solution block 2 :  " << distributed_solution.block(2).l1_norm()<< std::endl;
+    pcout << "size of distributed solution block 3 :  " << distributed_solution.block(3).l1_norm()<< std::endl;
+    pcout << "size of distributed solution block 4 :  " << distributed_solution.block(4).l1_norm()<< std::endl;
+    pcout << "size of distributed solution block 5 :  " << distributed_solution.block(5).l1_norm()<< std::endl;
+    pcout << "size of distributed solution block 6 :  " << distributed_solution.block(6).l1_norm()<< std::endl;
+    pcout << "size of distributed solution block 7 :  " << distributed_solution.block(7).l1_norm()<< std::endl;
+    pcout << "size of distributed solution block 8 :  " << distributed_solution.block(8).l1_norm()<< std::endl;
+    pcout << "size of distributed solution block 9 :  " << distributed_solution.block(9).l1_norm()<< std::endl;
+    output(distributed_solution,100);
     return distributed_solution;
 }
 
@@ -2749,7 +2806,7 @@ KktSystem<dim>::get_initial_state() {
         state.block(total_volume_multiplier).add(1);
         state.block(displacement).add(0);
         state.block(displacement_multiplier).add(0);
-        state.compress(VectorOperation::add);
+        // state.compress(VectorOperation::add);
 
         // RANDOM PART HERE
         // for(unsigned int k = 0; k<n_p; ++k)
@@ -2762,7 +2819,7 @@ KktSystem<dim>::get_initial_state() {
         // }
 
     }
-    state.compress(VectorOperation::insert);
+    state.compress(VectorOperation::add);
     return state;
 }
 

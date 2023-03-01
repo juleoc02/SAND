@@ -40,17 +40,18 @@ MF_Elasticity_Operator<dim,fe_degree,number>::compute_diagonal ()
 
     this->data->initialize_dof_vector(inverse_diagonal);
     this->data->initialize_dof_vector(diagonal);
-    unsigned int dummy = 1;
+    unsigned int dummy = 0;
 
 
     this->data->cell_loop (&MF_Elasticity_Operator::local_compute_diagonal, this,
                            diagonal, dummy);
+    this->data->cell_loop (&MF_Elasticity_Operator::local_compute_diagonal, this,
+                           inverse_diagonal, dummy);
 
     this->set_constrained_entries_to_one(diagonal);
+    this->set_constrained_entries_to_one(inverse_diagonal);
 
     // diagonal.compress(VectorOperation::add);
-
-    inverse_diagonal=diagonal;
     
     for (auto &local_element : inverse_diagonal)
       {
@@ -193,7 +194,6 @@ MF_Elasticity_Operator<dim,fe_degree,number>
 {
     MatrixFreeOperators::Base<dim, dealii::LinearAlgebra::distributed::Vector<number>>::
             data->cell_loop(&MF_Elasticity_Operator::local_apply, this, dst, src);
-    // dst.compress(VectorOperation::add);
 }
 
 ///Sets cell data (density) to be input given.
@@ -201,7 +201,6 @@ template <int dim, int fe_degree, typename number>
 void
 MF_Elasticity_Operator<dim,fe_degree,number>::set_cell_data (const OperatorCellData<dim,number> &data)
 {
-  pcout << "set_cell_data" << std::endl;
     this->cell_data = &data;
 }
 

@@ -137,13 +137,14 @@ namespace SAND
             {
                 a_mat_wrapped.set_exemplar_vector(exemplar_vector);
             }
+            double tolerance = Input::a_rel_tol;
+            unsigned int iterations = Input::a_inv_iterations;
         private:
             AMatWrapped a_mat_wrapped;
             MF_Elasticity_Operator<dim,1,double> &mf_elasticity_operator;
             PreconditionMG<dim,LinearAlgebra::distributed::Vector<double>,MGTransferMatrixFree<dim, double>> &mf_gmg_preconditioner;
             const std::map<types::global_dof_index,types::global_dof_index> displacement_to_system_dof_index_map;
-            double tolerance = Input::a_rel_tol;
-            unsigned int iterations = Input::a_inv_iterations;
+
             mutable dealii::LinearAlgebra::distributed::Vector<double> temp_src;
             mutable dealii::LinearAlgebra::distributed::Vector<double> temp_dst;
 
@@ -152,15 +153,17 @@ namespace SAND
 
     class GMatrix : public TrilinosWrappers::SparseMatrix {
         public:
-            GMatrix(const LA::MPI::SparseMatrix &f_mat_in, LA::MPI::SparseMatrix &d_8_mat_in);
+            GMatrix(const LA::MPI::SparseMatrix &f_mat_in,const LA::MPI::SparseMatrix &f_t_mat_in, LA::MPI::SparseMatrix &d_8_mat_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
-            void initialize(LA::MPI::Vector &exemplar_density_vector);
+            void initialize(LA::MPI::Vector &exemplar_density_vector, LA::MPI::SparseMatrix &d_m_inv_mat_in);
             unsigned int m() const;
             unsigned int n() const;
         private:
             const LA::MPI::SparseMatrix &f_mat;
+            const LA::MPI::SparseMatrix &f_t_mat;
             LA::MPI::SparseMatrix &d_8_mat;
+            LA::MPI::SparseMatrix d_m_inv_mat;
             mutable LA::MPI::Vector temp_vect_1;
             mutable LA::MPI::Vector temp_vect_2;
 
@@ -173,7 +176,7 @@ namespace SAND
             HMatrix(LA::MPI::SparseMatrix &a_mat_in, const LA::MPI::SparseMatrix &b_mat_in, const LA::MPI::SparseMatrix &c_mat_in, const LA::MPI::SparseMatrix &e_mat_in,TrilinosWrappers::PreconditionAMG &pre_amg_in, VmultTrilinosSolverDirect &a_inv_direct_in, AInvMatMFGMG<dim> &a_inv_mf_gmg_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
-            void initialize(LA::MPI::Vector &exemplar_density_vector,  LA::MPI::Vector &exemplar_displacement_vector);
+            void initialize(LA::MPI::Vector &exemplar_density_vector,  LA::MPI::Vector &exemplar_displacement_vector, LA::MPI::SparseMatrix &d_m_inv_mat_in);
             unsigned int m() const;
             unsigned int n() const;
         private:
@@ -181,6 +184,7 @@ namespace SAND
             const LA::MPI::SparseMatrix &b_mat;
             const LA::MPI::SparseMatrix &c_mat;
             const LA::MPI::SparseMatrix &e_mat;
+            LA::MPI::SparseMatrix d_m_inv_mat;
             TrilinosWrappers::PreconditionAMG &pre_amg;
             VmultTrilinosSolverDirect &a_inv_direct;
             mutable LA::MPI::Vector temp_vect_1;
@@ -224,17 +228,17 @@ namespace SAND
     template<int dim>
     class KinvMatrix : public TrilinosWrappers::SparseMatrix {
         public:
-            KinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            KinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
-            void initialize(LA::MPI::Vector &exemplar_density_vector);
+            void initialize(LA::MPI::Vector &exemplar_density_vector, LA::MPI::SparseMatrix &d_m_inv_mat_in);
             unsigned int m() const;
             unsigned int n() const;
         private:
             HMatrix<dim> &h_mat;
             GMatrix &g_mat;
             const LA::MPI::SparseMatrix &d_m_mat;
-            LA::MPI::SparseMatrix &d_m_inv_mat;
+            LA::MPI::SparseMatrix d_m_inv_mat;
             mutable LA::MPI::Vector temp_vect_1;
             mutable LA::MPI::Vector temp_vect_2;
             mutable LA::MPI::Vector temp_vect_3;
@@ -244,7 +248,7 @@ namespace SAND
     template<int dim>
     class KinvMatrixPart : public Subscriptor {
         public:
-            KinvMatrixPart(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            KinvMatrixPart(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void initialize(LA::MPI::Vector &exemplar_density_vector);
@@ -254,7 +258,7 @@ namespace SAND
             HMatrix<dim> &h_mat;
             GMatrix &g_mat;
             const LA::MPI::SparseMatrix &d_m_mat;
-            LA::MPI::SparseMatrix &d_m_inv_mat;
+            LA::MPI::SparseMatrix d_m_inv_mat;
             mutable LA::MPI::Vector temp_vect_1;
             mutable LA::MPI::Vector temp_vect_2;
             mutable LA::MPI::Vector temp_vect_3;
@@ -264,7 +268,7 @@ namespace SAND
     template<int dim>
     class KinvMatrixDirect : public TrilinosWrappers::SparseMatrix {
         public:
-            KinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            KinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void initialize(LA::MPI::Vector &exemplar_density_vector);
@@ -274,7 +278,7 @@ namespace SAND
             HMatrixDirect<dim> &h_mat;
             GMatrix &g_mat;
             const LA::MPI::SparseMatrix &d_m_mat;
-            LA::MPI::SparseMatrix &d_m_inv_mat;
+            LA::MPI::SparseMatrix d_m_inv_mat;
             mutable LA::MPI::Vector temp_vect_1;
             mutable LA::MPI::Vector temp_vect_2;
             mutable LA::MPI::Vector temp_vect_3;
@@ -284,17 +288,17 @@ namespace SAND
     template<int dim>
     class JinvMatrix : public TrilinosWrappers::SparseMatrix {
         public:
-            JinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            JinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
-            void initialize(LA::MPI::Vector &exemplar_density_vector);
+            void initialize(LA::MPI::Vector &exemplar_density_vector, LA::MPI::SparseMatrix &d_m_inv_mat_in);
             unsigned int m() const;
             unsigned int n() const;
         private:
             HMatrix<dim> &h_mat;
             GMatrix &g_mat;
             const LA::MPI::SparseMatrix &d_m_mat;
-            LA::MPI::SparseMatrix &d_m_inv_mat;
+            LA::MPI::SparseMatrix d_m_inv_mat;
             mutable LA::MPI::Vector temp_vect_1;
             mutable LA::MPI::Vector temp_vect_2;
             mutable LA::MPI::Vector temp_vect_3;
@@ -304,7 +308,7 @@ namespace SAND
     template<int dim>
     class JinvMatrixPart : public Subscriptor {
         public:
-            JinvMatrixPart(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            JinvMatrixPart(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void initialize(LA::MPI::Vector &exemplar_density_vector);
@@ -314,7 +318,7 @@ namespace SAND
             HMatrix<dim> &h_mat;
             GMatrix &g_mat;
             const LA::MPI::SparseMatrix &d_m_mat;
-            LA::MPI::SparseMatrix &d_m_inv_mat;
+            LA::MPI::SparseMatrix d_m_inv_mat;
             mutable LA::MPI::Vector temp_vect_1;
             mutable LA::MPI::Vector temp_vect_2;
             mutable LA::MPI::Vector temp_vect_3;
@@ -324,7 +328,7 @@ namespace SAND
     template<int dim>
     class JinvMatrixDirect : public TrilinosWrappers::SparseMatrix {
         public:
-            JinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in);
+            JinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in);
             void vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const;
             void initialize(LA::MPI::Vector &exemplar_density_vector);
@@ -334,7 +338,7 @@ namespace SAND
             HMatrixDirect<dim> &h_mat;
             GMatrix &g_mat;
             const LA::MPI::SparseMatrix &d_m_mat;
-            LA::MPI::SparseMatrix &d_m_inv_mat;
+            LA::MPI::SparseMatrix d_m_inv_mat;
             mutable LA::MPI::Vector temp_vect_1;
             mutable LA::MPI::Vector temp_vect_2;
             mutable LA::MPI::Vector temp_vect_3;
@@ -389,6 +393,7 @@ namespace SAND
         const LA::MPI::SparseMatrix &c_mat;
         const LA::MPI::SparseMatrix &e_mat;
         const LA::MPI::SparseMatrix &f_mat;
+        const LA::MPI::SparseMatrix &f_t_mat;
         const LA::MPI::SparseMatrix &d_m_mat;
         const LA::MPI::SparseMatrix &d_1_mat;
         const LA::MPI::SparseMatrix &d_2_mat;
@@ -401,7 +406,7 @@ namespace SAND
         LA::MPI::SparseMatrix d_6_mat;
         LA::MPI::SparseMatrix d_7_mat;
         LA::MPI::SparseMatrix d_8_mat;
-        mutable LA::MPI::SparseMatrix d_m_inv_mat;
+        LA::MPI::SparseMatrix d_m_inv_mat;
 
         mutable LA::MPI::Vector pre_j;
         mutable LA::MPI::Vector pre_k;

@@ -149,6 +149,7 @@ TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(LA::MPI::BlockSparseMa
       c_mat(matrix_in.block(SolutionBlocks::displacement,SolutionBlocks::density)),
       e_mat(matrix_in.block(SolutionBlocks::displacement_multiplier,SolutionBlocks::density)),
       f_mat(matrix_in.block(SolutionBlocks::unfiltered_density_multiplier,SolutionBlocks::unfiltered_density)),
+      f_t_mat(matrix_in.block(SolutionBlocks::unfiltered_density,SolutionBlocks::unfiltered_density_multiplier)),
       d_m_mat(matrix_in.block(SolutionBlocks::density_upper_slack_multiplier, SolutionBlocks::density_upper_slack)),
       d_1_mat(matrix_in.block(SolutionBlocks::density_lower_slack, SolutionBlocks::density_lower_slack)),
       d_2_mat(matrix_in.block(SolutionBlocks::density_upper_slack, SolutionBlocks::density_upper_slack)),
@@ -160,12 +161,12 @@ TopOptSchurPreconditioner<dim>::TopOptSchurPreconditioner(LA::MPI::BlockSparseMa
       a_inv_mf_gmg(mf_elasticity_operator_in, mf_gmg_preconditioner_in, a_mat, displacement_to_system_dof_index_map),
       pcout(std::cout,(Utilities::MPI::this_mpi_process(mpi_communicator) == 0)),
       timer(pcout, TimerOutput::summary, TimerOutput::wall_times),
-      g_mat(f_mat, d_8_mat),
+      g_mat(f_mat, f_t_mat, d_8_mat),
       h_mat(a_mat, b_mat, c_mat, e_mat, pre_amg, a_inv_direct, a_inv_mf_gmg),
-      j_inv_mat(h_mat, g_mat, d_m_mat, d_m_inv_mat),
-      k_inv_mat(h_mat, g_mat, d_m_mat, d_m_inv_mat),
-      j_inv_part(h_mat, g_mat, d_m_mat, d_m_inv_mat),
-      k_inv_part(h_mat, g_mat, d_m_mat, d_m_inv_mat),
+      j_inv_mat(h_mat, g_mat, d_m_mat),
+      k_inv_mat(h_mat, g_mat, d_m_mat),
+      j_inv_part(h_mat, g_mat, d_m_mat),
+      k_inv_part(h_mat, g_mat, d_m_mat),
       big_dof_handler(big_dof_handler_in)
 {
   
@@ -238,7 +239,7 @@ void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matr
         TimerOutput::Scope t(timer, "reinit diag matrices");
         d_3_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
         d_4_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
-        d_5_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
+        d_5_mat.reinit(matrix.block(SolutionBlocks::density_lower_slack_multiplier, SolutionBlocks::density_lower_slack_multiplier));
         d_6_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
         d_7_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
         d_8_mat.reinit(matrix.block(SolutionBlocks::density, SolutionBlocks::density));
@@ -252,13 +253,10 @@ void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matr
         d_7_mat=0;
         d_8_mat=0;
         d_m_inv_mat=0;
-        pcout << "diag reinit" << std::endl;
     }
     {
         const types::global_dof_index n_p = system_matrix.block(SolutionBlocks::density,
                                                                 SolutionBlocks::density).m();
-
-        pcout << "np: " << n_p << std::endl;
 
         std::vector<double> l_global(n_p);
         std::vector<double> lm_global(n_p);
@@ -341,10 +339,12 @@ void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matr
     LA::MPI::Vector density_exemplar = distributed_state.block(SolutionBlocks::density);
     LA::MPI::Vector displacement_exemplar = distributed_state.block(SolutionBlocks::displacement);
 
-    g_mat.initialize(density_exemplar);
-    h_mat.initialize(density_exemplar, displacement_exemplar);
-    j_inv_mat.initialize(density_exemplar);
-    k_inv_mat.initialize(density_exemplar);
+    density_exemplar = 0.;
+    displacement_exemplar = 0.;
+    g_mat.initialize(density_exemplar, d_m_inv_mat);
+    h_mat.initialize(density_exemplar, displacement_exemplar,d_m_inv_mat);
+    j_inv_mat.initialize(density_exemplar,d_m_inv_mat);
+    k_inv_mat.initialize(density_exemplar,d_m_inv_mat);
     // j_inv_part.initialize(density_exemplar);
     // k_inv_part.initialize(density_exemplar);
 
@@ -354,138 +354,49 @@ void TopOptSchurPreconditioner<dim>::initialize(LA::MPI::BlockSparseMatrix &matr
 ///Application of the preconditioner, broken up into 5 parts.
 template<int dim>
 void TopOptSchurPreconditioner<dim>::vmult(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
-    pcout << " starting vmult " << num_mults << std::endl;
+
+    LA::MPI::BlockVector dst_tmp = dst;
+    dst_tmp = 0.;
+     LA::MPI::BlockVector src_temp = src;
+
+    // pcout << "size of matrix block:  " << system_matrix.block(9,8).linfty_norm() << "   " << system_matrix.block(5,6).linfty_norm() << std::endl;
     LA::MPI::BlockVector temp_src;
     {
+        dst = 0.;
         TimerOutput::Scope t(timer, "part 1");
         vmult_step_1(dst, src);
         temp_src = dst;
-        pcout << "step 1 done" << std::endl;
+        pcout << "step 1 done: " << dst.l2_norm() << std::endl;
     }
 
     {
+        dst = 0.;
         TimerOutput::Scope t(timer, "part 2");
         vmult_step_2(dst, temp_src);
         temp_src = dst;
-        pcout << "step 2 done" << std::endl;
+        pcout << "step 2 done: " << dst.l2_norm() << std::endl;
     }
 
     {
+        dst = 0.;
         TimerOutput::Scope t(timer, "part 3");
         vmult_step_3(dst, temp_src);
         temp_src = dst;
-        pcout << "step 3 done" << std::endl;
+        pcout << "step 3 done: " << dst.l2_norm() << std::endl;
     }
+
     {
+        dst = 0.;
         TimerOutput::Scope t(timer, "part 4");
         vmult_step_4(dst, temp_src);
         temp_src = dst;
-        pcout << "step 4 done" << std::endl;
+        pcout << "step 4 done: " << dst.l2_norm() << std::endl;
     }
+
+    dst = 0.;
     vmult_step_5(dst, temp_src);
-    pcout << "step 5 done" << std::endl;
+    pcout << "step 5 done: " << dst.l2_norm() << std::endl;
     num_mults++;
-
-
-//    if (num_mults > 7)
-//    {
-
-//        std::cout << "entering problem area"  <<std::endl;
-//        FullMatrix<double> X_matrix;
-//        FullMatrix<double> X_matrix_direct;
-//        LA::MPI::Vector exemplar_vector;
-//        LA::MPI::Vector exemplar_vector_displacement;
-//        const types::global_dof_index n_p = system_matrix.block(SolutionBlocks::density,
-//                                                                SolutionBlocks::density).m();
-
-//        X_matrix.reinit(n_p,n_p);
-//        X_matrix_direct.reinit(n_p,n_p);
-//        exemplar_vector.reinit(src.block(SolutionBlocks::density));
-//        exemplar_vector_displacement.reinit(src.block(SolutionBlocks::displacement));
-//        exemplar_vector = 0;
-
-//        HMatrix<dim> h_mat_test (a_mat, b_mat, c_mat, e_mat, pre_amg, a_inv_direct, a_inv_mf_gmg);
-//        HMatrixDirect<dim> h_mat_test_direct (a_mat, b_mat, c_mat, e_mat, pre_amg, a_inv_direct, a_inv_mf_gmg);
-
-//        h_mat_test.initialize(exemplar_vector, exemplar_vector_displacement);
-//        h_mat_test_direct.initialize(exemplar_vector, exemplar_vector_displacement);
-
-//        KinvMatrix<dim>         k_inv_test          (h_mat_test, g_mat, d_m_mat, d_m_inv_mat);
-
-//        KinvMatrixDirect<dim>   k_inv_test_direct   (h_mat_test_direct, g_mat, d_m_mat, d_m_inv_mat);
-
-
-
-//        k_inv_test.initialize(exemplar_vector);
-//        k_inv_test_direct.initialize(exemplar_vector);
-
-//        std::cout << "finished setup"  <<std::endl;
-
-
-
-
-//        for (unsigned int j=0; j<X_matrix.n(); ++j)
-//        {
-//            LA::MPI::Vector e_j (exemplar_vector);
-//            LA::MPI::Vector r_j (exemplar_vector);
-
-//            e_j = 0;
-//            e_j(j) = 1;
-
-//            k_inv_test.vmult(r_j,e_j);
-
-//            for (unsigned int i=0; i<X_matrix.m(); ++i)
-//                X_matrix(i,j) = r_j(i);
-//        }
-//        std::cout << "+++++++++++++++++++++BUILT first BIG MATRIx++++++++++++++++++++++++++" << std::endl;
-
-
-//        for (unsigned int j=0; j<X_matrix.n(); ++j)
-//        {
-//            LA::MPI::Vector e_j (exemplar_vector);
-//            LA::MPI::Vector r_j (exemplar_vector);
-
-//            e_j = 0;
-//            e_j(j) = 1;
-//            k_inv_test_direct.vmult(r_j,e_j);
-
-//            for (unsigned int i=0; i<X_matrix_direct.m(); ++i)
-//                X_matrix_direct(i,j) = r_j(i);
-//        }
-
-//std::cout << "+++++++++++++++++++++BUILT BIG MATRICES++++++++++++++++++++++++++" << std::endl;
-
-//        const unsigned int n = X_matrix.n();
-//        const unsigned int m = X_matrix.m();
-
-
-//        std::ofstream Xmat("Kmatrix_MFGMG");
-//        for (unsigned int i = 0; i < m; i++)
-//        {
-//            Xmat << X_matrix(i, 0);
-//            for (unsigned int j = 1; j < n; j++)
-//            {
-//                Xmat << "," << X_matrix(i, j);
-//            }
-//            Xmat << "\n";
-//        }
-//        Xmat.close();
-
-//        std::ofstream Xmat_direct("Kmatrix_MFGMG_Direct");
-//        for (unsigned int i = 0; i < m; i++)
-//        {
-//            Xmat_direct << X_matrix_direct(i, 0);
-//            for (unsigned int j = 1; j < n; j++)
-//            {
-//                Xmat_direct << "," << X_matrix_direct(i, j);
-//            }
-//            Xmat_direct << "\n";
-//        }
-//        Xmat_direct.close();
-
-//        std::abort();
-//    }
-
 
 }
 
@@ -512,9 +423,15 @@ template<int dim>
 void TopOptSchurPreconditioner<dim>::vmult_step_1(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
     dst = src;
     auto dst_temp = dst;
+    auto dst_temp2 = dst;
+    auto dst_temp3 = dst;
+
+    d_5_mat.vmult(dst_temp2.block(SolutionBlocks::density_lower_slack_multiplier),src.block(SolutionBlocks::density_lower_slack_multiplier));
+    d_6_mat.vmult(dst_temp3.block(SolutionBlocks::density_upper_slack_multiplier),src.block(SolutionBlocks::density_upper_slack_multiplier));
+
     dst.block(SolutionBlocks::unfiltered_density) = dst_temp.block(SolutionBlocks::unfiltered_density)
-            - linear_operator<VectorType,VectorType,PayloadType>(d_5_mat) * src.block(SolutionBlocks::density_lower_slack_multiplier)
-            + linear_operator<VectorType,VectorType,PayloadType>(d_6_mat) * src.block(SolutionBlocks::density_upper_slack_multiplier)
+            - dst_temp2.block(SolutionBlocks::density_lower_slack_multiplier)
+            + dst_temp3.block(SolutionBlocks::density_upper_slack_multiplier)
             + src.block(SolutionBlocks::density_lower_slack)
             - src.block(SolutionBlocks::density_upper_slack);
 }
@@ -523,9 +440,11 @@ template<int dim>
 void TopOptSchurPreconditioner<dim>::vmult_step_2(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
     dst = src;
     auto dst_temp = dst;
-
-    dst.block(SolutionBlocks::unfiltered_density_multiplier) = dst_temp.block(SolutionBlocks::unfiltered_density_multiplier)
-            - linear_operator<VectorType,VectorType,PayloadType>(f_mat)*linear_operator<VectorType,VectorType,PayloadType>(d_8_mat) * src.block(SolutionBlocks::unfiltered_density);
+    auto dst_temp2 = dst;
+    auto dst_temp3 = dst;
+    d_8_mat.vmult(dst_temp2.block(SolutionBlocks::unfiltered_density), src.block(SolutionBlocks::unfiltered_density));
+    f_mat.vmult(dst_temp3.block(SolutionBlocks::unfiltered_density),dst_temp2.block(SolutionBlocks::unfiltered_density));
+    dst.block(SolutionBlocks::unfiltered_density_multiplier) = dst_temp.block(SolutionBlocks::unfiltered_density_multiplier) - dst_temp3.block(SolutionBlocks::unfiltered_density);
 
 }
 
@@ -537,14 +456,9 @@ void TopOptSchurPreconditioner<dim>::vmult_step_3(LA::MPI::BlockVector &dst, con
 
     if (Input::solver_choice==SolverOptions::inexact_K_with_inexact_A_gmres)
     {
-        //            SolverControl            solver_control_1(100000, 1e-6);
-        //            SolverControl            solver_control_2(100000, 1e-6);
-        //            SolverCG<LA::MPI::Vector> a_solver_cg_1(solver_control_1);
-        //            SolverCG<LA::MPI::Vector> a_solver_cg_2(solver_control_2);
-        //            a_solver_cg_1.solve(a_mat,dst_temp.block(SolutionBlocks::displacement_multiplier),src.block(SolutionBlocks::displacement_multiplier),pre_amg);
-        //            a_solver_cg_2.solve(a_mat,dst_temp.block(SolutionBlocks::displacement),src.block(SolutionBlocks::displacement),pre_amg);
+
         a_inv_mf_gmg.set_tol(0);
-        a_inv_mf_gmg.set_iter(30);
+        a_inv_mf_gmg.set_iter(100);
 
         a_inv_mf_gmg.vmult(dst_temp.block(SolutionBlocks::displacement_multiplier),src.block(SolutionBlocks::displacement_multiplier));
         a_inv_mf_gmg.vmult(dst_temp.block(SolutionBlocks::displacement),src.block(SolutionBlocks::displacement));
@@ -567,8 +481,6 @@ void TopOptSchurPreconditioner<dim>::vmult_step_3(LA::MPI::BlockVector &dst, con
         dst.block(SolutionBlocks::density) = dst_temp.block(SolutionBlocks::density) - dst_temp.block(SolutionBlocks::density_upper_slack) - dst_temp.block(SolutionBlocks::density_lower_slack);
     }
 
-
-
 }
 
 template<int dim>
@@ -576,6 +488,7 @@ void TopOptSchurPreconditioner<dim>::vmult_step_4(LA::MPI::BlockVector &dst, con
     dst = src;
     auto dst_temp = dst;
     auto k_density_mult =  src.block(SolutionBlocks::density);
+
 
     TrilinosWrappers::PreconditionIdentity preconditioner;
     preconditioner.initialize(b_mat);
@@ -586,9 +499,12 @@ void TopOptSchurPreconditioner<dim>::vmult_step_4(LA::MPI::BlockVector &dst, con
     auto d_m_inv_density = g_d_m_inv_density;
     d_m_inv_mat.vmult(d_m_inv_density,src.block(SolutionBlocks::density));
     g_mat.vmult(g_d_m_inv_density,d_m_inv_density);
+    
     SolverControl step_4_gmres_control_1 (Input::k_inv_iterations, g_d_m_inv_density.l2_norm()*Input::k_rel_tol);
-    SolverGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
+    SolverFGMRES<LA::MPI::Vector> step_4_gmres_1 (step_4_gmres_control_1);
     try {
+        pcout << "SOLVE 1" << std::endl;
+        k_density_mult = 0.;
         step_4_gmres_1.solve(k_inv_mat,k_g_d_m_inv_density,g_d_m_inv_density, PreconditionIdentity() );
     }
     catch (std::exception &exc)
@@ -597,8 +513,10 @@ void TopOptSchurPreconditioner<dim>::vmult_step_4(LA::MPI::BlockVector &dst, con
         //                throw;
     }
     SolverControl step_4_gmres_control_2 (Input::k_inv_iterations, src.block(SolutionBlocks::unfiltered_density_multiplier).l2_norm()*Input::k_rel_tol);
-    SolverGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
+    SolverFGMRES<LA::MPI::Vector> step_4_gmres_2 (step_4_gmres_control_2);
     try {
+        pcout << "SOLVE 2" << std::endl;
+        k_density_mult = 0.;
         step_4_gmres_2.solve(k_inv_mat,k_density_mult,src.block(SolutionBlocks::unfiltered_density_multiplier), PreconditionIdentity());
     } catch (std::exception &exc)
     {
@@ -607,15 +525,42 @@ void TopOptSchurPreconditioner<dim>::vmult_step_4(LA::MPI::BlockVector &dst, con
         //                throw;
     }
 
+    if (num_mults == -10)
+    {
+        TimerOutput::Scope t(timer, "k_mult");
+        SolverControl step_5_gmres_control_4 (100000, 1e-12*g_d_m_inv_density.l2_norm());
+        step_5_gmres_control_4.enable_history_data();
+        SolverFGMRES<LA::MPI::Vector> step_5_gmres_4(step_5_gmres_control_4);
+        try {
+            TimerOutput::Scope t(timer, "actual inverse 5.3");
+            pcout << "SOLVE TEST" << std::endl;
+            dst_temp.block(SolutionBlocks::density) = 0.;
+            step_5_gmres_4.solve(k_inv_mat,dst_temp.block(SolutionBlocks::density), g_d_m_inv_density , PreconditionIdentity());
+        } catch (std::exception &exc)
+        {
+            pcout << "Failure of linear solver step_5_gmres_4" << std::endl;
+            pcout << "first residual: " << step_5_gmres_control_4.initial_value() << std::endl;
+            pcout << "last residual: " << step_5_gmres_control_4.last_value() << std::endl;
+            //                    throw;
+        }
+        auto history = step_5_gmres_control_4.get_history_data();
+        for (int i=0; i< step_5_gmres_control_4.last_step()+1; ++i)
+        {
+            pcout << i << "   " << history[i]/step_5_gmres_control_4.initial_value() << std::endl;
+        }
 
+        
+    }
     dst.block(SolutionBlocks::total_volume_multiplier) = transpose_operator<VectorType, VectorType, PayloadType>(m_vect)*k_g_d_m_inv_density
             - transpose_operator<VectorType, VectorType, PayloadType>(m_vect)*k_density_mult
             +dst_temp.block(SolutionBlocks::total_volume_multiplier);
+    
 }
 
 ///The only non-triangular vmult step, applies inverses down the block diagonal.
 template<int dim>
-void TopOptSchurPreconditioner<dim>::vmult_step_5(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const {
+void TopOptSchurPreconditioner<dim>::vmult_step_5(LA::MPI::BlockVector &dst, const LA::MPI::BlockVector &src) const 
+{
     {
         //First Block Inverse
         TimerOutput::Scope t(timer, "inverse 1");
@@ -651,10 +596,10 @@ void TopOptSchurPreconditioner<dim>::vmult_step_5(LA::MPI::BlockVector &dst, con
             //                dst.block(SolutionBlocks::displacement_multiplier) = a_inv_op * src.block(SolutionBlocks::displacement);
 
             a_inv_mf_gmg.set_tol(0);
-            a_inv_mf_gmg.set_iter(30);
+            a_inv_mf_gmg.set_iter(100);
             a_inv_mf_gmg.vmult( dst_temp.block(SolutionBlocks::displacement), src.block(SolutionBlocks::displacement_multiplier));
             a_inv_mf_gmg.vmult( dst_temp.block(SolutionBlocks::displacement_multiplier), src.block(SolutionBlocks::displacement));
-            a_inv_mf_gmg.set_tol(0);
+            a_inv_mf_gmg.set_tol(Input::a_rel_tol);
             a_inv_mf_gmg.set_iter(Input::a_inv_iterations);
 
             dst.block(SolutionBlocks::displacement) = -1 * dst_temp.block(SolutionBlocks::displacement);
@@ -702,9 +647,10 @@ void TopOptSchurPreconditioner<dim>::vmult_step_5(LA::MPI::BlockVector &dst, con
                 pre_k =  -1 * pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
             }
             SolverControl step_5_gmres_control_1 (Input::k_inv_iterations, Input::k_rel_tol*pre_j.l2_norm());
-            SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
+            SolverFGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
             try {
                 TimerOutput::Scope t(timer, "actual inverse 5.1");
+                dst.block(SolutionBlocks::unfiltered_density_multiplier) = 0.;
                 step_5_gmres_1.solve(j_inv_mat, dst.block(SolutionBlocks::unfiltered_density_multiplier), pre_j , PreconditionIdentity());
             } catch (std::exception &exc)
             {
@@ -714,9 +660,10 @@ void TopOptSchurPreconditioner<dim>::vmult_step_5(LA::MPI::BlockVector &dst, con
 
 
             SolverControl step_5_gmres_control_2 (Input::k_inv_iterations, Input::k_rel_tol*pre_k.l2_norm());
-            SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
+            SolverFGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
             try {
                 TimerOutput::Scope t(timer, "actual inverse 5.2");
+                dst.block(SolutionBlocks::density) = 0.;
                 step_5_gmres_2.solve(k_inv_mat,dst.block(SolutionBlocks::density), pre_k , PreconditionIdentity());
             } catch (std::exception &exc)
             {
@@ -743,10 +690,12 @@ void TopOptSchurPreconditioner<dim>::vmult_step_5(LA::MPI::BlockVector &dst, con
                 g_mat.vmult(pre_pre_k,pre_pre_pre_k);
                 pre_k =  -1 * pre_pre_k + src.block(SolutionBlocks::unfiltered_density_multiplier);
             }
-            SolverControl step_5_gmres_control_1 (Input::k_inv_iterations, 1e-12*pre_j.l2_norm());
-            SolverGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
+            SolverControl step_5_gmres_control_1 (Input::k_inv_iterations, Input::k_rel_tol*pre_j.l2_norm());
+            SolverFGMRES<LA::MPI::Vector> step_5_gmres_1 (step_5_gmres_control_1);
             try {
                 TimerOutput::Scope t(timer, "actual inverse 5.1");
+                dst.block(SolutionBlocks::unfiltered_density_multiplier) = 0.;
+                pcout << "SOLVE 3" << std::endl;
                 step_5_gmres_1.solve(j_inv_mat, dst.block(SolutionBlocks::unfiltered_density_multiplier), pre_j , PreconditionIdentity());
             } catch (std::exception &exc)
             {
@@ -758,9 +707,11 @@ void TopOptSchurPreconditioner<dim>::vmult_step_5(LA::MPI::BlockVector &dst, con
 
 
             SolverControl step_5_gmres_control_2 (Input::k_inv_iterations, Input::k_rel_tol*pre_k.l2_norm());
-            SolverGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
+            SolverFGMRES<LA::MPI::Vector> step_5_gmres_2 (step_5_gmres_control_2);
             try {
                 TimerOutput::Scope t(timer, "actual inverse 5.2");
+                dst.block(SolutionBlocks::density) = 0.;
+                pcout << "SOLVE 4" << std::endl;
                 step_5_gmres_2.solve(k_inv_mat,dst.block(SolutionBlocks::density), pre_k , PreconditionIdentity());
             } catch (std::exception &exc)
             {
@@ -778,8 +729,12 @@ void TopOptSchurPreconditioner<dim>::vmult_step_5(LA::MPI::BlockVector &dst, con
 
     }
     {
+        
         dst.block(SolutionBlocks::total_volume_multiplier) = src.block(SolutionBlocks::total_volume_multiplier);
+
+
     }
+    
 }
 
 ///I used to use this function to output parts of the preconditioner for debugging.
@@ -797,7 +752,7 @@ VmultTrilinosSolverDirect::VmultTrilinosSolverDirect(SolverControl &cn,
                                                      const TrilinosWrappers::SolverDirect::AdditionalData &data)
     : solver_direct(cn, data)
 {
-
+   
 }
 
 ///Initialize a direct solver - works well up to a point of refinement, and then refuses to solve.
@@ -861,6 +816,7 @@ void AInvMatMFGMG<dim>::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) 
 
     ChangeVectorTypes::copy_from_system_to_displacement_vector<double>(temp_src, src, displacement_to_system_dof_index_map);
     try{
+        temp_dst = 0.;
         a_solver_cg.solve(mf_elasticity_operator,temp_dst,temp_src, mf_gmg_preconditioner);
     }
     catch (std::exception &exc)
@@ -869,6 +825,7 @@ void AInvMatMFGMG<dim>::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) 
     }
 
     ChangeVectorTypes::copy_from_displacement_to_system_vector<double>(dst,temp_dst, displacement_to_system_dof_index_map);
+    dst.compress(VectorOperation::insert);
 
 }
 
@@ -884,7 +841,6 @@ void AInvMatMFGMG<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src)
     a_solver_cg.solve(mf_elasticity_operator,temp_dst,temp_src, mf_gmg_preconditioner);
     ChangeVectorTypes::copy_from_displacement_to_system_vector<double>(dst,temp_dst, displacement_to_system_dof_index_map);
 }
-\
 ///Change the solver tolerance if needed
 template<int dim>
 void AInvMatMFGMG<dim>::set_tol(double tol_in)
@@ -902,25 +858,33 @@ void AInvMatMFGMG<dim>::set_iter(unsigned int iterations_in)
 
 // ******************     GMATRIX     ***********************
 
-GMatrix::GMatrix(const LA::MPI::SparseMatrix &f_mat_in, LA::MPI::SparseMatrix &d_8_mat_in)
+GMatrix::GMatrix(const LA::MPI::SparseMatrix &f_mat_in, const LA::MPI::SparseMatrix &f_t_mat_in, LA::MPI::SparseMatrix &d_8_mat_in)
     :
       f_mat(f_mat_in),
+      f_t_mat(f_t_mat_in),
       d_8_mat(d_8_mat_in)
 {
 
 }
 
 void
-GMatrix::initialize(LA::MPI::Vector &exemplar_density_vector)
+GMatrix::initialize(LA::MPI::Vector &exemplar_density_vector, LA::MPI::SparseMatrix &d_m_inv_mat_in)
 {
     temp_vect_1 = exemplar_density_vector;
     temp_vect_2 = exemplar_density_vector;
+    temp_vect_1 = 0.;
+    temp_vect_2 = 0.;
+
+    d_m_inv_mat.copy_from(d_m_inv_mat_in);
 }
 
 
 void GMatrix::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
 {
-    f_mat.Tvmult(temp_vect_1,src);
+    temp_vect_1 = 0.;
+    temp_vect_2 = 0.;
+    dst = 0.;
+    f_t_mat.vmult(temp_vect_1,src);
     d_8_mat.vmult(temp_vect_2, temp_vect_1);
     f_mat.vmult(dst,temp_vect_2);
 }
@@ -929,7 +893,10 @@ void GMatrix::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
 
 void GMatrix::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
 {
-    f_mat.Tvmult(temp_vect_1,src);
+    temp_vect_1 = 0.;
+    temp_vect_2 = 0.;
+    dst = 0.;
+    f_t_mat.Tvmult(temp_vect_1,src);
     d_8_mat.vmult(temp_vect_2, temp_vect_1);
     f_mat.vmult(dst,temp_vect_2);
 }
@@ -953,7 +920,7 @@ HMatrix<dim>::HMatrix(LA::MPI::SparseMatrix &a_mat_in, const LA::MPI::SparseMatr
 
 template<int dim>
 void
-HMatrix<dim>::initialize(LA::MPI::Vector &exemplar_density_vector,  LA::MPI::Vector &exemplar_displacement_vector)
+HMatrix<dim>::initialize(LA::MPI::Vector &exemplar_density_vector,  LA::MPI::Vector &exemplar_displacement_vector, LA::MPI::SparseMatrix &d_m_inv_mat_in)
 {
     temp_vect_1 = exemplar_displacement_vector;
     temp_vect_2 = exemplar_displacement_vector;
@@ -962,6 +929,16 @@ HMatrix<dim>::initialize(LA::MPI::Vector &exemplar_density_vector,  LA::MPI::Vec
     temp_vect_5 = exemplar_density_vector;
     temp_vect_6 = exemplar_density_vector;
     temp_vect_7 = exemplar_density_vector;
+
+    temp_vect_1 = 0.;
+    temp_vect_2 = 0.;
+    temp_vect_3 = 0.;
+    temp_vect_4 = 0.;
+    temp_vect_5 = 0.;
+    temp_vect_6 = 0.;
+    temp_vect_7 = 0.;
+
+    d_m_inv_mat.copy_from(d_m_inv_mat_in);
 
 
 }
@@ -974,9 +951,6 @@ void HMatrix<dim>::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
         c_mat.vmult(temp_vect_1,src);
         e_mat.vmult(temp_vect_2,src);
 
-        SolverControl            solver_control_1(Input::a_inv_iterations, temp_vect_1.l2_norm()*1e-6);
-        SolverCG<LA::MPI::Vector> a_solver_cg_1(solver_control_1);
-
         try
         {
             a_inv_mf_gmg.vmult(temp_vect_3,temp_vect_1);
@@ -984,8 +958,6 @@ void HMatrix<dim>::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
         {
 
         }
-        SolverControl            solver_control_2(Input::a_inv_iterations, temp_vect_2.l2_norm()*1e-6);
-        SolverCG<LA::MPI::Vector> a_solver_cg_2(solver_control_2);
         try
         {
             a_inv_mf_gmg.vmult(temp_vect_4,temp_vect_2);
@@ -1015,8 +987,6 @@ void HMatrix<dim>::vmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) const
         dst =  temp_vect_7 - temp_vect_6 - temp_vect_5;
     }
 
-
-
 }
 
 
@@ -1028,8 +998,6 @@ void HMatrix<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) cons
         c_mat.vmult(temp_vect_1,src);
         e_mat.vmult(temp_vect_2,src);
 
-        // SolverControl            solver_control_1(Input::a_inv_iterations, temp_vect_1.l2_norm()*1e-6);
-        // SolverCG<LA::MPI::Vector> a_solver_cg_1(solver_control_1);
 
         try
         {
@@ -1039,8 +1007,6 @@ void HMatrix<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) cons
         {
 
         }
-        SolverControl            solver_control_2(Input::a_inv_iterations, temp_vect_2.l2_norm()*1e-6);
-        SolverCG<LA::MPI::Vector> a_solver_cg_2(solver_control_2);
         try
         {
             a_inv_mf_gmg.vmult(temp_vect_4,temp_vect_2);
@@ -1147,24 +1113,24 @@ void HMatrixDirect<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src
 
 // ******************     JinvMatrix     ***********************
 template<int dim>
-JinvMatrix<dim>::JinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in)
+JinvMatrix<dim>::JinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in)
     :
       h_mat(h_mat_in),
       g_mat(g_mat_in),
-      d_m_mat(d_m_mat_in),
-      d_m_inv_mat(d_m_inv_mat_in)
+      d_m_mat(d_m_mat_in)
 {
 
 }
 
 template<int dim>
 void
-JinvMatrix<dim>::initialize(LA::MPI::Vector &exemplar_density_vector)
+JinvMatrix<dim>::initialize(LA::MPI::Vector &exemplar_density_vector, LA::MPI::SparseMatrix &d_m_inv_mat_in)
 {
     temp_vect_1 = exemplar_density_vector;
     temp_vect_2 = exemplar_density_vector;
     temp_vect_3 = exemplar_density_vector;
     temp_vect_4 = exemplar_density_vector;
+    d_m_inv_mat.copy_from(d_m_inv_mat_in);
 
 }
 
@@ -1192,12 +1158,11 @@ void JinvMatrix<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) c
 
 // ******************     JinvMatrixPart     ***********************
 template<int dim>
-JinvMatrixPart<dim>::JinvMatrixPart(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in)
+JinvMatrixPart<dim>::JinvMatrixPart(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in)
     :
       h_mat(h_mat_in),
       g_mat(g_mat_in),
-      d_m_mat(d_m_mat_in),
-      d_m_inv_mat(d_m_inv_mat_in)
+      d_m_mat(d_m_mat_in)
 {
 }
 
@@ -1234,12 +1199,11 @@ void JinvMatrixPart<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &sr
 
 // ******************     JinvMatrixDirect     ***********************
 template<int dim>
-JinvMatrixDirect<dim>::JinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in)
+JinvMatrixDirect<dim>::JinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in)
     :
       h_mat(h_mat_in),
       g_mat(g_mat_in),
-      d_m_mat(d_m_mat_in),
-      d_m_inv_mat(d_m_inv_mat_in)
+      d_m_mat(d_m_mat_in)
 {
 
 }
@@ -1280,24 +1244,31 @@ void JinvMatrixDirect<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &
 
 // ******************     KinvMatrix     ***********************
 template<int dim>
-KinvMatrix<dim>::KinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in)
+KinvMatrix<dim>::KinvMatrix(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in)
     :
       h_mat(h_mat_in),
       g_mat(g_mat_in),
-      d_m_mat(d_m_mat_in),
-      d_m_inv_mat(d_m_inv_mat_in)
+      d_m_mat(d_m_mat_in)
 {
 
 }
 
 template<int dim>
 void
-KinvMatrix<dim>::initialize(LA::MPI::Vector &exemplar_density_vector)
+KinvMatrix<dim>::initialize(LA::MPI::Vector &exemplar_density_vector, LA::MPI::SparseMatrix &d_m_inv_mat_in)
 {
+
     temp_vect_1 = exemplar_density_vector;
     temp_vect_2 = exemplar_density_vector;
     temp_vect_3 = exemplar_density_vector;
     temp_vect_4 = exemplar_density_vector;
+
+    temp_vect_1 = 0.;
+    temp_vect_2 = 0.;
+    temp_vect_3 = 0.;
+    temp_vect_4 = 0.;
+
+    d_m_inv_mat.copy_from(d_m_inv_mat_in);
 
 }
 
@@ -1325,12 +1296,11 @@ void KinvMatrix<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &src) c
 
 // ******************     KinvMatrixPart    ***********************
 template<int dim>
-KinvMatrixPart<dim>::KinvMatrixPart(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in)
+KinvMatrixPart<dim>::KinvMatrixPart(HMatrix<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in)
     :
       h_mat(h_mat_in),
       g_mat(g_mat_in),
-      d_m_mat(d_m_mat_in),
-      d_m_inv_mat(d_m_inv_mat_in)
+      d_m_mat(d_m_mat_in)
 {
 
 }
@@ -1378,12 +1348,11 @@ void KinvMatrixPart<dim>::Tvmult(LA::MPI::Vector &dst, const LA::MPI::Vector &sr
 
 // ******************     KinvMatrixDirect     ***********************
 template<int dim>
-KinvMatrixDirect<dim>::KinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in, LA::MPI::SparseMatrix &d_m_inv_mat_in)
+KinvMatrixDirect<dim>::KinvMatrixDirect(HMatrixDirect<dim> &h_mat_in, GMatrix &g_mat_in, const LA::MPI::SparseMatrix &d_m_mat_in)
     :
       h_mat(h_mat_in),
       g_mat(g_mat_in),
-      d_m_mat(d_m_mat_in),
-      d_m_inv_mat(d_m_inv_mat_in)
+      d_m_mat(d_m_mat_in)
 {
 
 }

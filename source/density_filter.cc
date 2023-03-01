@@ -41,6 +41,7 @@ namespace SAND
         y_coord.resize(n_p);
         z_coord.resize(n_p);
         auto row_sum = z_coord;
+        auto row_sum_full = z_coord;
         cell_m.resize(n_p);
         x_coord_part.resize(n_p);
         y_coord_part.resize(n_p);
@@ -49,7 +50,7 @@ namespace SAND
 
         filter_dsp.reinit(dofs_per_block[0],
                           dofs_per_block[0]);
-        // filter_sparsity_pattern.copy_from(filter_dsp);
+        filter_sparsity_pattern.copy_from(filter_dsp);
 
         // const auto owned_dofs = dof_handler.locally_owned_dofs().get_view(0, dofs_per_block[0]);
 
@@ -66,8 +67,6 @@ namespace SAND
         //         filter_matrix.add(i[cell->get_fe().component_to_system_index(0, 0)], i[cell->get_fe().component_to_system_index(0, 0)], 1.0);
         //     }
         // }
-
-        pcout << "FILTER TO 1" << std::endl;
        
         std::set<unsigned int> neighbor_ids;
         std::set<typename DoFHandler<dim>::cell_iterator> cells_to_check;
@@ -89,7 +88,6 @@ namespace SAND
                 }
              }
          }
-        pcout << "FILTER TO 2" << std::endl;
         MPI_Allreduce(x_coord_part.data(), x_coord.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         MPI_Allreduce(y_coord_part.data(), y_coord.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         MPI_Allreduce(z_coord_part.data(), z_coord.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -106,12 +104,11 @@ namespace SAND
                 }
             }
         }
-        pcout << "FILTER TO 3" << std::endl;
         filter_sparsity_pattern.copy_from(filter_dsp);
-
-        const auto owned_dofs = dof_handler.locally_owned_dofs().get_view(0, dofs_per_block[0]);
+        const auto owned_dofs = dof_handler.locally_owned_dofs().get_view(4 * n_p, 5 * n_p);
 
         filter_matrix.reinit(owned_dofs, filter_sparsity_pattern, MPI_COMM_WORLD);
+        filter_matrix_transpose.reinit(owned_dofs, filter_sparsity_pattern, MPI_COMM_WORLD);
 
         /// adds values to the matrix corresponding to the max radius - distance
         for (const auto &cell : dof_handler.active_cell_iterators())
@@ -120,15 +117,16 @@ namespace SAND
             {
                 std::vector<unsigned int> i(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_indices(i);
+                auto cell_index = i[cell->get_fe().component_to_system_index(0, 0)];
                 double value_total = 0;
-                for (const auto &neighbor_cell_index : find_relevant_neighbors(i[cell->get_fe().component_to_system_index(0, 0)]))
+                for (const auto &neighbor_cell_index : find_relevant_neighbors(cell_index))
                 {
-                    double d_x = std::abs(x_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-x_coord[neighbor_cell_index]);
-                    double d_y = std::abs(y_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-y_coord[neighbor_cell_index]);
+                    double d_x = std::abs(x_coord[cell_index]-x_coord[neighbor_cell_index]);
+                    double d_y = std::abs(y_coord[cell_index]-y_coord[neighbor_cell_index]);
                     double d;
                     if (dim==3)
                     {
-                        double d_z = std::abs(z_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-z_coord[neighbor_cell_index]);
+                        double d_z = std::abs(z_coord[cell_index]-z_coord[neighbor_cell_index]);
                         d = std::pow(d_x*d_x + d_y*d_y + d_z*d_z , .5);
                     }
                     else
@@ -139,15 +137,26 @@ namespace SAND
                     double value = (Input::filter_r - d)*cell_m[neighbor_cell_index];
                     value_total += value;
                 }
-            
-                for (const auto &neighbor_cell_index : find_relevant_neighbors(i[cell->get_fe().component_to_system_index(0, 0)]))
+                row_sum[cell_index] = value_total;
+                
+            }
+        }
+        MPI_Allreduce(row_sum.data(), row_sum_full.data(), n_p, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        for (const auto &cell : dof_handler.active_cell_iterators())
+        {
+            if(cell->is_locally_owned())
+            {
+                std::vector<unsigned int> i(cell->get_fe().n_dofs_per_cell());
+                cell->get_dof_indices(i);
+                auto cell_index = i[cell->get_fe().component_to_system_index(0, 0)];
+                for (const auto &neighbor_cell_index : find_relevant_neighbors(cell_index))
                 {
-                    double d_x = std::abs(x_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-x_coord[neighbor_cell_index]);
-                    double d_y = std::abs(y_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-y_coord[neighbor_cell_index]);
+                    double d_x = std::abs(x_coord[cell_index]-x_coord[neighbor_cell_index]);
+                    double d_y = std::abs(y_coord[cell_index]-y_coord[neighbor_cell_index]);
                     double d;
                     if (dim==3)
                     {
-                        double d_z = std::abs(z_coord[i[cell->get_fe().component_to_system_index(0, 0)]]-z_coord[neighbor_cell_index]);
+                        double d_z = std::abs(z_coord[cell_index]-z_coord[neighbor_cell_index]);
                         d = std::pow(d_x*d_x + d_y*d_y + d_z*d_z , .5);
                     }
                     else
@@ -156,12 +165,25 @@ namespace SAND
                     }
                     ///value should be (max radius - distance between cells)*cell measure
                     double value = (Input::filter_r - d)*cell_m[neighbor_cell_index];
-                    filter_matrix.add(i[cell->get_fe().component_to_system_index(0, 0)], neighbor_cell_index, value/value_total);
+                    filter_matrix.set(cell_index, neighbor_cell_index, value/row_sum_full[cell_index]);
+                    filter_matrix_transpose.set(cell_index, neighbor_cell_index, value/row_sum_full[neighbor_cell_index]);
                 }
             }
         }
-        filter_matrix.compress(VectorOperation::add);
-        pcout << "FILTER TO 4" << std::endl;
+        double sum_sum = 0;
+        double x_sum = 0;
+        double y_sum = 0;
+        double z_sum = 0;
+        for (int i=0; i< row_sum_full.size(); i++)
+        {
+            sum_sum += std::abs(row_sum_full[i]);
+            x_sum += std::abs(x_coord[i]);
+            y_sum += std::abs(y_coord[i]);
+            z_sum += std::abs(z_coord[i]);
+        }
+        filter_matrix.compress(VectorOperation::insert);
+        filter_matrix_transpose.compress(VectorOperation::insert);
+
         ///here we normalize the filter so it computes an average. Sum of values in a row should be 1
         // for (const auto &cell : dof_handler.active_cell_iterators())
         // {
@@ -185,6 +207,21 @@ namespace SAND
         //     }
         // }
         // pcout << "FILTER TO 5" << std::endl;
+        // LA::MPI::Vector test_density_start;
+        // test_density_start.reinit(local_owned, mpi_communicator);
+        // LA::MPI::Vector test_density_end;
+        // test_density_end.reinit(local_owned, mpi_communicator);
+        // test_density_end = 0.;
+        // for (int i = 0; i<n_p; i++)
+        // {
+        //     if (test_density_start.in_local_range(i))
+        //     {
+        //         test_density_start[i] = i;
+        //     }
+        // }
+        // test_density_start.compress(VectorOperation::insert);
+        // filter_matrix.vmult(test_density_end,test_density_start);
+
     }
 
     ///This function finds which neighbors are within a certain radius of the initial cell.

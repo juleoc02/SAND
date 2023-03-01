@@ -23,10 +23,10 @@ namespace SAND {
 
         //nonlinear algorithm options
         constexpr double initial_barrier_size = 25;
-        constexpr double min_barrier_size = 0;
+        constexpr double min_barrier_size = 1e-12;
 
-        constexpr double fraction_to_boundary = .9;
-        constexpr unsigned int max_steps=2;
+        constexpr double fraction_to_boundary = .7;
+        constexpr unsigned int max_steps=100;
 
         constexpr unsigned int barrier_reduction=BarrierOptions::loqo;
         constexpr double required_norm = .0001;
@@ -53,12 +53,12 @@ namespace SAND {
         // constexpr double a_inv_iterations = 5;
         // constexpr double k_inv_iterations = 30;
 
-        constexpr double a_rel_tol = 0.0;
-        constexpr double k_rel_tol = 0.0;
+        constexpr double a_rel_tol = 1e-12;
+        constexpr double k_rel_tol = 1e-12;
 
         //Material Options
-        constexpr double material_lambda = 1;
-        constexpr double material_mu = 1;
+        constexpr double material_lambda = 1.;
+        constexpr double material_mu = 1.;
     }
 }
 #endif //SAND_INPUT_INFORMATION_H
